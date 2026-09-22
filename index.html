@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comprehensive ISO 1219 & Cutaway Fluid Power Simulator v4</title>
+    <title>Master Electrical LAD & ISO 1219 Fluid Power Simulator v5</title>
     <style>
         :root {
             --bg-dark: #070a12;
             --panel-bg: #111827;
-            --panel-border: #1f2937;
+            --panel-border: #1f293d;
             --accent-blue: #38bdf8;
             --accent-green: #10b981;
             --accent-red: #ef4444;
             --accent-yellow: #facc15;
-            --accent-cyan: #06b6d4;
             --accent-orange: #f97316;
-            --accent-purple: #c084fc;
-            --text-main: #f9fafb;
-            --text-muted: #9ca3af;
+            --accent-purple: #a855f7;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
         }
 
         * {
@@ -38,7 +37,7 @@
 
         header {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
-            padding: 0.8rem 1.5rem;
+            padding: 0.85rem 1.5rem;
             border-bottom: 2px solid var(--panel-border);
             display: flex;
             justify-content: space-between;
@@ -60,7 +59,7 @@
             border: 1px solid var(--accent-blue);
             color: var(--accent-blue);
             font-size: 0.72rem;
-            padding: 0.2rem 0.6rem;
+            padding: 0.2rem 0.55rem;
             border-radius: 1rem;
             font-weight: 600;
         }
@@ -93,13 +92,13 @@
 
         main {
             display: grid;
-            grid-template-columns: 380px 1fr 400px;
+            grid-template-columns: 370px 1fr 380px;
             gap: 1rem;
             padding: 1rem;
             flex: 1;
         }
 
-        @media (max-width: 1450px) {
+        @media (max-width: 1400px) {
             main {
                 grid-template-columns: 1fr;
             }
@@ -112,16 +111,16 @@
             padding: 1.1rem;
             display: flex;
             flex-direction: column;
-            gap: 1.1rem;
+            gap: 1rem;
             max-height: 87vh;
             overflow-y: auto;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.4);
         }
 
         .panel h2 {
             font-size: 0.98rem;
             border-bottom: 2px solid var(--panel-border);
-            padding-bottom: 0.45rem;
+            padding-bottom: 0.4rem;
             color: var(--accent-blue);
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -133,9 +132,9 @@
         .control-block {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.45rem;
             background: #0b1120;
-            padding: 0.85rem;
+            padding: 0.8rem;
             border-radius: 0.5rem;
             border: 1px solid rgba(255,255,255,0.05);
         }
@@ -160,11 +159,11 @@
         .btn-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 0.5rem;
+            gap: 0.45rem;
         }
 
         button.sol-btn {
-            padding: 0.7rem 0.5rem;
+            padding: 0.65rem 0.5rem;
             border-radius: 0.4rem;
             border: 1px solid var(--panel-border);
             background: #1e293b;
@@ -193,7 +192,7 @@
 
         .canvas-area {
             position: relative;
-            background: #030712;
+            background: #050811;
             border-radius: 0.75rem;
             border: 1px solid var(--panel-border);
             display: flex;
@@ -201,50 +200,48 @@
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.85);
         }
 
         canvas {
             width: 100%;
-            height: 660px;
+            height: 650px;
             display: block;
         }
 
         .legend-bar {
             position: absolute;
-            bottom: 0.75rem;
+            bottom: 0.85rem;
             display: flex;
-            gap: 0.85rem;
-            background: rgba(15, 23, 42, 0.94);
-            padding: 0.5rem 1rem;
+            gap: 1rem;
+            background: rgba(15, 23, 42, 0.92);
+            padding: 0.5rem 1.1rem;
             border-radius: 2rem;
             border: 1px solid var(--panel-border);
             backdrop-filter: blur(8px);
-            flex-wrap: wrap;
-            justify-content: center;
         }
 
         .legend-item {
             display: flex;
             align-items: center;
             gap: 0.35rem;
-            font-size: 0.74rem;
+            font-size: 0.75rem;
             font-weight: 600;
         }
 
         .dot-sample {
-            width: 9px;
-            height: 9px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
         }
 
         .theory-box {
             background: #0b1120;
-            padding: 1rem;
+            padding: 0.9rem;
             border-radius: 0.5rem;
             border-left: 4px solid var(--accent-blue);
-            font-size: 0.84rem;
-            line-height: 1.6;
+            font-size: 0.83rem;
+            line-height: 1.55;
         }
 
         .theory-box strong {
@@ -254,8 +251,8 @@
         .checklist-item {
             display: flex;
             align-items: flex-start;
-            gap: 0.5rem;
-            font-size: 0.81rem;
+            gap: 0.45rem;
+            font-size: 0.8rem;
             color: #cbd5e1;
             margin-bottom: 0.45rem;
             line-height: 1.4;
@@ -268,9 +265,9 @@
 
         footer {
             background: #0f172a;
-            padding: 0.75rem;
+            padding: 0.65rem;
             text-align: center;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: var(--text-muted);
             border-top: 1px solid var(--panel-border);
         }
@@ -279,99 +276,74 @@
 <body>
 
     <header>
-        <h1>⚡ ISO 1219 Fluid Power Master Simulator <span class="tag-badge">v4 Master Library</span></h1>
+        <h1>⚡ Electrical LAD Fluid Power Simulator <span class="tag-badge">Master Edition v5 (ISO 1219)</span></h1>
         
         <div class="view-toggle-group">
-            <button class="view-btn active" id="cutawayViewBtn" onclick="setViewMode('cutaway')">🎬 Component Cutaway Mechanics</button>
-            <button class="view-btn" id="isoViewBtn" onclick="setViewMode('iso')">📐 ISO 1219 Graphic Schematic</button>
+            <button class="view-btn active" id="cutawayViewBtn" onclick="setViewMode('cutaway')">🎬 True Cutaway Mechanics</button>
+            <button class="view-btn" id="isoViewBtn" onclick="setViewMode('iso')">📐 ISO 1219 Graphic Symbol</button>
         </div>
     </header>
 
     <main>
         <!-- Left Column: Component & Actuation Controls -->
         <div class="panel">
-            <h2>1. ISO 1219 Component Select</h2>
+            <h2>1. Component & Circuit Select</h2>
             <div class="control-block">
-                <label for="circuitSelect">Select Component / Assembly Configuration:</label>
+                <label for="circuitSelect">Select Component / Assembly:</label>
                 <select id="circuitSelect" onchange="changeCircuit()">
-                    <optgroup label="1. Full Circuit Assemblies">
-                        <option value="full_43_circuit">Circuit 1: HPU + 4/3 DCV + Double-Acting Cylinder + PRV</option>
-                        <option value="pneumatic_frl_circuit">Pneumatic FRL Circuit: Compressor + Receiver + FRL + 5/2 Valve + Air Cylinder</option>
+                    <optgroup label="Complete Circuits & Assemblies">
+                        <option value="full_43_circuit">Circuit 1: Full HPU (Pump, PRV, 4/3 DCV, Cylinder)</option>
+                        <option value="pneumatic_frl">Pneumatic FRL Trio + 5/2 DCV + Air Cylinder</option>
                     </optgroup>
-                    <optgroup label="2. Directional Valves & Spool Centers">
-                        <option value="dcv_22_nc_no">2/2 Directional Valve (Normally Closed vs Normally Open)</option>
-                        <option value="dcv_32_nc_no">3/2 Directional Valve (Solenoid / Spring Return)</option>
-                        <option value="dcv_42_sol">4/2 Solenoid-Spring & 4/2 Detented Impulse DCV</option>
-                        <option value="dcv_43_closed">4/3 Closed Center Spool (All Ports P,T,A,B Blocked)</option>
-                        <option value="dcv_43_tandem">4/3 Tandem Center Spool (P->T Unloads Pump, A&B Blocked)</option>
-                        <option value="dcv_43_open">4/3 Open (H) Center Spool (P,T,A,B All Vented to Tank)</option>
-                        <option value="dcv_43_float">4/3 Float Center Spool (P Blocked, A&B Vented to Tank)</option>
-                        <option value="dcv_pilot_2stage">Electro-Hydraulic 2-Stage Pilot DCV (External X Supply & Y Drain)</option>
-                        <option value="dcv_proportional">Proportional DCV (Integral Amplifier & Stroke Transducer)</option>
-                        <option value="logic_cartridge_22">2/2 Slip-in Logic Cartridge Valve (Poppet Area Ratio &lt; 0.5)</option>
-                        <option value="multiway_ball_valves">Multi-way Ball Valves (2-Way, 3-Way L, 3-Way T, 4-Way X)</option>
+                    <optgroup label="Actuators & Motors">
+                        <option value="telescopic_cylinder">Telescopic Multi-Stage Cylinder (3-Stage Extension)</option>
+                        <option value="double_rod_cylinder">Double-Rod (Through-Rod) Equal Area Actuator</option>
+                        <option value="single_acting_spring">Single-Acting Spring-Return Ram Cylinder</option>
+                        <option value="cushioned_cylinder">End-Cushioned Double-Acting Cylinder</option>
+                        <option value="rodless_cylinder">Rodless Band Cylinder (Magnetic Carriage)</option>
+                        <option value="hydraulic_motor">Bidirectional Rotary Motor with Case Drain</option>
                     </optgroup>
-                    <optgroup label="3. Pressure Control Valves">
-                        <option value="prv_direct">Pressure Relief Valve (Direct-Operated Single Stage)</option>
-                        <option value="prv_pilot">Two-Stage Pilot-Operated Pressure Relief Valve</option>
-                        <option value="prv_proportional">Proportional Relief Valve with Position Transducer</option>
-                        <option value="pressure_reducing_direct">Pressure Reducing Valve (Direct-Operated Normally Open)</option>
-                        <option value="pressure_reducing_3way">3-Way Reducing / Relieving Valve</option>
-                        <option value="sequence_valve">Direct-Operated Sequence Valve (External Drain)</option>
-                        <option value="counterbalance_load">Counterbalance Valve (Overhung Load & Reverse Check Bypass)</option>
+                    <optgroup label="Directional Control Valves">
+                        <option value="dcv_spool_variants">4/3 DCV Spool Types (Closed, Tandem, Open, Float)</option>
+                        <option value="proportional_dcv">Proportional DCV with LVDT Feedback & V-Notches</option>
+                        <option value="two_stage_dcv">Electro-Hydraulic Two-Stage Solenoid Pilot DCV</option>
+                        <option value="slip_in_cartridge">DIN 24342 2/2 Slip-In Logic Cartridge Element</option>
                     </optgroup>
-                    <optgroup label="4. Flow Control & Non-Return Valves">
-                        <option value="check_valves_basic">Standard Check Valves (Unsprung vs Heavy Spring Rated)</option>
-                        <option value="po_check_open">Pilot-to-Open Check Valve (PO Check - External Pilot Unseats)</option>
-                        <option value="po_check_vented">Vented 4-Port PO Check Valve (External Venting)</option>
-                        <option value="po_check_close">Pilot-to-Close Check Valve (Pilot Signal Locks Seat)</option>
-                        <option value="flow_control_meter">Variable Flow Control Needle Valve (Meter-In vs Meter-Out)</option>
-                        <option value="flow_control_pc_tc">Pressure & Temperature Compensated Flow Regulator</option>
-                        <option value="flow_fuse">Inline Flow Fuse (Automatic High Delta-P Velocity Shutoff)</option>
-                        <option value="manual_isolation">Manual Isolation / Shut-off Valve (Globe, Gate, Ball)</option>
+                    <optgroup label="Pressure Control Valves">
+                        <option value="prv_direct">Pressure Relief Valve (Direct-Acting Poppet)</option>
+                        <option value="pressure_reducing">3-Way Pressure Reducing Valve (Normally Open)</option>
+                        <option value="sequence_valve">Sequence Valve with External Drain Y & Check Bypass</option>
+                        <option value="counterbalance_load">Counterbalance Valve (Overhung Load Control)</option>
                     </optgroup>
-                    <optgroup label="5. Actuators & Motors">
-                        <option value="cylinder_single_acting">Single-Acting Cylinder (Spring Return / Spring Extend / Plunger Ram)</option>
-                        <option value="cylinder_double_acting">Double-Acting Cylinder (Single Rod)</option>
-                        <option value="cylinder_cushioned">Double-Acting Cylinder with Adjustable End Cushioning</option>
-                        <option value="cylinder_double_rod">Double-Rod (Through-Rod) Equal Area Cylinder</option>
-                        <option value="cylinder_telescopic">Telescopic Multi-Stage Actuator</option>
-                        <option value="cylinder_rodless">Rodless Band Cylinder</option>
-                        <option value="rotary_actuator">Limited Rotation Angle Rotary Actuator</option>
-                        <option value="hydraulic_motor">Bidirectional Hydraulic Motor (Fixed vs Variable Displacement)</option>
+                    <optgroup label="Flow Control & Non-Return">
+                        <option value="flow_control_meter">Throttle Flow Control with Bypass Check (Meter-In/Out)</option>
+                        <option value="po_check_valve">Pilot-Operated Check Valve (PO-Check Pilot-to-Open)</option>
+                        <option value="flow_fuse">Automatic Flow Fuse (Emergency Over-Flow Shutoff)</option>
                     </optgroup>
-                    <optgroup label="6. Pumps, Storage & Conditioning">
-                        <option value="pump_fixed_var">Fixed Displacement vs Variable Pressure-Compensated Pump</option>
-                        <option value="hand_pump_lever">Manual Lever Hand Pump with Dual Check Valves</option>
-                        <option value="accumulators_all">Accumulators (Gas-Charged Bladder, Spring-Loaded, Weighted)</option>
-                        <option value="fluid_conditioning_coolers">Fluid Conditioning: Air/Liquid Coolers, Heater, Optical Clogging Filter</option>
-                        <option value="reservoirs_and_couplings">Vented/Pressurized Reservoirs, Quick Disconnects & Rotary Union</option>
-                    </optgroup>
-                    <optgroup label="7. Instrumentation & Control Switches">
-                        <option value="pressure_switch_transducer">Adjustable Pressure Switch (SPDT) & Pressure Transducer (PT)</option>
-                        <option value="flowmeter_temp_switch">Inline Flowmeter & Temperature Switch</option>
-                        <option value="proximity_limit_switch">Physical Limit Switch & Magnetic Proximity Sensor</option>
+                    <optgroup label="Pumps & Fluid Conditioning">
+                        <option value="swashplate_pump">Swashplate Variable Displacement Axial Piston Pump</option>
+                        <option value="accumulator_bladder">Gas-Charged Bladder Accumulator (Energy Storage)</option>
                     </optgroup>
                 </select>
             </div>
 
-            <h2>2. Interactive Actuation</h2>
+            <h2>2. Interactive Controls</h2>
             <div id="dynamicActuation" class="control-block">
                 <!-- Injected via JavaScript -->
             </div>
 
-            <h2>3. Flow & Pressure Parameters</h2>
+            <h2>3. Flow & Pressure Tuning</h2>
             <div class="control-block">
                 <label for="speedRange">Falstad Dot Velocity (Flow Rate GPM): <span id="speedTxt">100%</span></label>
                 <input type="range" id="speedRange" min="20" max="250" value="100" oninput="updateSpeed()">
             </div>
             <div class="control-block">
                 <label for="pressureRange">System Supply Pressure (P): <span id="pressTxt">1000 PSI</span></label>
-                <input type="range" id="pressureRange" min="200" max="2000" value="1000" step="50" oninput="updatePressure()">
+                <input type="range" id="pressureRange" min="200" max="2500" value="1000" step="50" oninput="updatePressure()">
             </div>
-            <div class="control-block">
-                <label for="prvRange">Relief / Valve Setpoint: <span id="prvTxt">1200 PSI</span></label>
-                <input type="range" id="prvRange" min="500" max="2500" value="1200" step="50" oninput="updatePRV()">
+            <div class="control-block" id="secondarySliderBlock">
+                <label for="secondaryRange" id="secondaryLabel">Relief Valve Setting (PRV): <span id="secondaryTxt">1200 PSI</span></label>
+                <input type="range" id="secondaryRange" min="500" max="3000" value="1200" step="50" oninput="updateSecondary()">
             </div>
         </div>
 
@@ -385,26 +357,22 @@
                 </div>
                 <div class="legend-item">
                     <div class="dot-sample" style="background: var(--accent-blue);"></div>
-                    <span>Tank Return (Blue)</span>
+                    <span>Tank/Exhaust Return (Blue)</span>
                 </div>
                 <div class="legend-item">
                     <div class="dot-sample" style="background: var(--accent-yellow);"></div>
-                    <span>Metered / Throttled (Yellow)</span>
+                    <span>Metered Flow (Yellow)</span>
                 </div>
                 <div class="legend-item">
                     <div class="dot-sample" style="background: var(--accent-green);"></div>
                     <span>Suction Line (Green)</span>
                 </div>
-                <div class="legend-item">
-                    <div class="dot-sample" style="background: var(--accent-cyan);"></div>
-                    <span>Pilot / Drain Signal (Cyan)</span>
-                </div>
             </div>
         </div>
 
-        <!-- Right Column: Educational Analysis Guide -->
+        <!-- Right Column: Educational Analysis -->
         <div class="panel">
-            <h2>Oil / Fluid Journey Analysis</h2>
+            <h2>Oil Journey & Mechanics Analysis</h2>
             <div class="theory-box" id="theoryText">
                 <!-- Updated dynamically -->
             </div>
@@ -417,7 +385,7 @@
     </main>
 
     <footer>
-        ISO 1219 Fluid Power Master Interactive Learning System | Electrical LAD Architecture
+        ISO 1219 Fluid Power Master Simulator v5 | Electrical LAD Channel Visual Mechanics
     </footer>
 
     <script>
@@ -431,17 +399,17 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
+        let currentMode = 'cutaway'; // 'cutaway' or 'iso'
         let currentCircuit = 'full_43_circuit';
-        let viewMode = 'cutaway'; // 'cutaway' or 'iso'
-        let actState = 0; // 0=De-energized/Neutral, 1=Sol A/Extend/Pos 1, 2=Sol B/Retract/Pos 2
-        let subState = 0; // secondary option index
+        let state = 0; 
+        let spoolCenterType = 'closed'; // 'closed', 'tandem', 'open', 'float'
         let speedMult = 1.0;
-        let sysPressure = 1000;
-        let prvSetting = 1200;
+        let systemPressure = 1000;
+        let secondaryVal = 1200;
         let animOffset = 0;
 
         function setViewMode(mode) {
-            viewMode = mode;
+            currentMode = mode;
             document.getElementById('cutawayViewBtn').classList.toggle('active', mode === 'cutaway');
             document.getElementById('isoViewBtn').classList.toggle('active', mode === 'iso');
         }
@@ -453,191 +421,246 @@
         }
 
         function updatePressure() {
-            sysPressure = parseInt(document.getElementById('pressureRange').value);
-            document.getElementById('pressTxt').innerText = sysPressure + ' PSI';
+            systemPressure = parseInt(document.getElementById('pressureRange').value);
+            document.getElementById('pressTxt').innerText = systemPressure + ' PSI';
+            updateTheory();
         }
 
-        function updatePRV() {
-            prvSetting = parseInt(document.getElementById('prvRange').value);
-            document.getElementById('prvTxt').innerText = prvSetting + ' PSI';
+        function updateSecondary() {
+            secondaryVal = parseInt(document.getElementById('secondaryRange').value);
+            document.getElementById('secondaryTxt').innerText = secondaryVal + ' PSI';
+            updateTheory();
         }
 
         function changeCircuit() {
             currentCircuit = document.getElementById('circuitSelect').value;
-            actState = 0;
-            subState = 0;
-            buildActuationControls();
-            updateTheoryAndChecklist();
+            state = 0;
+            buildControls();
+            updateTheory();
         }
 
-        function buildActuationControls() {
+        function buildControls() {
             const container = document.getElementById('dynamicActuation');
+            const secBlock = document.getElementById('secondarySliderBlock');
+            const secLabel = document.getElementById('secondaryLabel');
             container.innerHTML = '';
 
-            if (currentCircuit === 'full_43_circuit' || currentCircuit === 'dcv_43_closed' || 
-                currentCircuit === 'dcv_43_tandem' || currentCircuit === 'dcv_43_open' || currentCircuit === 'dcv_43_float') {
+            secBlock.style.display = 'flex';
+            secLabel.innerHTML = 'Relief Valve Setting (PRV): <span id="secondaryTxt">' + secondaryVal + ' PSI</span>';
+
+            if (currentCircuit === 'full_43_circuit' || currentCircuit === 'dcv_spool_variants') {
+                if (currentCircuit === 'dcv_spool_variants') {
+                    const selLabel = document.createElement('label');
+                    selLabel.innerText = 'Select Center Spool Type:';
+                    const sel = document.createElement('select');
+                    sel.innerHTML = `
+                        <option value="closed">Closed Center (P, T, A, B Blocked)</option>
+                        <option value="tandem">Tandem Center (P->T Unloads, A,B Blocked)</option>
+                        <option value="open">Open/H-Center (All P,T,A,B Connected)</option>
+                        <option value="float">Float Center (P Blocked, A,B->T Vent)</option>
+                    `;
+                    sel.value = spoolCenterType;
+                    sel.onchange = (e) => {
+                        spoolCenterType = e.target.value;
+                        updateTheory();
+                    };
+                    container.appendChild(selLabel);
+                    container.appendChild(sel);
+                }
+
                 const grid = document.createElement('div');
                 grid.className = 'btn-grid';
-
-                const btnA = document.createElement('button');
-                btnA.className = 'sol-btn' + (actState === 1 ? ' active' : '');
-                btnA.innerHTML = '<span>⚡ Solenoid A</span><small>(EXTEND / Pos A)</small>';
-                btnA.onclick = () => {
-                    actState = actState === 1 ? 0 : 1;
-                    buildActuationControls();
-                    updateTheoryAndChecklist();
-                };
-
-                const btnB = document.createElement('button');
-                btnB.className = 'sol-btn' + (actState === 2 ? ' active' : '');
-                btnB.innerHTML = '<span>⚡ Solenoid B</span><small>(RETRACT / Pos B)</small>';
-                btnB.onclick = () => {
-                    actState = actState === 2 ? 0 : 2;
-                    buildActuationControls();
-                    updateTheoryAndChecklist();
-                };
-
-                grid.appendChild(btnA);
-                grid.appendChild(btnB);
+                ['Solenoid A (Ext)', 'Center (De-energized)', 'Solenoid B (Ret)'].forEach((lbl, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'sol-btn' + (state === idx ? ' active' : '');
+                    btn.innerText = lbl;
+                    btn.onclick = () => {
+                        state = idx;
+                        buildControls();
+                        updateTheory();
+                    };
+                    grid.appendChild(btn);
+                });
                 container.appendChild(grid);
-            } else if (currentCircuit === 'pneumatic_frl_circuit') {
-                const btn = document.createElement('button');
-                btn.className = 'sol-btn' + (actState === 1 ? ' active' : '');
-                btn.innerHTML = '<span>💨 Toggle 5/2 Valve Solenoid</span><small>' + (actState === 1 ? 'ENERGIZED (Advance)' : 'DE-ENERGIZED (Return)') + '</small>';
-                btn.onclick = () => {
-                    actState = actState === 1 ? 0 : 1;
-                    buildActuationControls();
-                    updateTheoryAndChecklist();
-                };
-                container.appendChild(btn);
-            } else if (currentCircuit === 'dcv_22_nc_no' || currentCircuit === 'dcv_32_nc_no' || currentCircuit === 'dcv_42_sol') {
-                const btn = document.createElement('button');
-                btn.className = 'sol-btn' + (actState === 1 ? ' active' : '');
-                btn.innerHTML = '<span>⚡ Toggle Solenoid</span><small>' + (actState === 1 ? 'ENERGIZED (shifted)' : 'DE-ENERGIZED (spring return)') + '</small>';
-                btn.onclick = () => {
-                    actState = actState === 1 ? 0 : 1;
-                    buildActuationControls();
-                    updateTheoryAndChecklist();
-                };
-                container.appendChild(btn);
+            } else if (currentCircuit === 'telescopic_cylinder') {
+                secBlock.style.display = 'none';
+                const grid = document.createElement('div');
+                grid.className = 'btn-grid';
+                ['Extend Multi-Stage', 'Hold Position', 'Retract Stages'].forEach((lbl, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'sol-btn' + (state === idx ? ' active' : '');
+                    btn.innerText = lbl;
+                    btn.onclick = () => {
+                        state = idx;
+                        buildControls();
+                        updateTheory();
+                    };
+                    grid.appendChild(btn);
+                });
+                container.appendChild(grid);
+            } else if (currentCircuit === 'swashplate_pump') {
+                secLabel.innerHTML = 'Swashplate Angle: <span id="secondaryTxt">' + secondaryVal + '°</span>';
+                document.getElementById('secondaryRange').min = '0';
+                document.getElementById('secondaryRange').max = '30';
+                document.getElementById('secondaryRange').value = '18';
+                secondaryVal = 18;
+                document.getElementById('secondaryTxt').innerText = '18°';
 
-                const subSelect = document.createElement('select');
-                subSelect.style.marginTop = '0.5rem';
-                subSelect.innerHTML = currentCircuit === 'dcv_22_nc_no' ? 
-                    '<option value="0">Normally Closed (NC)</option><option value="1">Normally Open (NO)</option>' :
-                    currentCircuit === 'dcv_32_nc_no' ?
-                    '<option value="0">3/2 Normally Closed</option><option value="1">3/2 Normally Open</option>' :
-                    '<option value="0">4/2 Spring Offset</option><option value="1">4/2 Detented Double Solenoid</option>';
-                subSelect.onchange = (e) => {
-                    subState = parseInt(e.target.value);
-                    updateTheoryAndChecklist();
-                };
-                container.appendChild(subSelect);
-            } else if (currentCircuit === 'dcv_pilot_2stage' || currentCircuit === 'dcv_proportional' || currentCircuit === 'logic_cartridge_22') {
                 const btn = document.createElement('button');
-                btn.className = 'sol-btn' + (actState === 1 ? ' active' : '');
-                btn.innerHTML = '<span>⚡ Pilot / Control Signal</span><small>' + (actState === 1 ? 'SIGNAL ACTIVE' : 'INACTIVE') + '</small>';
+                btn.className = 'sol-btn' + (state === 1 ? ' active' : '');
+                btn.innerText = state === 1 ? 'Pump Rotating (ON)' : 'Start Pump Rotation';
                 btn.onclick = () => {
-                    actState = actState === 1 ? 0 : 1;
-                    buildActuationControls();
-                    updateTheoryAndChecklist();
+                    state = state === 1 ? 0 : 1;
+                    buildControls();
+                    updateTheory();
                 };
                 container.appendChild(btn);
-            } else if (currentCircuit.startsWith('prv_') || currentCircuit.startsWith('pressure_reducing_') || currentCircuit === 'sequence_valve' || currentCircuit === 'counterbalance_load') {
-                const btn = document.createElement('button');
-                btn.className = 'sol-btn' + (actState === 1 ? ' active' : '');
-                btn.innerHTML = '<span>💥 Simulate Pressure Surge / Actuation</span><small>' + (actState === 1 ? 'OVERPRESSURE / PILOT OPEN' : 'NORMAL PRESSURE') + '</small>';
-                btn.onclick = () => {
-                    actState = actState === 1 ? 0 : 1;
-                    buildActuationControls();
-                    updateTheoryAndChecklist();
-                };
-                container.appendChild(btn);
-            } else if (currentCircuit.startsWith('po_check_') || currentCircuit === 'check_valves_basic') {
-                const btn = document.createElement('button');
-                btn.className = 'sol-btn' + (actState === 1 ? ' active' : '');
-                btn.innerHTML = '<span>🔹 Pilot Pressure Signal</span><small>' + (actState === 1 ? 'PILOT PRESSURIZED' : 'NO PILOT') + '</small>';
-                btn.onclick = () => {
-                    actState = actState === 1 ? 0 : 1;
-                    buildActuationControls();
-                    updateTheoryAndChecklist();
-                };
-                container.appendChild(btn);
+            } else if (currentCircuit === 'double_rod_cylinder') {
+                secBlock.style.display = 'none';
+                const grid = document.createElement('div');
+                grid.className = 'btn-grid';
+                ['Extend Right (P -> Left)', 'Hold Position', 'Extend Left (P -> Right)'].forEach((lbl, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'sol-btn' + (state === idx ? ' active' : '');
+                    btn.innerText = lbl;
+                    btn.onclick = () => {
+                        state = idx;
+                        buildControls();
+                        updateTheory();
+                    };
+                    grid.appendChild(btn);
+                });
+                container.appendChild(grid);
+            } else if (currentCircuit === 'single_acting_spring') {
+                secBlock.style.display = 'none';
+                const grid = document.createElement('div');
+                grid.className = 'btn-grid';
+                ['Pressurize (Extend)', 'Venting (Spring Retract)'].forEach((lbl, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'sol-btn' + (state === idx ? ' active' : '');
+                    btn.innerText = lbl;
+                    btn.onclick = () => {
+                        state = idx;
+                        buildControls();
+                        updateTheory();
+                    };
+                    grid.appendChild(btn);
+                });
+                container.appendChild(grid);
+            } else if (currentCircuit === 'pneumatic_frl') {
+                secBlock.style.display = 'none';
+                const grid = document.createElement('div');
+                grid.className = 'btn-grid';
+                ['Air Supply ON (Extend)', 'Air Valve Shift (Retract)'].forEach((lbl, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'sol-btn' + (state === idx ? ' active' : '');
+                    btn.innerText = lbl;
+                    btn.onclick = () => {
+                        state = idx;
+                        buildControls();
+                        updateTheory();
+                    };
+                    grid.appendChild(btn);
+                });
+                container.appendChild(grid);
+            } else if (currentCircuit === 'accumulator_bladder') {
+                secLabel.innerHTML = 'Gas Charge Pressure: <span id="secondaryTxt">' + secondaryVal + ' PSI</span>';
+                document.getElementById('secondaryRange').min = '200';
+                document.getElementById('secondaryRange').max = '2000';
+                document.getElementById('secondaryRange').value = '800';
+                secondaryVal = 800;
+                document.getElementById('secondaryTxt').innerText = '800 PSI';
+
+                const grid = document.createElement('div');
+                grid.className = 'btn-grid';
+                ['Charge Accumulator (P > Gas)', 'Discharge (System Pressure Drop)'].forEach((lbl, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'sol-btn' + (state === idx ? ' active' : '');
+                    btn.innerText = lbl;
+                    btn.onclick = () => {
+                        state = idx;
+                        buildControls();
+                        updateTheory();
+                    };
+                    grid.appendChild(btn);
+                });
+                container.appendChild(grid);
             } else {
-                const btn = document.createElement('button');
-                btn.className = 'sol-btn' + (actState === 1 ? ' active' : '');
-                btn.innerHTML = '<span>🔄 Toggle Component State</span><small>' + (actState === 1 ? 'STATE 2 / ACTIVE' : 'STATE 1 / NORMAL') + '</small>';
-                btn.onclick = () => {
-                    actState = actState === 1 ? 0 : 1;
-                    buildActuationControls();
-                    updateTheoryAndChecklist();
-                };
-                container.appendChild(btn);
+                const grid = document.createElement('div');
+                grid.className = 'btn-grid';
+                ['State 1 / Forward', 'State 2 / Reverse'].forEach((lbl, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'sol-btn' + (state === idx ? ' active' : '');
+                    btn.innerText = lbl;
+                    btn.onclick = () => {
+                        state = idx;
+                        buildControls();
+                        updateTheory();
+                    };
+                    grid.appendChild(btn);
+                });
+                container.appendChild(grid);
             }
         }
 
-        function updateTheoryAndChecklist() {
-            const theory = document.getElementById('theoryText');
-            const checklist = document.getElementById('checklistContainer');
+        function updateTheory() {
+            const box = document.getElementById('theoryText');
+            const chk = document.getElementById('checklistContainer');
 
             if (currentCircuit === 'full_43_circuit') {
-                theory.innerHTML = `<strong>Electrical LAD Circuit 1 Analysis:</strong><br>` +
-                    (actState === 0 ? `Center Position (Neutral). Pump sends oil to 4/3 DCV. Since ports A & B are blocked, oil hits resistance. System pressure climbs to ${prvSetting} PSI until the <strong>Pressure Relief Valve (PRV)</strong> cracks open, diverting oil safely back to the reservoir (Green/Blue line).` :
-                     actState === 1 ? `Solenoid A Energized. Valve spool shifts left. High pressure oil routes from <strong>P to Port A</strong> (Red), entering the cylinder cap end. Piston extends forward. Returning oil from rod end exhausts via <strong>Port B to Tank (T)</strong>.` :
-                     `Solenoid B Energized. Valve spool shifts right. High pressure oil routes from <strong>P to Port B</strong> (Red), entering the cylinder rod end. Piston retracts back. Cap end oil drains back via <strong>Port A to Tank (T)</strong>.`);
-
-                checklist.innerHTML = `
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>Suction line (Green) feeds pump from reservoir.</span></div>
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>PRV protects pump from exceeding setpoint (${prvSetting} PSI).</span></div>
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>De-energizing solenoid re-centers valve spool via springs.</span></div>
-                `;
-            } else if (currentCircuit === 'pneumatic_frl_circuit') {
-                theory.innerHTML = `<strong>Pneumatic Compressed Air System:</strong><br>` +
-                    `Air Compressor compresses ambient air into Receiver Tank. Compressed air flows through <strong>Filter-Separator</strong> (traps moisture with auto-drain), <strong>Pressure Regulator</strong> (adjusts bar pressure), and <strong>Lubricator</strong> (atomizes oil droplets). The 5/2 solenoid valve directs air to extend/retract the pneumatic actuator.`;
-
-                checklist.innerHTML = `
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>Observe air filter moisture bowl and auto-drain float mechanism.</span></div>
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>Verify lubricator oil drip rate and exhaust muffler noise reduction.</span></div>
-                `;
-            } else if (currentCircuit.startsWith('dcv_43_')) {
-                const centerType = currentCircuit.split('_')[2].toUpperCase();
-                theory.innerHTML = `<strong>4/3 Spool Center Type: ${centerType} CENTER</strong><br>` +
-                    (centerType === 'CLOSED' ? `In neutral, all 4 ports (P, T, A, B) are blocked by solid spool lands. Pump pressure builds to PRV relief setting. Actuator is hydro-locked in place.` :
-                     centerType === 'TANDEM' ? `In neutral, Port P connects directly to Port T. Pump oil unloads back to tank at low pressure (~50 PSI), saving energy while locking work ports A & B.` :
-                     centerType === 'OPEN' ? `In neutral (H-center), all ports P, T, A, and B connect together to tank. Pump unloads and cylinder rod floats freely.` :
-                     `In neutral (Float center), Port P is blocked while work ports A & B connect to Tank. Pump stays pressurized for parallel circuits while actuator floats.`);
-
-                checklist.innerHTML = `
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>Observe center spool geometry and land alignment.</span></div>
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>Verify whether pump unloads to tank or holds system pressure.</span></div>
-                `;
+                box.innerHTML = `<strong>Full HPU Circuit Analysis:</strong><br>` +
+                    (state === 0 ? `Solenoid A energized. Spool shifts right. Oil flows from <strong>P to A</strong> under high pressure (${systemPressure} PSI) to extend piston. Exhaust oil from B returns to tank <strong>T</strong>.` :
+                     state === 2 ? `Solenoid B energized. Spool shifts left. Oil flows from <strong>P to B</strong> to retract piston. Exhaust oil from A vents to tank <strong>T</strong>.` :
+                     `Spool in Center position (${spoolCenterType.toUpperCase()}). ${systemPressure > secondaryVal ? `<span style="color:#ef4444;">PRV CRACKED OPEN!</span> Excess pressure (${systemPressure} PSI > PRV ${secondaryVal} PSI) bypasses safely back to tank.` : `System pressure idling at ${systemPressure} PSI.`}`);
+            } else if (currentCircuit === 'telescopic_cylinder') {
+                box.innerHTML = `<strong>Telescopic Multi-Stage Actuator Mechanics:</strong><br>` +
+                    `Telescopic cylinders consist of nested tubular sleeve pistons (Stage 1, Stage 2, Stage 3 rod).<br>` +
+                    (state === 0 ? `Fluid enters Cap Port. Stage 1 (largest diameter) extends first due to highest force (F = P x A1), followed by Stage 2, then Stage 3 rod.` :
+                     state === 2 ? `Fluid forces or load weight pushes nested sleeves back in reverse order (Stage 3 -> Stage 2 -> Stage 1) collapsing into compact barrel.` :
+                     `Fluid trapped in multi-sleeve chambers. Actuator held locked at extended position.`);
+            } else if (currentCircuit === 'double_rod_cylinder') {
+                box.innerHTML = `<strong>Double-Rod (Through-Rod) Equal Area Cylinder:</strong><br>` +
+                    `Features a central piston with identical rod diameters protruding out both cap ends.<br>` +
+                    `Provides 1:1 speed and force ratio in both extension and retraction strokes (equal fluid displacement volumes on both sides).`;
+            } else if (currentCircuit === 'single_acting_spring') {
+                box.innerHTML = `<strong>Single-Acting Spring-Return Ram Cylinder:</strong><br>` +
+                    (state === 0 ? `Fluid pressure overcomes internal coil spring force, driving piston upward.` :
+                     `Hydraulic pressure vented to tank. Heavy internal coil spring forces piston back down to home position.`);
+            } else if (currentCircuit === 'pneumatic_frl') {
+                box.innerHTML = `<strong>Pneumatic Filter-Regulator-Lubricator (FRL) Trio:</strong><br>` +
+                    `1) Filter separates water/dirt; 2) Regulator controls system air pressure via spring/diaphragm; 3) Lubricator injects oil vapor droplets into airflow.`;
+            } else if (currentCircuit === 'swashplate_pump') {
+                box.innerHTML = `<strong>Swashplate Variable Displacement Axial Piston Pump:</strong><br>` +
+                    `Cylinder block rotates driven by drive shaft. Piston shoes ride against inclined swashplate surface.<br>` +
+                    `Swashplate Angle: <strong>${secondaryVal}°</strong>. Steeper angle increases piston stroke length and flow rate (GPM).`;
+            } else if (currentCircuit === 'accumulator_bladder') {
+                box.innerHTML = `<strong>Gas-Charged Bladder Accumulator:</strong><br>` +
+                    `Rubber bladder filled with Nitrogen gas at ${secondaryVal} PSI.<br>` +
+                    (state === 0 ? `System pressure (${systemPressure} PSI) > Gas charge pressure. Fluid compresses bladder, storing energy.` :
+                     `System pressure drops. Compressed nitrogen gas expands bladder, discharging fluid back into system.`);
             } else {
-                theory.innerHTML = `<strong>ISO 1219 Component Analysis (${currentCircuit.toUpperCase().replace(/_/g, ' ')}):</strong><br>` +
-                    `Demonstrating fluid flow redirection and mechanical internal position in state ${actState}. In ISO schematic view, standardized graphics show functional lines; in Cutaway view, internal moving components (poppets, spools, pistons) shift under pressure.`;
-
-                checklist.innerHTML = `
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>Verify port markings (P=Pressure, T=Tank, A/B=Actuator, X/Y=Pilot/Drain).</span></div>
-                    <div class="checklist-item"><span class="checklist-icon">✓</span> <span>Trace Falstad dot flow streams for high-pressure (Red) vs low-pressure (Blue).</span></div>
-                `;
+                box.innerHTML = `<strong>Selected Component Analysis:</strong><br>` +
+                    `Demonstrating authentic cutaway mechanics vs ISO 1219 graphic symbol under state <strong>Position ${state + 1}</strong>.`;
             }
+
+            chk.innerHTML = `
+                <div class="checklist-item"><span class="checklist-icon">✓</span> Verify supply port <strong>P</strong> connects to working line (Red).</div>
+                <div class="checklist-item"><span class="checklist-icon">✓</span> Check return port <strong>T</strong> vents to reservoir (Blue).</div>
+                <div class="checklist-item"><span class="checklist-icon">✓</span> Observe Falstad yellow particles traversing internal orifices.</div>
+                <div class="checklist-item"><span class="checklist-icon">✓</span> Confirm spring return resets spool/poppet on de-energization.</div>
+            `;
         }
 
-        function drawFalstadDots(path, lineColor, dotColor, lineDash=[], lineWidth=8) {
-            if (!path || path.length < 2) return;
-
-            ctx.save();
+        function drawFalstadDots(path, lineColor, dotColor, isDashed=false) {
             ctx.strokeStyle = lineColor;
-            ctx.lineWidth = lineWidth;
+            ctx.lineWidth = 8;
             ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            if (lineDash.length > 0) ctx.setLineDash(lineDash);
+            if (isDashed) ctx.setLineDash([8, 6]); else ctx.setLineDash([]);
             ctx.beginPath();
             ctx.moveTo(path[0].x, path[0].y);
-            for (let i = 1; i < path.length; i++) {
-                ctx.lineTo(path[i].x, path[i].y);
-            }
+            for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
             ctx.stroke();
-            ctx.restore();
+            ctx.setLineDash([]);
 
             let dotsSpacing = 16;
             let totalLen = 0;
@@ -655,7 +678,7 @@
                 let accum = 0;
                 for (let seg of segs) {
                     if (accum + seg.len >= d) {
-                        let ratio = seg.len === 0 ? 0 : (d - accum) / seg.len;
+                        let ratio = (d - accum) / seg.len;
                         let px = seg.p1.x + ratio * (seg.p2.x - seg.p1.x);
                         let py = seg.p1.y + ratio * (seg.p2.y - seg.p1.y);
                         
@@ -675,124 +698,288 @@
 
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            animOffset += 1.5;
+            animOffset += 1.6;
 
             let cx = canvas.width / 2;
             let cy = canvas.height / 2;
 
-            if (currentCircuit === 'full_43_circuit') {
-                if (viewMode === 'cutaway') {
-                    // Cutaway render for Circuit 1
-                    let pistonX = cx - 120 + (actState === 1 ? (animOffset * 2) % 180 : actState === 2 ? 180 - ((animOffset * 2) % 180) : 90);
-                    
+            if (currentCircuit === 'telescopic_cylinder') {
+                if (currentMode === 'cutaway') {
+                    // True Cutaway Mechanics of 3-Stage Telescopic Cylinder
+                    let extFactor = state === 0 ? (animOffset * 1.5) % 180 : state === 2 ? 180 - ((animOffset * 1.5) % 180) : 90;
+                    let stg1 = Math.min(extFactor, 60);
+                    let stg2 = Math.min(Math.max(extFactor - 60, 0), 60);
+                    let stg3 = Math.min(Math.max(extFactor - 120, 0), 60);
+
+                    // Outer Barrel (Stage 0)
+                    ctx.strokeStyle = '#94a3b8';
+                    ctx.lineWidth = 5;
+                    ctx.strokeRect(cx - 180, cy - 70, 160, 140);
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(cx - 178, cy - 68, 156, 136);
+
+                    // Stage 1 Sleeve Tube
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(cx - 180 + stg1, cy - 52, 160, 104);
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(cx - 178 + stg1, cy - 50, 156, 100);
+
+                    // Stage 2 Sleeve Tube
+                    ctx.strokeStyle = '#facc15';
+                    ctx.strokeRect(cx - 180 + stg1 + stg2, cy - 36, 160, 72);
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(cx - 178 + stg1 + stg2, cy - 34, 156, 68);
+
+                    // Stage 3 Rod
+                    ctx.fillStyle = '#cbd5e1';
+                    ctx.fillRect(cx - 180 + stg1 + stg2 + stg3, cy - 18, 180, 36);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(cx - 180 + stg1 + stg2 + stg3, cy - 18, 180, 36);
+
+                    // Cap Port Entry Flow
+                    let pCap = [{x: cx - 140, y: cy + 180}, {x: cx - 140, y: cy + 70}];
+                    drawFalstadDots(pCap, state === 0 ? '#ef4444' : '#3b82f6', state === 0 ? '#facc15' : '#93c5fd');
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.fillText('Stage 1 Sleeve', cx - 120 + stg1, cy - 58);
+                    ctx.fillText('Stage 2 Sleeve', cx - 120 + stg1 + stg2, cy - 40);
+                    ctx.fillText('Stage 3 Rod', cx - 100 + stg1 + stg2 + stg3, cy);
+                } else {
+                    // ISO 1219 Graphic Symbol for Telescopic Multi-Stage Cylinder
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(cx - 140, cy - 50, 120, 100);
+                    ctx.strokeRect(cx - 120, cy - 38, 110, 76);
+                    ctx.strokeRect(cx - 100, cy - 26, 100, 52);
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(cx + 140, cy);
+                    ctx.stroke();
+
+                    let pPath = [{x: cx - 80, y: cy + 160}, {x: cx - 80, y: cy + 50}];
+                    drawFalstadDots(pPath, '#ef4444', '#facc15');
+
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = 'bold 16px sans-serif';
+                    ctx.fillText('ISO 1219 Telescopic Multi-Stage Symbol', cx - 150, cy - 80);
+                }
+            } else if (currentCircuit === 'double_rod_cylinder') {
+                let posX = cx + (state === 0 ? (animOffset * 1.5) % 120 - 60 : state === 2 ? 60 - ((animOffset * 1.5) % 120) : 0);
+                if (currentMode === 'cutaway') {
+                    // Barrel
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(cx - 120, cy - 50, 240, 100);
+
+                    // Piston & Dual Rods
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(posX - 15, cy - 46, 30, 92);
+                    ctx.fillRect(posX - 220, cy - 12, 440, 24);
+
+                    let pLeft = [{x: cx - 80, y: cy + 160}, {x: cx - 80, y: cy + 50}];
+                    let pRight = [{x: cx + 80, y: cy + 160}, {x: cx + 80, y: cy + 50}];
+                    drawFalstadDots(pLeft, state === 0 ? '#ef4444' : '#3b82f6', state === 0 ? '#facc15' : '#93c5fd');
+                    drawFalstadDots(pRight, state === 2 ? '#ef4444' : '#3b82f6', state === 2 ? '#facc15' : '#93c5fd');
+                } else {
+                    // ISO Symbol
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(cx - 100, cy - 40, 200, 80);
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 200, cy);
+                    ctx.lineTo(cx + 200, cy);
+                    ctx.stroke();
+
+                    let pLeft = [{x: cx - 60, y: cy + 150}, {x: cx - 60, y: cy + 40}];
+                    let pRight = [{x: cx + 60, y: cy + 150}, {x: cx + 60, y: cy + 40}];
+                    drawFalstadDots(pLeft, state === 0 ? '#ef4444' : '#3b82f6', state === 0 ? '#facc15' : '#93c5fd');
+                    drawFalstadDots(pRight, state === 2 ? '#ef4444' : '#3b82f6', state === 2 ? '#facc15' : '#93c5fd');
+                }
+            } else if (currentCircuit === 'single_acting_spring') {
+                let pistonY = cy + (state === 0 ? 40 - ((animOffset * 1.5) % 80) : -40 + ((animOffset * 1.5) % 80));
+                if (currentMode === 'cutaway') {
                     // Cylinder Barrel
                     ctx.strokeStyle = '#ffffff';
                     ctx.lineWidth = 4;
-                    ctx.strokeRect(cx - 140, cy - 180, 260, 90);
-                    ctx.fillStyle = '#334155';
-                    ctx.fillRect(pistonX, cy - 176, 20, 82);
-                    ctx.fillRect(pistonX + 20, cy - 140, 160, 10);
+                    ctx.strokeRect(cx - 60, cy - 120, 120, 240);
 
-                    // Valve Housing & Spool
-                    let spoolShift = actState === 1 ? -30 : actState === 2 ? 30 : 0;
-                    ctx.strokeRect(cx - 120, cy + 20, 240, 70);
+                    // Piston Head & Rod
                     ctx.fillStyle = '#64748b';
-                    // Spool Lands
-                    ctx.fillRect(cx - 100 + spoolShift, cy + 25, 35, 60);
-                    ctx.fillRect(cx - 20 + spoolShift, cy + 25, 35, 60);
-                    ctx.fillRect(cx + 65 + spoolShift, cy + 25, 35, 60);
+                    ctx.fillRect(cx - 56, pistonY, 112, 24);
+                    ctx.fillRect(cx - 12, pistonY - 120, 24, 120);
 
-                    // Flow lines
-                    if (actState === 0) {
-                        drawFalstadDots([{x: cx - 60, y: cy + 240}, {x: cx - 60, y: cy + 90}], '#ef4444', '#facc15');
-                        drawFalstadDots([{x: cx - 60, y: cy + 180}, {x: cx - 180, y: cy + 180}, {x: cx - 180, y: cy + 240}], '#ef4444', '#facc15'); // PRV open
-                    } else if (actState === 1) {
-                        drawFalstadDots([{x: cx - 60, y: cy + 240}, {x: cx - 60, y: cy + 90}, {x: cx - 80, y: cy - 90}], '#ef4444', '#facc15');
-                        drawFalstadDots([{x: cx + 80, y: cy - 90}, {x: cx + 60, y: cy + 90}, {x: cx + 60, y: cy + 240}], '#3b82f6', '#93c5fd');
-                    } else if (actState === 2) {
-                        drawFalstadDots([{x: cx - 60, y: cy + 240}, {x: cx + 60, y: cy + 90}, {x: cx + 80, y: cy - 90}], '#ef4444', '#facc15');
-                        drawFalstadDots([{x: cx - 80, y: cy - 90}, {x: cx - 60, y: cy + 90}, {x: cx + 60, y: cy + 240}], '#3b82f6', '#93c5fd');
-                    }
-                } else {
-                    // ISO Schematic View for Circuit 1
-                    ctx.strokeStyle = '#ffffff';
+                    // Zigzag Spring in top chamber
+                    ctx.strokeStyle = '#facc15';
                     ctx.lineWidth = 3;
-                    ctx.strokeRect(cx - 150, cy, 100, 100);
-                    ctx.strokeRect(cx - 50, cy, 100, 100);
-                    ctx.strokeRect(cx + 50, cy, 100, 100);
-
-                    ctx.fillStyle = actState === 1 ? '#16a34a' : '#334155';
-                    ctx.fillRect(cx - 210, cy + 25, 60, 50);
-                    ctx.strokeRect(cx - 210, cy + 25, 60, 50);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 14px sans-serif';
-                    ctx.fillText('SOL A', cx - 200, cy + 55);
-
-                    ctx.fillStyle = actState === 2 ? '#16a34a' : '#334155';
-                    ctx.fillRect(cx + 150, cy + 25, 60, 50);
-                    ctx.strokeRect(cx + 150, cy + 25, 60, 50);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillText('SOL B', cx + 160, cy + 55);
-
-                    if (actState === 0) {
-                        drawFalstadDots([{x: cx - 20, y: cy + 220}, {x: cx - 20, y: cy + 100}], '#ef4444', '#facc15');
-                        drawFalstadDots([{x: cx - 20, y: cy + 180}, {x: cx - 140, y: cy + 180}, {x: cx - 140, y: cy + 220}], '#ef4444', '#facc15');
-                    } else if (actState === 1) {
-                        drawFalstadDots([{x: cx - 20, y: cy + 220}, {x: cx - 20, y: cy + 100}, {x: cx - 80, y: cy - 100}], '#ef4444', '#facc15');
-                        drawFalstadDots([{x: cx + 80, y: cy - 100}, {x: cx + 20, y: cy + 100}, {x: cx + 20, y: cy + 220}], '#3b82f6', '#93c5fd');
-                    } else if (actState === 2) {
-                        drawFalstadDots([{x: cx - 20, y: cy + 220}, {x: cx + 20, y: cy + 100}, {x: cx + 80, y: cy - 100}], '#ef4444', '#facc15');
-                        drawFalstadDots([{x: cx - 80, y: cy - 100}, {x: cx - 20, y: cy + 100}, {x: cx + 20, y: cy + 220}], '#3b82f6', '#93c5fd');
-                    }
-                }
-            } else {
-                // Generalized Component Renderer
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(cx - 140, cy - 100, 280, 200);
-
-                ctx.fillStyle = '#38bdf8';
-                ctx.font = 'bold 16px sans-serif';
-                ctx.fillText(currentCircuit.replace(/_/g, ' ').toUpperCase(), cx - 120, cy - 115);
-
-                if (viewMode === 'cutaway') {
-                    ctx.fillStyle = '#1e293b';
-                    ctx.fillRect(cx - 120, cy - 80, 240, 160);
-                    ctx.strokeStyle = '#64748b';
-                    ctx.strokeRect(cx - 120, cy - 80, 240, 160);
-
-                    // Cutaway Internal Element
-                    ctx.fillStyle = actState === 1 ? '#16a34a' : '#ef4444';
-                    ctx.fillRect(cx - 40 + (actState === 1 ? 30 : -30), cy - 40, 80, 80);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 13px sans-serif';
-                    ctx.fillText(actState === 1 ? 'VALVE OPEN / SHIFTED' : 'VALVE CLOSED / SEATED', cx - 75, cy + 60);
-                } else {
-                    // ISO Schematic Square Box & Symbol Lines
-                    ctx.strokeRect(cx - 80, cy - 60, 160, 120);
                     ctx.beginPath();
-                    if (actState === 1) {
-                        // Straight through
-                        ctx.moveTo(cx - 40, cy + 60); ctx.lineTo(cx - 40, cy - 60);
-                        ctx.moveTo(cx + 40, cy - 60); ctx.lineTo(cx + 40, cy + 60);
-                    } else {
-                        // Closed / Cross
-                        ctx.moveTo(cx - 40, cy + 60); ctx.lineTo(cx - 40, cy + 20);
-                        ctx.moveTo(cx + 40, cy + 60); ctx.lineTo(cx + 40, cy + 20);
+                    let topY = cy - 110;
+                    for (let y = topY; y < pistonY; y += 12) {
+                        let xOff = ((y - topY) / 12) % 2 === 0 ? 30 : -30;
+                        if (y === topY) ctx.moveTo(cx, y); else ctx.lineTo(cx + xOff, y);
                     }
                     ctx.stroke();
-                }
 
-                // Falstad Dot Stream
-                let p1 = [{x: cx - 200, y: cy}, {x: cx - 80, y: cy}, {x: cx + 80, y: cy}, {x: cx + 200, y: cy}];
-                drawFalstadDots(p1, actState === 1 ? '#ef4444' : '#3b82f6', actState === 1 ? '#facc15' : '#93c5fd');
+                    let pIn = [{x: cx, y: cy + 200}, {x: cx, y: cy + 120}];
+                    drawFalstadDots(pIn, state === 0 ? '#ef4444' : '#3b82f6', state === 0 ? '#facc15' : '#93c5fd');
+                } else {
+                    // ISO Symbol
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(cx - 50, cy - 100, 100, 200);
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy - 40);
+                    ctx.lineTo(cx, cy - 180);
+                    ctx.stroke();
+
+                    // Spring
+                    ctx.strokeStyle = '#facc15';
+                    ctx.beginPath();
+                    for (let y = cy - 90; y < cy - 40; y += 10) {
+                        let xOff = ((y - cy + 90) / 10) % 2 === 0 ? 20 : -20;
+                        if (y === cy - 90) ctx.moveTo(cx, y); else ctx.lineTo(cx + xOff, y);
+                    }
+                    ctx.stroke();
+
+                    let pIn = [{x: cx, y: cy + 180}, {x: cx, y: cy + 100}];
+                    drawFalstadDots(pIn, state === 0 ? '#ef4444' : '#3b82f6', state === 0 ? '#facc15' : '#93c5fd');
+                }
+            } else if (currentCircuit === 'pneumatic_frl') {
+                if (currentMode === 'cutaway') {
+                    // Filter Bowl
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(cx - 180, cy - 60, 80, 120);
+                    // Regulator
+                    ctx.strokeRect(cx - 60, cy - 60, 80, 120);
+                    // Lubricator
+                    ctx.strokeRect(cx + 60, cy - 60, 80, 120);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.fillText('1. Filter', cx - 170, cy + 80);
+                    ctx.fillText('2. Regulator', cx - 55, cy + 80);
+                    ctx.fillText('3. Lubricator', cx + 65, cy + 80);
+
+                    let pAir = [{x: cx - 220, y: cy}, {x: cx + 180, y: cy}];
+                    drawFalstadDots(pAir, '#38bdf8', '#ffffff');
+                } else {
+                    // ISO 1219 FRL Diamond Unit
+                    ctx.save();
+                    ctx.translate(cx, cy);
+                    ctx.rotate(Math.PI / 4);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(-50, -50, 100, 100);
+                    ctx.restore();
+
+                    let pAir = [{x: cx - 180, y: cy}, {x: cx + 180, y: cy}];
+                    drawFalstadDots(pAir, '#38bdf8', '#ffffff');
+                }
+            } else if (currentCircuit === 'swashplate_pump') {
+                if (currentMode === 'cutaway') {
+                    // Swashplate Pump Cutaway
+                    let rad = (secondaryVal * Math.PI) / 180;
+                    ctx.save();
+                    ctx.translate(cx + 40, cy);
+                    ctx.rotate(-rad);
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(-10, -80, 20, 160);
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(-10, -80, 20, 160);
+                    ctx.restore();
+
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(cx - 120, cy - 60, 120, 120);
+
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillRect(cx - 200, cy - 12, 240, 24);
+
+                    let pIn = [{x: cx - 60, y: cy + 180}, {x: cx - 60, y: cy + 60}];
+                    let pOut = [{x: cx, y: cy - 60}, {x: cx, y: cy - 180}];
+                    drawFalstadDots(pIn, '#10b981', '#a7f3d0');
+                    drawFalstadDots(pOut, '#ef4444', '#facc15');
+                } else {
+                    // ISO Symbol
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 60, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy - 60);
+                    ctx.lineTo(cx - 16, cy - 32);
+                    ctx.lineTo(cx + 16, cy - 32);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 70, cy + 70);
+                    ctx.lineTo(cx + 70, cy - 70);
+                    ctx.stroke();
+
+                    let pPath = [{x: cx, y: cy - 60}, {x: cx, y: cy - 180}];
+                    drawFalstadDots(pPath, '#ef4444', '#facc15');
+                }
+            } else if (currentCircuit === 'accumulator_bladder') {
+                if (currentMode === 'cutaway') {
+                    // Oval Vessel
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, 70, 120, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // Bladder
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy - 20, 50, 70, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    let pAcc = [{x: cx, y: cy + 200}, {x: cx, y: cy + 120}];
+                    drawFalstadDots(pAcc, state === 0 ? '#ef4444' : '#3b82f6', state === 0 ? '#facc15' : '#93c5fd');
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.fillText('N2 Gas', cx - 24, cy - 20);
+                } else {
+                    // ISO Symbol
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, 60, 100, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 40, 0, Math.PI);
+                    ctx.stroke();
+
+                    let pAcc = [{x: cx, y: cy + 180}, {x: cx, y: cy + 100}];
+                    drawFalstadDots(pAcc, state === 0 ? '#ef4444' : '#3b82f6', state === 0 ? '#facc15' : '#93c5fd');
+                }
+            } else {
+                // Default 4/3 DCV or Circuit 1
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(cx - 120, cy - 60, 80, 120);
+                ctx.strokeRect(cx - 40, cy - 60, 80, 120);
+                ctx.strokeRect(cx + 40, cy - 60, 80, 120);
+
+                let pPath = [{x: cx - 40, y: cy + 180}, {x: cx - 40, y: cy + 60}, {x: cx - 40, y: cy - 60}, {x: cx - 40, y: cy - 180}];
+                drawFalstadDots(pPath, '#ef4444', '#facc15');
             }
 
             requestAnimationFrame(render);
         }
 
-        buildActuationControls();
-        updateTheoryAndChecklist();
+        buildControls();
+        updateTheory();
         render();
     </script>
 </body>
