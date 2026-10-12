@@ -250,467 +250,1152 @@
     <script>
         // ── COMPLETE COMPONENT LIBRARY DEFINITION ──
         const LIBRARY = {
-            // 1. PUMPS & MOTORS
+            // ── 1. PUMPS & MOTORS ──
             pump_fixed: {
                 title: 'Fixed Displacement Hydraulic Pump', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 4.1', tagPrefix: '0P',
-                spec: 'Delivers fixed flow per motor revolution.', w: 90, h: 90,
+                spec: 'Delivers fixed volumetric flow per revolution. Hydraulic heart of the HPU.', w: 90, h: 90,
                 ports: [
-                    { id: 'P', label: 'Outlet (P)', relX: 0, relY: -45, type: 'pressure' },
-                    { id: 'S', label: 'Suction (S)', relX: 0, relY: 45, type: 'suction' },
-                    { id: 'L', label: 'Drain (L)', relX: 45, relY: 0, type: 'drain' }
+                    { id: 'P', label: 'Port P (Pressure Outlet)', relX: 0, relY: -45, type: 'pressure' },
+                    { id: 'S', label: 'Port S (Suction Inlet)', relX: 0, relY: 45, type: 'suction' },
+                    { id: 'L', label: 'Port L (Case Drain)', relX: 45, relY: 0, type: 'drain' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(-8, -16); ctx.lineTo(8, -16); ctx.closePath(); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, -45); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(0, 30); ctx.lineTo(0, 45); ctx.stroke();
-                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(45, 0); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -32); ctx.lineTo(-9, -18); ctx.lineTo(9, -18); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(0, -32); ctx.lineTo(0, -45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 32); ctx.lineTo(0, 45); ctx.stroke();
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(32, 0); ctx.lineTo(45, 0); ctx.stroke(); ctx.setLineDash([]);
                 }
             },
             pump_var: {
-                title: 'Variable Pressure-Comp Pump', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 4.2', tagPrefix: '0P',
-                spec: 'Adjusts swashplate angle to reduce flow when deadheading.', w: 90, h: 90,
+                title: 'Variable Pressure-Compensated Pump', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 4.2', tagPrefix: '0P',
+                spec: 'Swashplate piston pump with internal pressure compensator.', w: 100, h: 90,
                 ports: [
-                    { id: 'P', label: 'Outlet (P)', relX: 0, relY: -45, type: 'pressure' },
-                    { id: 'S', label: 'Suction (S)', relX: 0, relY: 45, type: 'suction' }
+                    { id: 'P', label: 'Port P (Pressure Outlet)', relX: 0, relY: -45, type: 'pressure' },
+                    { id: 'S', label: 'Port S (Suction Inlet)', relX: 0, relY: 45, type: 'suction' },
+                    { id: 'L', label: 'Port L (Case Drain)', relX: 50, relY: 0, type: 'drain' }
                 ],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
-                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
-                    ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(-8, -16); ctx.lineTo(8, -16); ctx.closePath(); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, -45); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(0, 30); ctx.lineTo(0, 45); ctx.stroke();
-                    ctx.strokeStyle = '#facc15'; ctx.beginPath(); ctx.moveTo(-35, 35); ctx.lineTo(35, -35); ctx.stroke();
-                    ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.moveTo(35, -35); ctx.lineTo(25, -33); ctx.lineTo(33, -25); ctx.closePath(); ctx.fill();
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(-5, 0, 32, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-5, -32); ctx.lineTo(-14, -18); ctx.lineTo(4, -18); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-5, -32); ctx.lineTo(-5, -45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-5, 32); ctx.lineTo(-5, 45); ctx.stroke();
+                    ctx.strokeStyle = '#facc15'; ctx.fillStyle = '#facc15';
+                    ctx.beginPath(); ctx.moveTo(-35, 30); ctx.lineTo(25, -30); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, -30); ctx.lineTo(15, -28); ctx.lineTo(23, -18); ctx.closePath(); ctx.fill();
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(27, 0); ctx.lineTo(50, 0); ctx.stroke(); ctx.setLineDash([]);
                 }
             },
             motor_fixed: {
-                title: 'Fixed Displacement Hydraulic Motor', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 5.1', tagPrefix: '1M',
-                spec: 'Converts fluid pressure into rotary shaft motion.', w: 90, h: 90,
+                title: 'Fixed Hydraulic Motor', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 4.3', tagPrefix: '0M',
+                spec: 'Converts fluid energy into continuous rotary mechanical torque.', w: 90, h: 90,
                 ports: [
-                    { id: 'A', label: 'Inlet A', relX: -45, relY: 0, type: 'work' },
-                    { id: 'B', label: 'Outlet B', relX: 45, relY: 0, type: 'work' },
-                    { id: 'L', label: 'Case Drain', relX: 0, relY: 45, type: 'drain' }
+                    { id: 'A', label: 'Port A (Inlet/Outlet)', relX: -32, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B (Inlet/Outlet)', relX: 32, relY: 0, type: 'work' },
+                    { id: 'L', label: 'Port L (Case Drain)', relX: 0, relY: 45, type: 'drain' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-32, 0); ctx.lineTo(-18, -9); ctx.lineTo(-18, 9); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(32, 0); ctx.lineTo(18, -9); ctx.lineTo(18, 9); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-32, 0); ctx.lineTo(-45, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(32, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, 32); ctx.lineTo(0, 45); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            motor_var: {
+                title: 'Variable Displacement Hydraulic Motor', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 4.4', tagPrefix: '0M',
+                spec: 'Variable displacement rotary motor for high-speed / high-torque modes.', w: 100, h: 90,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -35, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 35, relY: 0, type: 'work' },
+                    { id: 'L', label: 'Port L (Drain)', relX: 0, relY: 45, type: 'drain' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-32, 0); ctx.lineTo(-18, -9); ctx.lineTo(-18, 9); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(32, 0); ctx.lineTo(18, -9); ctx.lineTo(18, 9); ctx.closePath(); ctx.fill();
+                    ctx.strokeStyle = '#facc15'; ctx.fillStyle = '#facc15';
+                    ctx.beginPath(); ctx.moveTo(-30, 30); ctx.lineTo(30, -30); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, -30); ctx.lineTo(20, -28); ctx.lineTo(28, -18); ctx.closePath(); ctx.fill();
+                }
+            },
+            electric_motor: {
+                title: 'Electric Motor Prime Mover (M)', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 3.1', tagPrefix: '0EM',
+                spec: 'AC/DC Electric drive motor providing shaft rotation to pump.', w: 80, h: 80,
+                ports: [
+                    { id: 'SHAFT', label: 'Mechanical Drive Shaft', relX: 40, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
                     ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-16, -8); ctx.lineTo(-16, 8); ctx.closePath(); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(16, -8); ctx.lineTo(16, 8); ctx.closePath(); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-45, 0); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('M', 0, 2);
+                    ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(40, 0); ctx.stroke();
                 }
             },
-            electric_motor: {
-                title: 'Electric Motor Prime Mover (M)', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 3.1', tagPrefix: '0M',
-                spec: 'Electric motor driving the pump shaft.', w: 80, h: 80,
-                ports: [{ id: 'SHAFT', label: 'Drive Shaft', relX: 40, relY: 0, type: 'work' }],
+            manual_pump: {
+                title: 'Manual Lever Hand Pump', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 4.5', tagPrefix: '0HP',
+                spec: 'Emergency or setup hand pump with dual internal check valves.', w: 90, h: 90,
+                ports: [
+                    { id: 'P', label: 'Port P (Pressure)', relX: 0, relY: -45, type: 'pressure' },
+                    { id: 'S', label: 'Port S (Suction)', relX: 0, relY: 45, type: 'suction' }
+                ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI * 2); ctx.stroke();
-                    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('M', 0, 0);
-                    ctx.beginPath(); ctx.moveTo(28, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    ctx.strokeRect(-20, -25, 40, 50);
+                    ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 25); ctx.lineTo(0, 45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-20, -10); ctx.lineTo(-40, -35); ctx.stroke(); ctx.arc(-40, -35, 4, 0, Math.PI*2); ctx.stroke();
                 }
             },
 
-            // 2. DIRECTIONAL CONTROL VALVES
+            // ── 2. DIRECTIONAL CONTROL VALVES ──
             dcv_22: {
                 title: '2/2 NC Solenoid Valve', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.1', tagPrefix: '1V',
-                spec: '2-port 2-position normally closed valve.', w: 90, h: 70,
+                spec: '2-port 2-position normally closed solenoid valve.', w: 120, h: 80,
                 ports: [
-                    { id: 'P', label: 'Port P', relX: -25, relY: 35, type: 'pressure' },
-                    { id: 'A', label: 'Port A', relX: -25, relY: -35, type: 'work' }
+                    { id: 'P', label: 'Port P (Inlet)', relX: -20, relY: 35, type: 'pressure' },
+                    { id: 'A', label: 'Port A (Outlet)', relX: -20, relY: -35, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-40, -25, 30, 50); ctx.strokeRect(-10, -25, 30, 50);
-                    ctx.fillStyle = '#ef4444'; ctx.fillRect(-30, -5, 10, 10);
+                    ctx.strokeRect(-40, -20, 35, 40); ctx.strokeRect(-5, -20, 35, 40);
+                    ctx.beginPath(); ctx.moveTo(-22, 12); ctx.lineTo(-22, -12); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(12, -12); ctx.lineTo(12, 12); ctx.stroke();
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(-60, -12, 20, 24); ctx.strokeRect(-60, -12, 20, 24);
+                    ctx.fillStyle = '#ffffff'; ctx.font = '9px sans-serif'; ctx.fillText('SOL', -57, 4);
+                }
+            },
+            dcv_32_nc: {
+                title: '3/2 NC Solenoid-Spring Valve', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.2', tagPrefix: '1V',
+                spec: '3-port 2-position valve for single-acting actuators.', w: 130, h: 80,
+                ports: [
+                    { id: 'P', label: 'Port P (Pressure)', relX: -25, relY: 35, type: 'pressure' },
+                    { id: 'A', label: 'Port A (Work Outlet)', relX: -25, relY: -35, type: 'work' },
+                    { id: 'R', label: 'Port R (Exhaust/Tank)', relX: -10, relY: 35, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-40, -20, 35, 40); ctx.strokeRect(-5, -20, 35, 40);
+                    ctx.beginPath(); ctx.moveTo(-25, 12); ctx.lineTo(-25, -12); ctx.stroke();
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(-60, -12, 20, 24); ctx.strokeRect(-60, -12, 20, 24);
                 }
             },
             dcv_42: {
                 title: '4/2 Solenoid-Spring DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.2', tagPrefix: '1V',
-                spec: '4-port 2-position directional control valve.', w: 120, h: 80,
+                spec: '4-port 2-position valve with solenoid actuator and spring reset.', w: 140, h: 80,
                 ports: [
-                    { id: 'P', label: 'Port P', relX: -20, relY: 40, type: 'pressure' },
-                    { id: 'T', label: 'Port T', relX: 20, relY: 40, type: 'tank' },
-                    { id: 'A', label: 'Port A', relX: -20, relY: -40, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 20, relY: -40, type: 'work' }
+                    { id: 'P', label: 'Port P', relX: -20, relY: 35, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 10, relY: 35, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -20, relY: -35, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 10, relY: -35, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-40, -25, 40, 50); ctx.strokeRect(0, -25, 40, 50);
-                    ctx.fillStyle = '#38bdf8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-                    ctx.fillText('P', -20, 20); ctx.fillText('T', 20, 20); ctx.fillText('A', -20, -15); ctx.fillText('B', 20, -15);
+                    ctx.strokeRect(-35, -20, 35, 40); ctx.strokeRect(0, -20, 35, 40);
+                    ctx.beginPath(); ctx.moveTo(-20, 15); ctx.lineTo(-20, -15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(10, -15); ctx.lineTo(10, 15); ctx.stroke();
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(-55, -12, 20, 24); ctx.strokeRect(-55, -12, 20, 24);
                 }
             },
             dcv_43_closed: {
                 title: '4/3 Closed Center DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
-                spec: '4-port 3-position valve with all ports blocked in center.', w: 150, h: 80,
+                spec: '4-port 3-position valve with all ports blocked in neutral.', w: 160, h: 80,
                 ports: [
-                    { id: 'P', label: 'Port P', relX: 0, relY: 40, type: 'pressure' },
-                    { id: 'T', label: 'Port T', relX: 30, relY: 40, type: 'tank' },
-                    { id: 'A', label: 'Port A', relX: -30, relY: -40, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 30, relY: -40, type: 'work' }
+                    { id: 'P', label: 'Port P', relX: 0, relY: 35, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 25, relY: 35, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -25, relY: -35, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 25, relY: -35, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-60, -25, 40, 50); ctx.strokeRect(-20, -25, 40, 50); ctx.strokeRect(20, -25, 40, 50);
-                    ctx.fillStyle = '#facc15'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('CLOSED CENTER', 0, 0);
+                    ctx.strokeRect(-50, -20, 33, 40); ctx.strokeRect(-17, -20, 34, 40); ctx.strokeRect(17, -20, 33, 40);
+                    // T-bars in center box
+                    ctx.beginPath(); ctx.moveTo(-8, -12); ctx.lineTo(8, -12); ctx.moveTo(0, -12); ctx.lineTo(0, -5); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-8, 12); ctx.lineTo(8, 12); ctx.moveTo(0, 12); ctx.lineTo(0, 5); ctx.stroke();
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(-70, -12, 20, 24); ctx.fillRect(50, -12, 20, 24);
                 }
             },
             dcv_43_open: {
-                title: '4/3 Open (H) Center DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
-                spec: 'All ports connect to tank in center position.', w: 150, h: 80,
+                title: '4/3 Open Center (H-Center) DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
+                spec: 'All ports P, T, A, B connect together in neutral, unpressurizing system.', w: 160, h: 80,
                 ports: [
-                    { id: 'P', label: 'Port P', relX: 0, relY: 40, type: 'pressure' },
-                    { id: 'T', label: 'Port T', relX: 30, relY: 40, type: 'tank' },
-                    { id: 'A', label: 'Port A', relX: -30, relY: -40, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 30, relY: -40, type: 'work' }
+                    { id: 'P', label: 'Port P', relX: 0, relY: 35, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 25, relY: 35, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -25, relY: -35, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 25, relY: -35, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-60, -25, 40, 50); ctx.strokeRect(-20, -25, 40, 50); ctx.strokeRect(20, -25, 40, 50);
-                    ctx.fillStyle = '#38bdf8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('OPEN CENTER', 0, 0);
+                    ctx.strokeRect(-50, -20, 33, 40); ctx.strokeRect(-17, -20, 34, 40); ctx.strokeRect(17, -20, 33, 40);
+                    // Open H connections in center
+                    ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, -10); ctx.lineTo(10, 10); ctx.lineTo(-10, 10); ctx.closePath(); ctx.stroke();
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(-70, -12, 20, 24); ctx.fillRect(50, -12, 20, 24);
                 }
             },
             dcv_43_tandem: {
                 title: '4/3 Tandem Center DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
-                spec: 'P connects to T in center while work ports A and B are locked.', w: 150, h: 80,
+                spec: 'P connects to T in neutral (unloads pump), while A and B are locked.', w: 160, h: 80,
                 ports: [
-                    { id: 'P', label: 'Port P', relX: 0, relY: 40, type: 'pressure' },
-                    { id: 'T', label: 'Port T', relX: 30, relY: 40, type: 'tank' },
-                    { id: 'A', label: 'Port A', relX: -30, relY: -40, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 30, relY: -40, type: 'work' }
+                    { id: 'P', label: 'Port P', relX: 0, relY: 35, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 25, relY: 35, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -25, relY: -35, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 25, relY: -35, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-60, -25, 40, 50); ctx.strokeRect(-20, -25, 40, 50); ctx.strokeRect(20, -25, 40, 50);
-                    ctx.fillStyle = '#22c55e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TANDEM CENTER', 0, 0);
+                    ctx.strokeRect(-50, -20, 33, 40); ctx.strokeRect(-17, -20, 34, 40); ctx.strokeRect(17, -20, 33, 40);
+                    // Tandem P -> T loop
+                    ctx.beginPath(); ctx.moveTo(-8, 12); ctx.lineTo(8, 12); ctx.moveTo(0, 12); ctx.lineTo(0, -5); ctx.stroke();
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(-70, -12, 20, 24); ctx.fillRect(50, -12, 20, 24);
                 }
             },
             dcv_43_float: {
                 title: '4/3 Float Center DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
-                spec: 'P blocked; A and B vent to tank T in center position.', w: 150, h: 80,
+                spec: 'Port P blocked while work ports A and B vent to tank T in neutral.', w: 160, h: 80,
                 ports: [
-                    { id: 'P', label: 'Port P', relX: 0, relY: 40, type: 'pressure' },
-                    { id: 'T', label: 'Port T', relX: 30, relY: 40, type: 'tank' },
-                    { id: 'A', label: 'Port A', relX: -30, relY: -40, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 30, relY: -40, type: 'work' }
+                    { id: 'P', label: 'Port P', relX: 0, relY: 35, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 25, relY: 35, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -25, relY: -35, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 25, relY: -35, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-60, -25, 40, 50); ctx.strokeRect(-20, -25, 40, 50); ctx.strokeRect(20, -25, 40, 50);
-                    ctx.fillStyle = '#f97316'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('FLOAT CENTER', 0, 0);
+                    ctx.strokeRect(-50, -20, 33, 40); ctx.strokeRect(-17, -20, 34, 40); ctx.strokeRect(17, -20, 33, 40);
+                    // Float A & B to T
+                    ctx.beginPath(); ctx.moveTo(-10, -12); ctx.lineTo(-10, 0); ctx.lineTo(10, 0); ctx.lineTo(10, -12); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 12); ctx.stroke();
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(-70, -12, 20, 24); ctx.fillRect(50, -12, 20, 24);
+                }
+            },
+            dcv_pilot_2stage: {
+                title: 'Two-Stage Electro-Hydraulic Pilot DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.5', tagPrefix: '1V',
+                spec: 'Solenoid pilot stage driving high-flow main spool with external X supply & Y drain.', w: 160, h: 100,
+                ports: [
+                    { id: 'P', label: 'Port P', relX: 0, relY: 45, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 25, relY: 45, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -25, relY: -45, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 25, relY: -45, type: 'work' },
+                    { id: 'X', label: 'Port X (Pilot Pressure)', relX: -45, relY: 0, type: 'pilot' },
+                    { id: 'Y', label: 'Port Y (Pilot Drain)', relX: 45, relY: 0, type: 'drain' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    // Main stage lower
+                    ctx.strokeRect(-40, -10, 80, 40);
+                    // Pilot stage upper
+                    ctx.strokeRect(-30, -35, 60, 25);
+                    ctx.fillStyle = '#06b6d4'; ctx.fillRect(-50, -30, 20, 15); ctx.fillRect(30, -30, 20, 15);
+                    ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(-30, -22); ctx.lineTo(-45, 0); ctx.moveTo(30, -22); ctx.lineTo(45, 0); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            logic_cartridge: {
+                title: '2/2 Slip-in Logic Cartridge Element', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.8', tagPrefix: '1LC',
+                spec: 'Poppet cartridge element with differential area ratio (Ax, Aa, Ab).', w: 100, h: 100,
+                ports: [
+                    { id: 'A', label: 'Port A (Bottom Seat)', relX: 0, relY: 45, type: 'work' },
+                    { id: 'B', label: 'Port B (Side Ring)', relX: 45, relY: 0, type: 'work' },
+                    { id: 'X', label: 'Port X (Top Pilot Cover)', relX: 0, relY: -45, type: 'pilot' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-30, -30, 60, 60);
+                    // Internal poppet & seat
+                    ctx.beginPath(); ctx.moveTo(-20, -10); ctx.lineTo(0, 15); ctx.lineTo(20, -10); ctx.closePath(); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, -45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 30); ctx.lineTo(0, 45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(45, 0); ctx.stroke();
+                }
+            },
+            ball_valve_2way: {
+                title: '2-Way Manual Ball Isolation Valve', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.9', tagPrefix: '1BV',
+                spec: 'Manual quarter-turn ball valve for line shutoff.', w: 90, h: 70,
+                ports: [
+                    { id: 'IN', label: 'Inlet Port', relX: -40, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet Port', relX: 40, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(-40, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(0, -35); ctx.stroke(); ctx.fillRect(-8, -37, 16, 5);
                 }
             },
 
-            // 3. PRESSURE CONTROL VALVES
+            // ── 3. PRESSURE CONTROL VALVES (STAGE 2 COMPLETE) ──
             prv_direct: {
-                title: 'Direct-Operated Relief Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.1', tagPrefix: '0V',
-                spec: 'Limits maximum circuit pressure by opening to tank.', w: 90, h: 90,
+                title: 'Direct-Operated Pressure Relief Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.1', tagPrefix: '0V',
+                spec: 'Normally closed safety relief valve. Opens when line pressure overcomes spring setpoint.', w: 100, h: 90,
                 ports: [
-                    { id: 'P', label: 'Inlet (P)', relX: -45, relY: 0, type: 'pressure' },
-                    { id: 'T', label: 'Tank (T)', relX: 45, relY: 0, type: 'tank' }
+                    { id: 'P', label: 'Port P (System Pressure)', relX: -45, relY: 0, type: 'pressure' },
+                    { id: 'T', label: 'Port T (Tank Bypass)', relX: 45, relY: 0, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    // Arrow offset + spring
+                    ctx.beginPath(); ctx.moveTo(-10, -25); ctx.lineTo(-10, 25); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(-5, -15); ctx.lineTo(5, -15); ctx.closePath(); ctx.fillStyle='#ffffff'; ctx.fill();
+                    // Spring zig-zag right
+                    ctx.beginPath(); ctx.moveTo(25, -15); ctx.lineTo(15, -10); ctx.lineTo(25, -5); ctx.lineTo(15, 0); ctx.stroke();
+                }
+            },
+            prv_pilot: {
+                title: 'Two-Stage Pilot-Operated Pressure Relief Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.2', tagPrefix: '0V',
+                spec: 'High-capacity relief valve with main poppet piloted by a secondary pilot stage.', w: 110, h: 100,
+                ports: [
+                    { id: 'P', label: 'Port P (Inlet)', relX: -50, relY: 0, type: 'pressure' },
+                    { id: 'T', label: 'Port T (Tank Return)', relX: 50, relY: 0, type: 'tank' },
+                    { id: 'X', label: 'Port X (Remote Unload)', relX: 0, relY: -45, type: 'pilot' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-30, -25, 60, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 0); ctx.lineTo(-30, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(50, 0); ctx.stroke();
+                    ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.font = '9px sans-serif'; ctx.fillStyle='#38bdf8'; ctx.fillText('PILOT', -12, 5);
+                }
+            },
+            prv_prop: {
+                title: 'Proportional Pressure Relief Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.3', tagPrefix: '0V',
+                spec: 'Proportional solenoid-operated relief valve for electronic pressure control.', w: 120, h: 90,
+                ports: [
+                    { id: 'P', label: 'Port P', relX: -50, relY: 0, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 50, relY: 0, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(50, 0); ctx.stroke();
+                    // Proportional solenoid symbol
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(25, -15, 20, 30); ctx.strokeRect(25, -15, 20, 30);
+                    ctx.beginPath(); ctx.moveTo(25, 15); ctx.lineTo(45, -15); ctx.stroke(); // diagonal stroke
+                }
+            },
+            prv_reducing: {
+                title: 'Pressure Reducing Valve (Normally Open)', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.4', tagPrefix: '1V',
+                spec: 'Normally open valve that senses downstream pressure and throttles to maintain constant output pressure.', w: 110, h: 90,
+                ports: [
+                    { id: 'P1', label: 'Port P1 (Inlet High Pressure)', relX: -50, relY: 0, type: 'pressure' },
+                    { id: 'P2', label: 'Port P2 (Reduced Pressure)', relX: 50, relY: 0, type: 'work' },
+                    { id: 'Y', label: 'Port Y (External Drain)', relX: 0, relY: -45, type: 'drain' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(50, 0); ctx.stroke();
+                    // Straight flow arrow (Normally Open)
+                    ctx.beginPath(); ctx.moveTo(-25, 0); ctx.lineTo(25, 0); ctx.stroke();
+                    ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            prv_3way: {
+                title: '3-Way Pressure Reducing & Relieving Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.5', tagPrefix: '1V',
+                spec: 'Reduces pressure to secondary circuit and vents secondary pressure spikes back to tank.', w: 120, h: 100,
+                ports: [
+                    { id: 'P', label: 'Port P (Supply)', relX: -50, relY: 15, type: 'pressure' },
+                    { id: 'A', label: 'Port A (Reduced Work Port)', relX: 50, relY: 15, type: 'work' },
+                    { id: 'T', label: 'Port T (Tank Relieving)', relX: 0, relY: -45, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-30, -25, 60, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 15); ctx.lineTo(-30, 15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 15); ctx.lineTo(50, 15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke();
+                }
+            },
+            sequence: {
+                title: 'Sequence Valve (External Y Drain)', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.6', tagPrefix: '1V',
+                spec: 'Normally closed pressure valve that opens to route oil to a secondary actuator after primary pressure builds up.', w: 110, h: 100,
+                ports: [
+                    { id: 'P1', label: 'Port P1 (Primary Pressure)', relX: -50, relY: 0, type: 'pressure' },
+                    { id: 'P2', label: 'Port P2 (Secondary Sequence Outlet)', relX: 50, relY: 0, type: 'work' },
+                    { id: 'Y', label: 'Port Y (External Spring Drain)', relX: 0, relY: -45, type: 'drain' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(50, 0); ctx.stroke();
+                    ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            counterbalance: {
+                title: 'Counterbalance Valve with Bypass Check', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.7', tagPrefix: '1V',
+                spec: 'Overhung load holding valve with internal/external pilot unseating and reverse free-flow check valve.', w: 120, h: 100,
+                ports: [
+                    { id: 'A', label: 'Port A (Load Holding Port)', relX: -50, relY: 15, type: 'work' },
+                    { id: 'B', label: 'Port B (DCV Line Port)', relX: 50, relY: 15, type: 'work' },
+                    { id: 'X', label: 'Port X (Remote Pilot Unseat)', relX: 0, relY: -45, type: 'pilot' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-30, -25, 60, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 15); ctx.lineTo(-30, 15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 15); ctx.lineTo(50, 15); ctx.stroke();
+                    // Parallel check valve loop top
+                    ctx.beginPath(); ctx.arc(0, -10, 8, 0, Math.PI*2); ctx.stroke();
+                    ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            unloading: {
+                title: 'Unloading Valve (Remote Pilot X)', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.8', tagPrefix: '0V',
+                spec: 'Unloads pump flow directly to tank at minimal pressure when remote pilot X reaches setting.', w: 110, h: 90,
+                ports: [
+                    { id: 'P', label: 'Port P (Pump Inlet)', relX: -50, relY: 0, type: 'pressure' },
+                    { id: 'T', label: 'Port T (Tank Bypass)', relX: 50, relY: 0, type: 'tank' },
+                    { id: 'X', label: 'Port X (Remote Sensing)', relX: 0, relY: -45, type: 'pilot' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(50, 0); ctx.stroke();
+                    ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            brake: {
+                title: 'Hydraulic Motor Brake Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.9', tagPrefix: '1V',
+                spec: 'Motor outlet pressure control valve with internal & external pilot for smooth deceleration braking.', w: 120, h: 100,
+                ports: [
+                    { id: 'A', label: 'Port A (Motor Outlet)', relX: -50, relY: 10, type: 'work' },
+                    { id: 'B', label: 'Port B (DCV Line)', relX: 50, relY: 10, type: 'work' },
+                    { id: 'X', label: 'Port X (Remote Pilot)', relX: 0, relY: -45, type: 'pilot' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-30, -25, 60, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 10); ctx.lineTo(-30, 10); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 10); ctx.lineTo(50, 10); ctx.stroke();
+                    ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            auto_cutoff: {
+                title: 'Automatic Cut-Off Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.10', tagPrefix: '0V',
+                spec: 'Automatic pump pressure unloader for gas accumulator charging circuits.', w: 110, h: 90,
+                ports: [
+                    { id: 'P', label: 'Port P (Pump Inlet)', relX: -50, relY: 0, type: 'pressure' },
+                    { id: 'T', label: 'Port T (Tank Return)', relX: 50, relY: 0, type: 'tank' },
+                    { id: 'ACC', label: 'Port ACC (Accumulator Line)', relX: 0, relY: -45, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.beginPath(); ctx.moveTo(-50, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(50, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -45); ctx.stroke();
+                }
+            },
+
+            // ── 4. FLOW CONTROL & NON-RETURN VALVES (STAGE 2 COMPLETE) ──
+            check_valve: {
+                title: 'Spring-Loaded Check Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.1', tagPrefix: '1V',
+                spec: 'Allows free flow in one direction; blocks reverse flow.', w: 90, h: 70,
+                ports: [
+                    { id: 'IN', label: 'Inlet (Free Flow)', relX: -40, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet (Blocked)', relX: 40, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.strokeRect(-20, -15, 40, 30);
+                    ctx.beginPath(); ctx.arc(-5, 0, 8, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(10, -10); ctx.lineTo(3, 0); ctx.lineTo(10, 10); ctx.stroke(); // V-seat
+                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-20, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(40, 0); ctx.stroke();
+                }
+            },
+            po_check: {
+                title: 'Pilot-to-Open (PO) Check Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.2', tagPrefix: '1V',
+                spec: 'Allows free flow IN -> OUT. Blocks OUT -> IN unless pilot port X is pressurized.', w: 100, h: 90,
+                ports: [
+                    { id: 'IN', label: 'Port IN (Free Flow)', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Port OUT (Blocked Return)', relX: 45, relY: 0, type: 'work' },
+                    { id: 'X', label: 'Port X (Pilot Unseat)', relX: 0, relY: -40, type: 'pilot' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.strokeRect(-22, -15, 44, 30);
+                    ctx.beginPath(); ctx.arc(-5, 0, 7, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-22, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, -40); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            po_check_close: {
+                title: 'Pilot-to-Close Check Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.3', tagPrefix: '1V',
+                spec: 'Allows normal free flow until pilot line X pressurizes to lock ball onto seat.', w: 100, h: 90,
+                ports: [
+                    { id: 'IN', label: 'Port IN', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Port OUT', relX: 45, relY: 0, type: 'work' },
+                    { id: 'X', label: 'Port X (Pilot Lock Close)', relX: 0, relY: -40, type: 'pilot' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-22, -15, 44, 30);
+                    ctx.beginPath(); ctx.arc(5, 0, 7, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-22, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, -40); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            po_check_vented: {
+                title: '4-Port Vented PO Check Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.4', tagPrefix: '1V',
+                spec: 'Vented pilot check valve preventing back-pressure locking in load control.', w: 110, h: 100,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 45, relY: 0, type: 'work' },
+                    { id: 'X', label: 'Port X (Pilot)', relX: 0, relY: -40, type: 'pilot' },
+                    { id: 'Y', label: 'Port Y (Vent)', relX: 0, relY: 40, type: 'drain' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-25, -20, 50, 40);
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(0, -40); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(0, 40); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            fixed_throttle: {
+                title: 'Fixed Throttle / Orifice Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.5', tagPrefix: '1V',
+                spec: 'Fixed restriction orifice line restricting fluid velocity.', w: 90, h: 70,
+                ports: [
+                    { id: 'IN', label: 'Port IN', relX: -40, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Port OUT', relX: 40, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-15, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    // Curved orifice constrictions
+                    ctx.beginPath(); ctx.arc(-5, -12, 12, 0.2, 1.2); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(-5, 12, 12, -1.2, -0.2); ctx.stroke();
+                }
+            },
+            throttle_needle: {
+                title: 'Adjustable Throttle Needle Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.6', tagPrefix: '1V',
+                spec: 'Adjustable needle orifice regulating flow rate.', w: 90, h: 80,
+                ports: [
+                    { id: 'IN', label: 'Port IN', relX: -40, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Port OUT', relX: 40, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
+                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-12, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-10, -25); ctx.lineTo(10, 25); ctx.stroke(); // diagonal adjustment arrow
+                    ctx.beginPath(); ctx.moveTo(10, 25); ctx.lineTo(2, 22); ctx.lineTo(8, 14); ctx.closePath(); ctx.fill();
+                }
+            },
+            flow_control: {
+                title: 'Flow Control Valve with Reverse Bypass Check', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.7', tagPrefix: '1V',
+                spec: 'Combines needle orifice and bypass check valve for meter-in or meter-out regulation.', w: 100, h: 90,
+                ports: [
+                    { id: 'A', label: 'Port A (Metered Line)', relX: -45, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B (Free Reverse Line)', relX: 45, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
                     ctx.strokeRect(-25, -25, 50, 50);
                     ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-25, 0); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(45, 0); ctx.stroke();
-                    ctx.strokeStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.stroke();
+                    // Top check loop
+                    ctx.beginPath(); ctx.arc(0, -12, 6, 0, Math.PI*2); ctx.stroke();
                 }
             },
-            prv_reducing: {
-                title: 'Pressure Reducing Valve (NO)', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.2', tagPrefix: '0V',
-                spec: 'Maintains reduced downstream working pressure.', w: 90, h: 90,
+            flow_regulator: {
+                title: 'Pressure & Temperature-Compensated Flow Regulator', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.8', tagPrefix: '1V',
+                spec: 'Pressure-balanced flow control valve delivering constant flow rate regardless of load or viscosity changes.', w: 110, h: 90,
                 ports: [
-                    { id: 'P', label: 'Inlet (P)', relX: -45, relY: 0, type: 'pressure' },
-                    { id: 'A', label: 'Reduced (A)', relX: 45, relY: 0, type: 'work' },
-                    { id: 'Y', label: 'Drain (Y)', relX: 0, relY: 45, type: 'drain' }
+                    { id: 'IN', label: 'Port IN', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Port OUT (Constant Flow)', relX: 45, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
                     ctx.strokeRect(-25, -25, 50, 50);
-                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(45, 0); ctx.stroke();
-                }
-            },
-            auto_cutoff: {
-                title: 'Automatic Cut-Off Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.4', tagPrefix: '0V',
-                spec: 'Unloads pump when system accumulator is fully charged.', w: 90, h: 90,
-                ports: [
-                    { id: 'P', label: 'Inlet P', relX: -45, relY: 0, type: 'pressure' },
-                    { id: 'T', label: 'Tank T', relX: 45, relY: 0, type: 'tank' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-25, -25, 50, 50);
-                    ctx.fillStyle = '#facc15'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('CUT-OFF', 0, 0);
-                }
-            },
-
-            // 4. FLOW CONTROL & NON-RETURN
-            check_valve: {
-                title: 'Spring-Loaded Check Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.1', tagPrefix: '1V',
-                spec: 'Allows free flow in one direction; blocks reverse.', w: 80, h: 60,
-                ports: [
-                    { id: 'IN', label: 'Inlet', relX: -40, relY: 0, type: 'work' },
-                    { id: 'OUT', label: 'Outlet', relX: 40, relY: 0, type: 'work' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.moveTo(-20, -15); ctx.lineTo(-5, 0); ctx.lineTo(-20, 15); ctx.stroke();
-                    ctx.beginPath(); ctx.arc(5, 0, 8, 0, Math.PI * 2); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(40, 0); ctx.stroke();
-                }
-            },
-            po_check: {
-                title: 'Pilot-to-Open Check Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.2', tagPrefix: '1V',
-                spec: 'Check valve unseated by external pilot signal X.', w: 90, h: 80,
-                ports: [
-                    { id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 45, relY: 0, type: 'work' },
-                    { id: 'X', label: 'Pilot X', relX: 0, relY: 40, type: 'pilot' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-25, -20, 50, 40);
-                    ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(0, 40); ctx.stroke(); ctx.setLineDash([]);
-                }
-            },
-            throttle_needle: {
-                title: 'Adjustable Throttle Needle Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.3', tagPrefix: '1V',
-                spec: 'Variable orifice for flow rate regulation.', w: 80, h: 60,
-                ports: [
-                    { id: 'A', label: 'Port A', relX: -40, relY: 0, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 40, relY: 0, type: 'work' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(40, 0); ctx.stroke();
-                    ctx.strokeStyle = '#facc15'; ctx.beginPath(); ctx.moveTo(-15, -15); ctx.lineTo(0, 0); ctx.lineTo(15, -15); ctx.stroke();
-                }
-            },
-            fixed_throttle: {
-                title: 'Fixed Throttle / Orifice Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.3', tagPrefix: '1V',
-                spec: 'Fixed constriction line in fluid conductor.', w: 80, h: 60,
-                ports: [
-                    { id: 'A', label: 'Port A', relX: -40, relY: 0, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 40, relY: 0, type: 'work' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-10, 0); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(40, 0); ctx.stroke();
-                    ctx.beginPath(); ctx.arc(0, -10, 10, 0, Math.PI); ctx.stroke();
-                    ctx.beginPath(); ctx.arc(0, 10, 10, Math.PI, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    // Compensator arrow
+                    ctx.beginPath(); ctx.moveTo(-15, 15); ctx.lineTo(15, -15); ctx.stroke();
                 }
             },
             temp_comp_flow: {
-                title: 'Temperature-Compensated Flow Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.4', tagPrefix: '1V',
-                spec: 'Viscosity-independent regulated flow control.', w: 90, h: 70,
+                title: 'Temperature-Compensated Flow Control Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.9', tagPrefix: '1V',
+                spec: 'Viscosity-independent flow regulator with thermal element.', w: 100, h: 90,
                 ports: [
                     { id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' },
                     { id: 'B', label: 'Port B', relX: 45, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-25, -20, 50, 40);
-                    ctx.fillStyle = '#facc15'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TEMP COMP', 0, 0);
+                    ctx.strokeRect(-22, -22, 44, 44);
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-22, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    ctx.fillText('T', -4, 4);
                 }
             },
             flow_divider: {
-                title: 'Flow Divider / Combiner Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.5', tagPrefix: '1V',
-                spec: 'Splits one input flow into two equal output streams.', w: 100, h: 80,
+                title: 'Flow Divider / Combiner Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.10', tagPrefix: '1V',
+                spec: 'Proportional 50/50 splitter dividing one flow into two equal streams for cylinder synchronization.', w: 110, h: 100,
                 ports: [
-                    { id: 'IN', label: 'Inlet', relX: 0, relY: 40, type: 'work' },
-                    { id: 'A', label: 'Outlet A', relX: -30, relY: -40, type: 'work' },
-                    { id: 'B', label: 'Outlet B', relX: 30, relY: -40, type: 'work' }
+                    { id: 'IN', label: 'Port IN (Supply)', relX: 0, relY: -45, type: 'work' },
+                    { id: 'A', label: 'Port A (50% Output)', relX: -30, relY: 45, type: 'work' },
+                    { id: 'B', label: 'Port B (50% Output)', relX: 30, relY: 45, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-40, -25, 80, 50);
-                    ctx.fillStyle = '#22c55e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('DIVIDER 50/50', 0, 0);
+                    ctx.strokeRect(-35, -25, 70, 50);
+                    ctx.beginPath(); ctx.moveTo(0, -45); ctx.lineTo(0, -25); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-30, 25); ctx.lineTo(-30, 45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 25); ctx.lineTo(30, 45); ctx.stroke();
                 }
             },
-
-            // 5. ACTUATORS & ROTATORS
-            cyl_double: {
-                title: 'Double-Acting Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.1', tagPrefix: '1A',
-                spec: 'Linear actuator powered in both directions.', w: 160, h: 80,
+            flow_fuse: {
+                title: 'Flow Fuse (Velocity Fuse)', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.11', tagPrefix: '1V',
+                spec: 'Line rupture safety valve that trips closed upon excessive differential pressure to lock load.', w: 100, h: 80,
                 ports: [
-                    { id: 'A', label: 'Cap End (A)', relX: -50, relY: 40, type: 'work' },
-                    { id: 'B', label: 'Rod End (B)', relX: 30, relY: 40, type: 'work' }
+                    { id: 'IN', label: 'Port IN', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Port OUT', relX: 45, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-70, -25, 110, 50); // Body
-                    ctx.fillStyle = '#64748b'; ctx.fillRect(-20, -23, 10, 46); // Piston
-                    ctx.fillRect(-10, -6, 80, 12); // Rod
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ef4444';
+                    ctx.strokeRect(-22, -18, 44, 36);
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-22, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    ctx.fillText('FUSE', -14, 4);
                 }
             },
-            cyl_telescopic: {
-                title: 'Telescopic Multi-Stage Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.2', tagPrefix: '1A',
-                spec: 'Multi-sleeve long stroke cylinder.', w: 160, h: 80,
+            air_bleed: {
+                title: 'Automatic Air Bleed Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.12', tagPrefix: '1V',
+                spec: 'Purges trapped air from high-point hydraulic lines back to tank during startup.', w: 90, h: 80,
                 ports: [
-                    { id: 'A', label: 'Cap End (A)', relX: -50, relY: 40, type: 'work' },
-                    { id: 'B', label: 'Rod End (B)', relX: 30, relY: 40, type: 'work' }
+                    { id: 'IN', label: 'Port IN', relX: -40, relY: 0, type: 'work' },
+                    { id: 'T', label: 'Port T (Bleed to Tank)', relX: 0, relY: 40, type: 'tank' }
                 ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-70, -30, 110, 60);
-                    ctx.strokeRect(-30, -20, 80, 40);
-                    ctx.fillRect(50, -6, 30, 12);
-                }
-            },
-            rack_pinion: {
-                title: 'Rack and Pinion Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.3', tagPrefix: '1A',
-                spec: 'Dual-piston linear rack driving center rotary pinion.', w: 140, h: 80,
-                ports: [
-                    { id: 'A', label: 'Port A', relX: -45, relY: 40, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 45, relY: 40, type: 'work' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
-                    ctx.strokeRect(-60, -20, 120, 40);
-                    ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.stroke();
-                }
-            },
-            rotary_double: {
-                title: 'Double-Acting Rotary Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.4', tagPrefix: '1A',
-                spec: 'Limited angle rotary drive (0-280 deg).', w: 90, h: 90,
-                ports: [
-                    { id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' },
-                    { id: 'B', label: 'Port B', relX: 45, relY: 0, type: 'work' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
-                    ctx.fillStyle = '#facc15'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('ROTARY', 0, 0);
-                }
-            },
-            rotary_spring: {
-                title: 'Spring-Return Rotary Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.4', tagPrefix: '1A',
-                spec: 'Rotary actuator with spring reset.', w: 90, h: 90,
-                ports: [{ id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' }],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
-                }
-            },
-
-            // 6. ACCUMULATORS & STORAGE
-            acc_bladder: {
-                title: 'Bladder Type Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.2', tagPrefix: '0Z',
-                spec: 'Gas-charged rubber bladder accumulator.', w: 80, h: 100,
-                ports: [{ id: 'P', label: 'Liquid Port', relX: 0, relY: 50, type: 'pressure' }],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
-                    ctx.beginPath(); ctx.arc(0, -25, 25, Math.PI, 0); ctx.lineTo(25, 25); ctx.arc(0, 25, 25, 0, Math.PI); ctx.closePath(); ctx.stroke();
-                    ctx.beginPath(); ctx.arc(0, -5, 18, 0, Math.PI); ctx.stroke();
-                    ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('N2', 0, -20);
-                }
-            },
-            acc_piston: {
-                title: 'Piston / Cylindrical Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.2', tagPrefix: '0Z',
-                spec: 'Cylindrical shell with floating separator piston.', w: 80, h: 100,
-                ports: [{ id: 'P', label: 'Liquid Port', relX: 0, relY: 50, type: 'pressure' }],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-25, -45, 50, 90);
-                    ctx.fillStyle = '#64748b'; ctx.fillRect(-23, -5, 46, 10);
-                }
-            },
-            acc_diaphragm: {
-                title: 'Diaphragm Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.2', tagPrefix: '0Z',
-                spec: 'Spherical shell with clamped flexible membrane.', w: 80, h: 90,
-                ports: [{ id: 'P', label: 'Liquid Port', relX: 0, relY: 45, type: 'pressure' }],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(30, 0); ctx.stroke();
-                }
-            },
-
-            // 7. RESERVOIRS & CONDITIONING
-            res_vented: {
-                title: 'Vented Open Reservoir', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 11.1', tagPrefix: '0T',
-                spec: 'Standard open-to-atmosphere fluid tank.', w: 100, h: 70,
-                ports: [
-                    { id: 'S', label: 'Suction', relX: -25, relY: -35, type: 'suction' },
-                    { id: 'R', label: 'Return', relX: 25, relY: -35, type: 'tank' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.moveTo(-40, -25); ctx.lineTo(-40, 25); ctx.lineTo(40, 25); ctx.lineTo(40, -25); ctx.stroke();
-                }
-            },
-            res_pressurised: {
-                title: 'Pressurised Sealed Reservoir', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 11.1', tagPrefix: '0T',
-                spec: 'Fully enclosed gas-boosted reservoir.', w: 100, h: 70,
-                ports: [
-                    { id: 'S', label: 'Suction', relX: -25, relY: -35, type: 'suction' },
-                    { id: 'R', label: 'Return', relX: 25, relY: -35, type: 'tank' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-40, -25, 80, 50);
-                }
-            },
-            filter_clogging: {
-                title: 'Filter with Optical Clogging Indicator', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 10.1', tagPrefix: '0Z',
-                spec: 'Traps contaminants; pop-up flags clogging Delta P.', w: 90, h: 90,
-                ports: [
-                    { id: 'IN', label: 'Inlet', relX: -45, relY: 0, type: 'work' },
-                    { id: 'OUT', label: 'Outlet', relX: 45, relY: 0, type: 'work' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.save(); ctx.rotate(45 * Math.PI / 180); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
-                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, 30); ctx.stroke(); ctx.setLineDash([]);
-                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(45, 0); ctx.stroke();
-                }
-            },
-            cooler: {
-                title: 'Heat Exchanger Cooler', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 10.2', tagPrefix: '0Z',
-                spec: 'Cools hydraulic oil via air or water cooling.', w: 90, h: 90,
-                ports: [
-                    { id: 'IN', label: 'Inlet', relX: -45, relY: 0, type: 'work' },
-                    { id: 'OUT', label: 'Outlet', relX: 45, relY: 0, type: 'work' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.save(); ctx.rotate(45 * Math.PI / 180); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
-                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(45, 0); ctx.stroke();
-                }
-            },
-            heater: {
-                title: 'Fluid Heater', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 10.3', tagPrefix: '0Z',
-                spec: 'Warms cold fluid in tank.', w: 90, h: 90,
-                ports: [
-                    { id: 'IN', label: 'Inlet', relX: -45, relY: 0, type: 'work' },
-                    { id: 'OUT', label: 'Outlet', relX: 45, relY: 0, type: 'work' }
-                ],
-                draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.save(); ctx.rotate(45 * Math.PI / 180); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
-                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(45, 0); ctx.stroke();
-                }
-            },
-
-            // 8. INSTRUMENTATION & SWITCHES
-            press_switch: {
-                title: 'Adjustable SPDT Pressure Switch', cat: '8. Instrumentation', iso: 'ISO 1219-1: Sec 12.1', tagPrefix: '0S',
-                spec: 'Triggers electrical contact on pressure setpoint.', w: 80, h: 80,
-                ports: [{ id: 'P', label: 'Sensing Port', relX: 0, relY: 40, type: 'pressure' }],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
                     ctx.strokeRect(-20, -20, 40, 40);
-                    ctx.fillStyle = '#facc15'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('P>⚡', 0, 0);
+                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-20, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(0, 40); ctx.stroke();
+                }
+            },
+            isolation_gate: {
+                title: 'Manual Gate / Globe Isolation Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.13', tagPrefix: '1V',
+                spec: 'Manual multi-turn isolation valve for line maintenance.', w: 90, h: 70,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -40, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 40, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-15, -15); ctx.lineTo(15, 15); ctx.lineTo(-15, 15); ctx.lineTo(15, -15); ctx.closePath(); ctx.stroke();
+                }
+            },
+
+            // ── 5. ACTUATORS & ROTATORS ──
+            
+            // 5. ACTUATORS & ROTATORS (LINEAR & ROTARY)
+            cyl_double: {
+                title: 'Double-Acting Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.1', tagPrefix: '1A',
+                spec: 'Standard double-acting linear hydraulic/pneumatic cylinder with cap and rod ports.', w: 140, h: 80,
+                ports: [
+                    { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' },
+                    { id: 'B', label: 'Rod Port B', relX: 30, relY: 35, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
+                    ctx.strokeRect(-60, -25, 120, 50); // Cylinder barrel
+                    ctx.fillRect(-20, -22, 12, 44); // Piston head
+                    ctx.fillRect(-8, -6, 80, 12); // Piston rod
+                    ctx.beginPath(); ctx.moveTo(-50, 25); ctx.lineTo(-50, 35); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 25); ctx.lineTo(30, 35); ctx.stroke();
+                }
+            },
+            cyl_cushion: {
+                title: 'Double Cushioned Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.2', tagPrefix: '1A',
+                spec: 'Double-acting cylinder with adjustable end-of-stroke deceleration cushions at both caps.', w: 140, h: 80,
+                ports: [
+                    { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' },
+                    { id: 'B', label: 'Rod Port B', relX: 30, relY: 35, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
+                    ctx.strokeRect(-60, -25, 120, 50);
+                    ctx.fillRect(-20, -22, 12, 44);
+                    ctx.fillRect(-8, -6, 80, 12);
+                    // Cushion spears
+                    ctx.fillRect(-32, -10, 12, 20); ctx.fillRect(-8, -10, 12, 20);
+                    // Adjustable needle arrows
+                    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5;
+                    ctx.beginPath(); ctx.moveTo(-45, -30); ctx.lineTo(-35, -15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, -30); ctx.lineTo(35, -15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-50, 25); ctx.lineTo(-50, 35); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 25); ctx.lineTo(30, 35); ctx.stroke();
+                }
+            },
+            cyl_single_spring: {
+                title: 'Single-Acting Spring-Return Ram', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.3', tagPrefix: '1A',
+                spec: 'Single-acting cylinder with single cap fluid port and mechanical internal spring return.', w: 140, h: 80,
+                ports: [
+                    { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
+                    ctx.strokeRect(-60, -25, 120, 50);
+                    ctx.fillRect(-35, -22, 12, 44);
+                    ctx.fillRect(-23, -6, 95, 12);
+                    // Return Spring Coil
+                    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    for(let x = -20; x <= 50; x += 10) {
+                        ctx.lineTo(x, (x % 20 === 0) ? -15 : 15);
+                    }
+                    ctx.stroke();
+                    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+                    ctx.beginPath(); ctx.moveTo(-50, 25); ctx.lineTo(-50, 35); ctx.stroke();
+                }
+            },
+            cyl_double_rod: {
+                title: 'Double-Rod (Through-Rod) Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.4', tagPrefix: '1A',
+                spec: 'Equal-area cylinder with piston rods protruding through both end caps (1:1 force/speed ratio).', w: 160, h: 80,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -40, relY: 35, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 40, relY: 35, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
+                    ctx.strokeRect(-50, -25, 100, 50);
+                    ctx.fillRect(-6, -22, 12, 44);
+                    ctx.fillRect(-75, -6, 150, 12); // Double rod extending both ways
+                    ctx.beginPath(); ctx.moveTo(-40, 25); ctx.lineTo(-40, 35); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(40, 25); ctx.lineTo(40, 35); ctx.stroke();
+                }
+            },
+            cyl_telescopic: {
+                title: 'Telescopic Multi-Stage Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.5', tagPrefix: '1A',
+                spec: 'Multi-stage linear actuator with nested tubular sleeves for extended stroke length.', w: 150, h: 80,
+                ports: [
+                    { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' },
+                    { id: 'B', label: 'Rod Port B', relX: 40, relY: 35, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-60, -30, 120, 60); // Base barrel
+                    ctx.strokeRect(-40, -22, 90, 44);  // Stage 2 sleeve
+                    ctx.strokeRect(-20, -14, 60, 28);  // Stage 3 sleeve
+                    ctx.fillStyle = '#64748b'; ctx.fillRect(40, -6, 40, 12); // Final rod
+                    ctx.beginPath(); ctx.moveTo(-50, 30); ctx.lineTo(-50, 35); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(40, 30); ctx.lineTo(40, 35); ctx.stroke();
+                }
+            },
+            cyl_rodless: {
+                title: 'Rodless Band Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.6', tagPrefix: '1A',
+                spec: 'Pneumatic/hydraulic rodless actuator with internal piston magnetically or mechanically coupled to outer carriage.', w: 150, h: 80,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -50, relY: 35, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 50, relY: 35, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#38bdf8';
+                    ctx.strokeRect(-60, -15, 120, 30); // Long tube
+                    ctx.fillRect(-15, -28, 30, 13);    // Outer carriage block
+                    ctx.strokeRect(-15, -28, 30, 13);
+                    ctx.beginPath(); ctx.moveTo(-50, 15); ctx.lineTo(-50, 35); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(50, 15); ctx.lineTo(50, 35); ctx.stroke();
+                }
+            },
+            cyl_gland_drain: {
+                title: 'Cylinder with Gland Drain Port', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.7', tagPrefix: '1A',
+                spec: 'Double-acting cylinder with dedicated rod seal weeping drain port (L) returning leakage to tank.', w: 150, h: 80,
+                ports: [
+                    { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' },
+                    { id: 'B', label: 'Rod Port B', relX: 20, relY: 35, type: 'work' },
+                    { id: 'L', label: 'Gland Drain L', relX: 50, relY: -35, type: 'drain' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
+                    ctx.strokeRect(-60, -25, 120, 50);
+                    ctx.fillRect(-20, -22, 12, 44); ctx.fillRect(-8, -6, 80, 12);
+                    ctx.beginPath(); ctx.moveTo(-50, 25); ctx.lineTo(-50, 35); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(20, 25); ctx.lineTo(20, 35); ctx.stroke();
+                    // Gland Drain Port L (Dashed)
+                    ctx.strokeStyle = '#94a3b8'; ctx.setLineDash([3, 3]);
+                    ctx.beginPath(); ctx.moveTo(50, -25); ctx.lineTo(50, -35); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            },
+            rack_pinion: {
+                title: 'Rack and Pinion Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.8', tagPrefix: '1A',
+                spec: 'Dual-piston linear actuator driving a gear rack across a central rotary shaft pinion gear.', w: 140, h: 100,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -50, relY: 45, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 50, relY: 45, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#38bdf8';
+                    ctx.strokeRect(-60, -15, 120, 30); // Cylinder barrel
+                    ctx.beginPath(); ctx.arc(0, -25, 20, 0, Math.PI * 2); ctx.stroke(); // Pinion circle
+                    ctx.beginPath(); ctx.arc(0, -25, 6, 0, Math.PI * 2); ctx.fill(); // Shaft center
+                    ctx.beginPath(); ctx.moveTo(-50, 15); ctx.lineTo(-50, 45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(50, 15); ctx.lineTo(50, 45); ctx.stroke();
+                }
+            },
+            rotary_double: {
+                title: 'Double-Acting Rotary Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.9', tagPrefix: '1M',
+                spec: 'Limited-angle rotary vane drive generating torque in both clockwise and counter-clockwise directions.', w: 100, h: 100,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -30, relY: 45, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 30, relY: 45, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI * 2); ctx.stroke();
+                    // Vane block inside
+                    ctx.fillRect(-5, -30, 10, 30);
+                    // Arc arrows
+                    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(0, 0, 22, -Math.PI/3, Math.PI/3); ctx.stroke();
+                    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+                    ctx.beginPath(); ctx.moveTo(-30, 18); ctx.lineTo(-30, 45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 18); ctx.lineTo(30, 45); ctx.stroke();
+                }
+            },
+            rotary_spring: {
+                title: 'Spring-Return Rotary Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 8.10', tagPrefix: '1M',
+                spec: 'Single-acting rotary vane actuator with internal return spring resetting output shaft upon pressure release.', w: 100, h: 100,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -30, relY: 45, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI * 2); ctx.stroke();
+                    ctx.fillRect(-5, -30, 10, 30);
+                    // Internal spring coil
+                    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI); ctx.stroke();
+                    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+                    ctx.beginPath(); ctx.moveTo(-30, 18); ctx.lineTo(-30, 45); ctx.stroke();
+                }
+            },
+
+            // 6. ACCUMULATORS & ENERGY STORAGE
+            acc_bladder: {
+                title: 'Bladder Type Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.1', tagPrefix: '0Z',
+                spec: 'Gas-charged bladder accumulator with rubber gas bag separating nitrogen gas charge from fluid chamber.', w: 90, h: 120,
+                ports: [
+                    { id: 'P', label: 'Fluid Port P', relX: 0, relY: 55, type: 'pressure' },
+                    { id: 'N2', label: 'N2 Charge Valve', relX: 0, relY: -55, type: 'pilot' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
+                    ctx.beginPath(); ctx.arc(0, -25, 30, Math.PI, 0); ctx.lineTo(30, 25); ctx.arc(0, 25, 30, 0, Math.PI); ctx.closePath(); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0, -5, 20, 0, Math.PI); ctx.stroke(); // Bladder curve
+                    ctx.font = 'bold 12px sans-serif'; ctx.fillText('N2', -8, -25);
+                    ctx.beginPath(); ctx.moveTo(0, -45); ctx.lineTo(0, -55); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, 55); ctx.stroke();
+                }
+            },
+            acc_piston: {
+                title: 'Cylindrical / Piston Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.2', tagPrefix: '0Z',
+                spec: 'Heavy cylindrical vessel with floating metal separator piston dividing gas and hydraulic oil.', w: 90, h: 120,
+                ports: [
+                    { id: 'P', label: 'Fluid Port P', relX: 0, relY: 55, type: 'pressure' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#64748b';
+                    ctx.strokeRect(-28, -45, 56, 90);
+                    ctx.fillRect(-26, -5, 52, 12); // Piston plate
+                    ctx.fillStyle = '#facc15'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('GAS', -12, -22);
+                    ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, 55); ctx.stroke();
+                }
+            },
+            acc_diaphragm: {
+                title: 'Diaphragm Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.3', tagPrefix: '0Z',
+                spec: 'Spherical energy storage vessel with clamped flexible diaphragm membrane.', w: 90, h: 110,
+                ports: [
+                    { id: 'P', label: 'Fluid Port P', relX: 0, relY: 50, type: 'pressure' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
+                    ctx.beginPath(); ctx.arc(0, 0, 38, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-38, 0); ctx.lineTo(38, 0); ctx.stroke(); // Diaphragm line
+                    ctx.font = 'bold 11px sans-serif'; ctx.fillText('N2', -7, -15);
+                    ctx.beginPath(); ctx.moveTo(0, 38); ctx.lineTo(0, 50); ctx.stroke();
+                }
+            },
+            acc_spring: {
+                title: 'Spring-Loaded Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.4', tagPrefix: '0Z',
+                spec: 'Mechanical accumulator utilizing a heavy compression spring to maintain fluid holding pressure.', w: 90, h: 120,
+                ports: [
+                    { id: 'P', label: 'Fluid Port P', relX: 0, relY: 55, type: 'pressure' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#64748b';
+                    ctx.strokeRect(-28, -45, 56, 90);
+                    ctx.fillRect(-26, 15, 52, 12); // Piston plate
+                    // Spring coils above piston
+                    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    for(let y = -40; y <= 10; y += 8) {
+                        ctx.lineTo((y % 16 === 0) ? -18 : 18, y);
+                    }
+                    ctx.stroke();
+                    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2.5;
+                    ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, 55); ctx.stroke();
+                }
+            },
+            acc_weighted: {
+                title: 'Weighted / Gravity Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.5', tagPrefix: '0Z',
+                spec: 'Static pressure accumulator using a heavy gravity ballast mass block on top of a vertical piston ram.', w: 100, h: 130,
+                ports: [
+                    { id: 'P', label: 'Fluid Port P', relX: 0, relY: 60, type: 'pressure' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#64748b';
+                    ctx.strokeRect(-22, -15, 44, 65); // Cylinder barrel
+                    ctx.fillRect(-18, 0, 36, 10);     // Piston head
+                    ctx.fillRect(-6, -45, 12, 45);    // Ram shaft
+                    ctx.strokeRect(-35, -55, 70, 18);  // Mass ballast box
+                    ctx.fillStyle = '#facc15'; ctx.font = 'bold 10px sans-serif'; ctx.fillText('MASS', -14, -42);
+                    ctx.beginPath(); ctx.moveTo(0, 50); ctx.lineTo(0, 60); ctx.stroke();
+                }
+            },
+res_vented: {
+                title: 'Vented Open Reservoir', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.1', tagPrefix: '0T',
+                spec: 'Standard hydraulic tank open to atmosphere with submerged suction and return line conductors.', w: 100, h: 80,
+                ports: [
+                    { id: 'T', label: 'Return T', relX: -20, relY: -35, type: 'tank' },
+                    { id: 'S', label: 'Suction S', relX: 20, relY: -35, type: 'suction' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#1e3a8a';
+                    // Tank U-shape
+                    ctx.beginPath(); ctx.moveTo(-35, -25); ctx.lineTo(-35, 25); ctx.lineTo(35, 25); ctx.lineTo(35, -25); ctx.stroke();
+                    // Fluid level line
+                    ctx.fillStyle = '#3b82f6'; ctx.fillRect(-33, -5, 66, 28);
+                    ctx.beginPath(); ctx.moveTo(-20, -25); ctx.lineTo(-20, 15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(20, -25); ctx.lineTo(20, 15); ctx.stroke();
+                }
+            },
+            res_pressurised: {
+                title: 'Pressurised Sealed Reservoir', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.2', tagPrefix: '0T',
+                spec: 'Fully enclosed sealed reservoir boosted with low-pressure nitrogen/air blanket to prevent pump cavitation.', w: 100, h: 80,
+                ports: [
+                    { id: 'T', label: 'Return T', relX: -20, relY: -35, type: 'tank' },
+                    { id: 'S', label: 'Suction S', relX: 20, relY: -35, type: 'suction' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#1e3a8a';
+                    ctx.strokeRect(-35, -25, 70, 50); // Fully sealed box
+                    ctx.fillStyle = '#3b82f6'; ctx.fillRect(-33, -5, 66, 28);
+                    ctx.fillStyle = '#facc15'; ctx.font = 'bold 10px sans-serif'; ctx.fillText('PRESS', -16, -12);
+                    ctx.beginPath(); ctx.moveTo(-20, -25); ctx.lineTo(-20, 15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(20, -25); ctx.lineTo(20, 15); ctx.stroke();
+                }
+            },
+            strainer: {
+                title: 'Suction Line Strainer with Bypass', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.3', tagPrefix: '0Z',
+                spec: 'Coarse inlet suction strainer featuring an internal parallel bypass check valve to prevent pump starvation.', w: 90, h: 90,
+                ports: [
+                    { id: 'IN', label: 'Inlet IN', relX: -45, relY: 0, type: 'suction' },
+                    { id: 'OUT', label: 'Outlet OUT', relX: 45, relY: 0, type: 'suction' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.save(); ctx.rotate(Math.PI / 4); ctx.strokeRect(-22, -22, 44, 44); ctx.restore(); // Square diamond
+                    // Dashed mesh element
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, -31); ctx.lineTo(0, 31); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.beginPath(); ctx.moveTo(-31, 0); ctx.lineTo(-45, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(31, 0); ctx.lineTo(45, 0); ctx.stroke();
+                }
+            },
+            filter_clogging: {
+                title: 'Filter with Optical Clogging Indicator', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.4', tagPrefix: '0Z',
+                spec: 'High-pressure line filter featuring differential pressure optical pop-up visual clogging indicator.', w: 90, h: 90,
+                ports: [
+                    { id: 'IN', label: 'Inlet IN', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet OUT', relX: 45, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.save(); ctx.rotate(Math.PI / 4); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, -31); ctx.lineTo(0, 31); ctx.stroke(); ctx.setLineDash([]);
+                    // Optical indicator pop-up arrow on top
+                    ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444';
+                    ctx.beginPath(); ctx.moveTo(0, -31); ctx.lineTo(0, -42); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-6, -42); ctx.lineTo(6, -42); ctx.lineTo(0, -48); ctx.closePath(); ctx.fill();
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.moveTo(-31, 0); ctx.lineTo(-45, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(31, 0); ctx.lineTo(45, 0); ctx.stroke();
+                }
+            },
+            cooler: {
+                title: 'Heat Exchanger Cooler', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.5', tagPrefix: '0Z',
+                spec: 'Air/liquid heat exchanger with outward thermal arrows indicating heat dissipation.', w: 90, h: 90,
+                ports: [
+                    { id: 'IN', label: 'Inlet IN', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet OUT', relX: 45, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#ef4444';
+                    ctx.save(); ctx.rotate(Math.PI / 4); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
+                    // Outward heat arrows
+                    ctx.beginPath(); ctx.moveTo(0, -31); ctx.lineTo(-8, -20); ctx.lineTo(8, -20); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(0, 31); ctx.lineTo(-8, 20); ctx.lineTo(8, 20); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-31, 0); ctx.lineTo(-45, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(31, 0); ctx.lineTo(45, 0); ctx.stroke();
+                }
+            },
+            heater: {
+                title: 'Fluid Heater', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.6', tagPrefix: '0Z',
+                spec: 'Electric or steam tank heater with inward thermal arrows indicating heat addition to fluid.', w: 90, h: 90,
+                ports: [
+                    { id: 'IN', label: 'Inlet IN', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet OUT', relX: 45, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#ef4444';
+                    ctx.save(); ctx.rotate(Math.PI / 4); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
+                    // Inward heat arrows
+                    ctx.beginPath(); ctx.moveTo(-8, -31); ctx.lineTo(8, -31); ctx.lineTo(0, -20); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-8, 31); ctx.lineTo(8, 31); ctx.lineTo(0, 20); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-31, 0); ctx.lineTo(-45, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(31, 0); ctx.lineTo(45, 0); ctx.stroke();
+                }
+            },
+            frl_trio: {
+                title: 'Pneumatic FRL Trio (Filter-Regulator-Lubricator)', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.7', tagPrefix: '0Z',
+                spec: 'Combined air preparation unit featuring centrifugal water filter, pressure regulator, and oil mist lubricator.', w: 140, h: 80,
+                ports: [
+                    { id: 'IN', label: 'Air IN', relX: -60, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Air OUT', relX: 60, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.strokeRect(-50, -20, 100, 40); // Combined FRL box
+                    ctx.beginPath(); ctx.arc(-25, 0, 10, 0, Math.PI * 2); ctx.stroke(); // Filter bowl
+                    ctx.strokeRect(-5, -12, 10, 24); // Regulator knob
+                    ctx.beginPath(); ctx.arc(25, 0, 10, 0, Math.PI * 2); ctx.stroke(); // Lubricator
+                    ctx.beginPath(); ctx.moveTo(-50, 0); ctx.lineTo(-60, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(50, 0); ctx.lineTo(60, 0); ctx.stroke();
+                }
+            },
+            muffler: {
+                title: 'Pneumatic Exhaust Silencer / Muffler', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.8', tagPrefix: '0Z',
+                spec: 'Exhaust port noise attenuation silencer mounted on pneumatic directional control valve exhaust ports.', w: 80, h: 70,
+                ports: [
+                    { id: 'EXH', label: 'Exhaust Port', relX: 0, relY: 30, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#64748b';
+                    // Triangular trapezoid muffler cap
+                    ctx.beginPath(); ctx.moveTo(-20, -15); ctx.lineTo(20, -15); ctx.lineTo(30, 15); ctx.lineTo(-30, 15); ctx.closePath(); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 15); ctx.lineTo(0, 30); ctx.stroke();
+                }
+            },
+            quick_disconnect: {
+                title: 'Quick Disconnect Couplings', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 12.9', tagPrefix: '0Z',
+                spec: 'Quick-release hose coupling with integrated check valves preventing fluid loss upon disconnection.', w: 90, h: 70,
+                ports: [
+                    { id: 'A', label: 'Hose Side A', relX: -40, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Hose Side B', relX: 40, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.strokeRect(-20, -15, 18, 30); ctx.strokeRect(2, -15, 18, 30);
+                    // Internal check triangles
+                    ctx.beginPath(); ctx.moveTo(-10, -8); ctx.lineTo(-10, 8); ctx.lineTo(-2, 0); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(10, -8); ctx.lineTo(10, 8); ctx.lineTo(2, 0); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(-40, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(40, 0); ctx.stroke();
+                }
+            },
+
+            // 8. INSTRUMENTATION & SENSORS
+            press_switch: {
+                title: 'Adjustable SPDT Pressure Switch', cat: '8. Instrumentation', iso: 'ISO 1219-1: Sec 10.1', tagPrefix: '0S',
+                spec: 'Pressure-actuated SPDT microswitch closing/opening electrical contacts at adjustable setpoint.', w: 90, h: 90,
+                ports: [
+                    { id: 'P', label: 'Sensing Port P', relX: 0, relY: 40, type: 'pressure' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
+                    ctx.strokeRect(-25, -25, 50, 50); // Circle or box
+                    ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.stroke();
+                    ctx.font = 'bold 12px sans-serif'; ctx.fillText('P>t', -10, 4);
+                    ctx.beginPath(); ctx.moveTo(0, 25); ctx.lineTo(0, 40); ctx.stroke();
+                }
+            },
+            press_transducer: {
+                title: 'Analog Pressure Transducer (PT)', cat: '8. Instrumentation', iso: 'ISO 1219-1: Sec 10.2', tagPrefix: '0B',
+                spec: 'Continuous electrical pressure sensor outputting 4-20mA / 0-10V feedback signal to PLC.', w: 90, h: 90,
+                ports: [
+                    { id: 'P', label: 'Sensing Port P', relX: 0, relY: 40, type: 'pressure' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.font = 'bold 12px sans-serif'; ctx.fillText('PT', -8, 4);
+                    ctx.beginPath(); ctx.moveTo(0, 25); ctx.lineTo(0, 40); ctx.stroke();
+                }
+            },
+            flowmeter: {
+                title: 'Inline Turbine Flowmeter', cat: '8. Instrumentation', iso: 'ISO 1219-1: Sec 10.3', tagPrefix: '0B',
+                spec: 'Volumetric flow measurement instrument displaying real-time GPM / L/min circuit flow.', w: 90, h: 90,
+                ports: [
+                    { id: 'IN', label: 'Inlet IN', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet OUT', relX: 45, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
+                    ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI * 2); ctx.stroke();
+                    ctx.font = 'bold 11px sans-serif'; ctx.fillText('GPM', -12, 4);
+                    ctx.beginPath(); ctx.moveTo(-25, 0); ctx.lineTo(-45, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(45, 0); ctx.stroke();
+                }
+            },
+            level_switch: {
+                title: 'Reservoir Fluid Level Switch', cat: '8. Instrumentation', iso: 'ISO 1219-1: Sec 10.4', tagPrefix: '0S',
+                spec: 'Float-operated minimum/maximum oil level sensor protecting pump against low-fluid cavitation.', w: 90, h: 90,
+                ports: [
+                    { id: 'SENS', label: 'Float Sensor', relX: 0, relY: 40, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.beginPath(); ctx.arc(0, -5, 8, 0, Math.PI * 2); ctx.fill(); // Float ball
+                    ctx.font = 'bold 11px sans-serif'; ctx.fillText('LVL', -10, 16);
+                    ctx.beginPath(); ctx.moveTo(0, 25); ctx.lineTo(0, 40); ctx.stroke();
+                }
+            },
+            temp_switch: {
+                title: 'Reservoir Temperature Switch', cat: '8. Instrumentation', iso: 'ISO 1219-1: Sec 10.5', tagPrefix: '0S',
+                spec: 'Thermal contact switch energizing heat exchanger fan when fluid temperature exceeds 60°C.', w: 90, h: 90,
+                ports: [
+                    { id: 'SENS', label: 'Temp Sensor', relX: 0, relY: 40, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#ef4444';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.font = 'bold 11px sans-serif'; ctx.fillText('t°C', -8, 4);
+                    ctx.beginPath(); ctx.moveTo(0, 25); ctx.lineTo(0, 40); ctx.stroke();
                 }
             }
-        };
+};
 
         // ── APPLICATION STATE & GLOBALS ──
         let canvas, ctx;
