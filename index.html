@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISO 1219 Interactive Fluid Power Schematic Builder & Simulation Engine v2</title>
+    <title>ISO 1219 Master Fluid Power Schematic Builder & Wiring Simulator v7</title>
     <style>
         :root {
             --bg-dark: #0f172a;
@@ -25,7 +25,7 @@
 
         header {
             background: #1e293b;
-            padding: 0.75rem 1.25rem;
+            padding: 0.6rem 1.25rem;
             border-bottom: 2px solid var(--panel-border);
             display: flex;
             justify-content: space-between;
@@ -34,28 +34,27 @@
             z-index: 10;
         }
 
-        header h1 { font-size: 1.25rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem; }
-        .badge { background: rgba(56, 189, 248, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 1rem; font-weight: 600; }
+        header h1 { font-size: 1.2rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem; }
+        .badge { background: rgba(56, 189, 248, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 1rem; font-weight: 600; }
 
-        /* TELEMETRY HEADER DASHBOARD */
         .telemetry-bar {
             display: flex;
             align-items: center;
             gap: 1.25rem;
             background: #0b1120;
-            padding: 0.4rem 1rem;
+            padding: 0.35rem 1rem;
             border-radius: 0.5rem;
             border: 1px solid var(--panel-border);
         }
 
         .metric-item { display: flex; flex-direction: column; align-items: center; }
-        .metric-label { font-size: 0.65rem; color: var(--text-muted); font-weight: bold; text-transform: uppercase; }
-        .metric-val { font-size: 0.95rem; font-weight: bold; color: var(--accent-yellow); font-family: monospace; }
+        .metric-label { font-size: 0.62rem; color: var(--text-muted); font-weight: bold; text-transform: uppercase; }
+        .metric-val { font-size: 0.9rem; font-weight: bold; color: var(--accent-yellow); font-family: monospace; }
 
         .toolbar {
             background: var(--panel-bg);
             border-bottom: 1px solid var(--panel-border);
-            padding: 0.5rem 1.25rem;
+            padding: 0.45rem 1.25rem;
             display: flex;
             gap: 0.75rem;
             align-items: center;
@@ -65,7 +64,7 @@
         .tool-group { display: flex; align-items: center; gap: 0.35rem; border-right: 1px solid var(--panel-border); padding-right: 0.75rem; }
         .tool-btn {
             background: #0f172a; border: 1px solid var(--panel-border); color: var(--text-main);
-            padding: 0.4rem 0.75rem; border-radius: 0.35rem; font-size: 0.8rem; font-weight: 600;
+            padding: 0.35rem 0.7rem; border-radius: 0.35rem; font-size: 0.78rem; font-weight: 600;
             cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.35rem;
         }
         .tool-btn:hover { border-color: var(--accent-cyan); background: #1e293b; }
@@ -77,57 +76,78 @@
 
         select.tool-select {
             background: #0f172a; color: var(--text-main); border: 1px solid var(--panel-border);
-            padding: 0.4rem 0.6rem; border-radius: 0.35rem; font-size: 0.8rem; cursor: pointer;
+            padding: 0.35rem 0.6rem; border-radius: 0.35rem; font-size: 0.78rem; cursor: pointer;
         }
 
-        main { display: grid; grid-template-columns: 320px 1fr 340px; flex: 1; overflow: hidden; position: relative; }
+        main {
+            display: grid;
+            grid-template-columns: 310px 1fr 330px;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            position: relative;
+        }
 
         /* SIDEBAR PALETTE */
-        .sidebar { background: var(--panel-bg); border-right: 1px solid var(--panel-border); display: flex; flex-direction: column; height: 100%; }
-        .search-box { padding: 0.75rem; border-bottom: 1px solid var(--panel-border); }
+        .sidebar { background: var(--panel-bg); border-right: 1px solid var(--panel-border); display: flex; flex-direction: column; height: 100%; min-width: 0; overflow: hidden; }
+        .search-box { padding: 0.6rem; border-bottom: 1px solid var(--panel-border); }
         .search-box input {
-            width: 100%; padding: 0.5rem 0.75rem; background: #0f172a; border: 1px solid var(--panel-border);
-            border-radius: 0.4rem; color: var(--text-main); font-size: 0.85rem;
+            width: 100%; padding: 0.45rem 0.75rem; background: #0f172a; border: 1px solid var(--panel-border);
+            border-radius: 0.4rem; color: var(--text-main); font-size: 0.82rem;
         }
 
-        .palette-scroll { flex: 1; overflow-y: auto; padding: 0.75rem; display: flex; flex-direction: column; gap: 1rem; }
-        .category-group { display: flex; flex-direction: column; gap: 0.5rem; }
-        .category-title { font-size: 0.75rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--panel-border); padding-bottom: 0.25rem; }
-        .comp-grid { display: grid; grid-template-columns: 1fr; gap: 0.4rem; }
+        .palette-scroll { flex: 1; overflow-y: auto; padding: 0.6rem; display: flex; flex-direction: column; gap: 0.85rem; }
+        .category-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .category-title { font-size: 0.72rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--panel-border); padding-bottom: 0.2rem; }
+        .comp-grid { display: grid; grid-template-columns: 1fr; gap: 0.35rem; }
 
         .comp-card {
-            background: #0f172a; border: 1px solid var(--panel-border); border-radius: 0.4rem; padding: 0.5rem 0.75rem;
-            cursor: grab; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between;
+            background: #0f172a; border: 1px solid var(--panel-border); border-radius: 0.4rem; padding: 0.45rem 0.65rem;
+            cursor: grab; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; user-select: none;
         }
         .comp-card:hover { border-color: var(--accent-cyan); background: #1e293b; transform: translateX(2px); }
         .comp-info { display: flex; flex-direction: column; }
-        .comp-name { font-size: 0.82rem; font-weight: 600; color: var(--text-main); }
-        .comp-iso { font-size: 0.7rem; color: var(--text-muted); }
-        .add-icon { font-size: 1rem; color: var(--accent-cyan); font-weight: bold; }
+        .comp-name { font-size: 0.8rem; font-weight: 600; color: var(--text-main); }
+        .comp-iso { font-size: 0.68rem; color: var(--text-muted); }
+        .add-icon { font-size: 0.95rem; color: var(--accent-cyan); font-weight: bold; }
 
-        /* CANVAS WORKSPACE */
-        .workspace-container { position: relative; width: 100%; height: 100%; background: #050811; overflow: hidden; cursor: crosshair; }
-        canvas#schematicCanvas { width: 100%; height: 100%; display: block; }
+        /* WORKSPACE CONTAINER & CANVAS */
+        .workspace-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+            background: #050811;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+        canvas#schematicCanvas { display: block; width: 100%; height: 100%; }
 
-        /* RIGHT INSPECTOR PANEL */
-        .inspector { background: var(--panel-bg); border-left: 1px solid var(--panel-border); padding: 1rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; }
-        .inspector h2 { font-size: 0.95rem; color: var(--accent-cyan); text-transform: uppercase; border-bottom: 1px solid var(--panel-border); padding-bottom: 0.4rem; }
-        .inspector-card { background: #0f172a; border: 1px solid var(--panel-border); border-radius: 0.5rem; padding: 0.85rem; font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.5rem; }
+        /* INSPECTOR PANEL */
+        .inspector { background: var(--panel-bg); border-left: 1px solid var(--panel-border); padding: 0.85rem; display: flex; flex-direction: column; gap: 0.85rem; overflow-y: auto; height: 100%; min-width: 0; }
+        .inspector h2 { font-size: 0.9rem; color: var(--accent-cyan); text-transform: uppercase; border-bottom: 1px solid var(--panel-border); padding-bottom: 0.35rem; }
+        .inspector-card { background: #0f172a; border: 1px solid var(--panel-border); border-radius: 0.45rem; padding: 0.75rem; font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.45rem; }
         .prop-row { display: flex; justify-content: space-between; align-items: center; }
         .prop-label { color: var(--text-muted); font-weight: 500; }
         .prop-val { color: var(--text-main); font-weight: bold; }
 
-        .ctrl-btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.5rem; }
+        .ctrl-btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; margin-top: 0.4rem; }
         .action-btn { background: #0284c7; color: white; border: none; padding: 0.4rem; border-radius: 0.35rem; font-size: 0.75rem; font-weight: bold; cursor: pointer; text-align: center; }
         .action-btn:hover { background: #0369a1; }
 
-        .hotkey-legend { font-size: 0.72rem; color: var(--text-muted); line-height: 1.5; background: #0f172a; padding: 0.6rem; border-radius: 0.4rem; border: 1px solid var(--panel-border); }
+        .wire-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 160px; overflow-y: auto; margin-top: 0.3rem; }
+        .wire-item { background: #1e293b; padding: 0.35rem 0.5rem; border-radius: 0.3rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; border: 1px solid var(--panel-border); }
+        .wire-item.selected { border-color: var(--accent-yellow); background: #334155; }
+        .del-wire-btn { background: var(--accent-red); color: white; border: none; padding: 0.1rem 0.35rem; border-radius: 0.2rem; cursor: pointer; font-size: 0.65rem; font-weight: bold; }
+
+        .hotkey-legend { font-size: 0.7rem; color: var(--text-muted); line-height: 1.5; background: #0f172a; padding: 0.55rem; border-radius: 0.4rem; border: 1px solid var(--panel-border); }
         .hotkey-legend kbd { background: #1e293b; color: var(--accent-cyan); padding: 0.1rem 0.3rem; border-radius: 0.2rem; border: 1px solid var(--panel-border); font-family: monospace; }
 
         /* FAULT BANNER */
         .fault-banner {
             display: none; background: rgba(239, 68, 68, 0.2); border: 1px solid var(--accent-red);
-            color: var(--accent-red); padding: 0.5rem; border-radius: 0.4rem; font-size: 0.8rem;
+            color: var(--accent-red); padding: 0.45rem; border-radius: 0.4rem; font-size: 0.78rem;
             font-weight: bold; text-align: center; animation: pulse 1.5s infinite;
         }
         @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
@@ -136,25 +156,25 @@
 <body>
 
     <header>
-        <h1>⚙️ ISO 1219 Schematic Builder & Simulator <span class="badge">v2 Physics Engine</span></h1>
+        <h1>⚡ ISO 1219 Schematic Builder <span class="badge">Master 68-Component Library v7</span></h1>
 
-        <!-- LIVE TELEMETRY HEADER -->
+        <!-- TELEMETRY HUD -->
         <div class="telemetry-bar">
             <div class="metric-item">
-                <span class="metric-label">System Pressure</span>
-                <span class="metric-val" id="telemetryPressure">0.0 Bar</span>
+                <span class="metric-label">Pressure</span>
+                <span class="metric-val" id="hudPressure">210 Bar</span>
             </div>
             <div class="metric-item">
-                <span class="metric-label">Pump Flow</span>
-                <span class="metric-val" id="telemetryFlow">0.0 L/min</span>
+                <span class="metric-label">Flow Rate</span>
+                <span class="metric-val" id="hudFlow">15.0 L/min</span>
             </div>
             <div class="metric-item">
                 <span class="metric-label">Hydraulic Power</span>
-                <span class="metric-val" id="telemetryPower">0.00 kW</span>
+                <span class="metric-val" id="hudPower">5.25 kW</span>
             </div>
             <div class="metric-item">
                 <span class="metric-label">Oil Temp</span>
-                <span class="metric-val" id="telemetryTemp">45.0 °C</span>
+                <span class="metric-val" id="hudTemp">48 °C</span>
             </div>
         </div>
     </header>
@@ -162,54 +182,53 @@
     <!-- TOOLBAR -->
     <div class="toolbar">
         <div class="tool-group">
-            <button class="tool-btn btn-success" id="simToggleBtn" onclick="toggleSim()">▶ RUN SIMULATION (Space)</button>
-            <button class="tool-btn" id="modeSelectBtn" onclick="setMode('select')">🖐️ Select / Drag</button>
-            <button class="tool-btn" id="modeWireBtn" onclick="setMode('wire')">🔌 Hose Line Wire</button>
+            <button class="tool-btn active" id="btnSim" onclick="toggleSim()">▶ Run Physics Engine</button>
+            <button class="tool-btn" id="btnSnap" onclick="toggleSnap()">🧲 Snap Grid: ON</button>
+            <button class="tool-btn" id="btnIsoTags" onclick="toggleIsoTags()">🏷️ ISO 1219-2 Tags: ON</button>
         </div>
 
         <div class="tool-group">
-            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: bold;">Hose Type:</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Hose Line Style:</span>
             <select class="tool-select" id="wireStyleSelect" onchange="setWireStyle(this.value)">
-                <option value="solid-red">🔴 High Working Pressure (P)</option>
-                <option value="solid-blue">🔵 Low Tank Return (T)</option>
-                <option value="dashed-cyan">🔷 Pilot Control Signal (X/Y)</option>
-                <option value="dotted-gray">⚪ Case Leakage Drain (L)</option>
+                <option value="solid-red">🔴 Working Pressure (Red Solid)</option>
+                <option value="solid-blue">🔵 Tank Return (Blue Solid)</option>
+                <option value="dashed-cyan">🌐 Pilot Line (Cyan Dashed)</option>
+                <option value="dotted-gray">⚙️ Case Drain (Gray Dotted)</option>
             </select>
         </div>
 
         <div class="tool-group">
-            <button class="tool-btn" onclick="toggleSnap()" id="snapBtn">📐 Snap Grid: ON</button>
-            <button class="tool-btn" onclick="toggleIsoTags()" id="tagBtn">🏷️ ISO Tags: ON</button>
-            <button class="tool-btn" onclick="rotateSelected()">🔄 Rotate (R)</button>
-            <button class="tool-btn btn-danger" onclick="deleteSelected()">🗑️ Delete</button>
-        </div>
-
-        <div class="tool-group">
-            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: bold;">Fault Injector:</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Simulate Fault:</span>
             <select class="tool-select" id="faultSelect" onchange="setFault(this.value)">
-                <option value="NONE">✅ None (Normal Operation)</option>
-                <option value="PUMP_FAILURE">⚠️ Pump Loss of Prime / Motor Failure</option>
-                <option value="FILTER_CLOGGED">⚠️ Filter Element Clogged (Delta P > 3.5 Bar)</option>
-                <option value="PRV_STUCK_OPEN">⚠️ Relief Valve Poppet Jammed Open</option>
-                <option value="AIR_INGRESS">⚠️ Air Leak Ingress / Suction Cavitation</option>
+                <option value="NONE">✅ System Normal (No Fault)</option>
+                <option value="PUMP_FAILURE">🚨 Fault: Pump Failure (Loss of Prime)</option>
+                <option value="FILTER_CLOG">⚠️ Fault: Filter Clogged (Delta P > 3.5 Bar)</option>
+                <option value="PRV_STUCK_OPEN">💥 Fault: Relief Valve Stuck Open</option>
+                <option value="AIR_INGRESS">🌀 Fault: Air Ingress & Cavitation</option>
             </select>
         </div>
 
-        <div style="margin-left: auto; display: flex; gap: 0.4rem;">
-            <button class="tool-btn" onclick="clearCanvas()">🧹 Clear</button>
-            <button class="tool-btn" onclick="exportPNG()">📷 Export PNG</button>
-            <button class="tool-btn" onclick="exportJSON()">💾 Export JSON</button>
+        <div class="tool-group">
+            <button class="tool-btn" onclick="zoomIn()">🔍 Zoom +</button>
+            <button class="tool-btn" onclick="zoomOut()">🔍 Zoom -</button>
+            <button class="tool-btn" onclick="resetZoom()">🎯 Reset View</button>
+        </div>
+
+        <div class="tool-group">
+            <button class="tool-btn btn-danger" onclick="clearCanvas()">🗑️ Clear All</button>
+            <button class="tool-btn btn-success" onclick="exportPNG()">📷 Export Image</button>
+            <button class="tool-btn" onclick="exportJSON()">💾 Save Blueprint</button>
         </div>
     </div>
 
     <main>
-        <!-- SIDEBAR COMPONENT LIBRARY PALETTE -->
+        <!-- SIDEBAR PALETTE -->
         <div class="sidebar">
             <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Search 33+ ISO components..." oninput="filterComponents()">
+                <input type="text" id="searchInput" placeholder="🔍 Search 68 ISO 1219 symbols..." oninput="filterComponents()">
             </div>
             <div class="palette-scroll" id="paletteContainer">
-                <!-- Dynamically populated -->
+                <!-- Injected dynamically via JS -->
             </div>
         </div>
 
@@ -218,37 +237,39 @@
             <canvas id="schematicCanvas"></canvas>
         </div>
 
-        <!-- RIGHT INSPECTOR PANEL -->
+        <!-- INSPECTOR PANEL -->
         <div class="inspector">
-            <h2>Component Inspector</h2>
-            <div class="inspector-card" id="inspectorCard">
-                <div style="color: var(--text-muted); text-align: center;">Click or place a component to inspect properties, state, and controls.</div>
-            </div>
-
+            <h2>Circuit Component Inspector</h2>
             <div class="fault-banner" id="faultBanner">
-                ⚠️ FAULT ACTIVE: <span id="faultText">Pump Failure</span>
+                ⚠️ FAULT ACTIVE: <span id="faultText">PUMP FAILURE</span>
             </div>
 
-            <h2>Classroom Hotkeys</h2>
-            <div class="hotkey-legend">
-                <kbd>Space</kbd> Run / Pause Simulation<br>
-                <kbd>E</kbd> Extend All DCVs (Pos 2)<br>
-                <kbd>R</kbd> Retract All DCVs (Pos 1)<br>
-                <kbd>C</kbd> Center All DCVs (Neutral)<br>
-                <kbd>T</kbd> Toggle ISO 1219-2 Tags<br>
-                <kbd>Del</kbd> Delete Selected Symbol/Hose<br>
-                <kbd>Drag Port</kbd> Connect Orthogonal Hose
+            <div class="inspector-card" id="inspectorCard">
+                <div style="color: var(--text-muted); text-align: center; padding: 1rem;">
+                    👈 Click any component on canvas or drag from sidebar to inspect properties and connections.
+                </div>
             </div>
 
             <h2>Active Hose Connections</h2>
-            <div class="inspector-card" id="wireListCard" style="max-height: 200px; overflow-y: auto;">
-                <div style="color: var(--text-muted);">No hoses connected yet. Click & drag between ports.</div>
+            <div class="inspector-card">
+                <div class="wire-list" id="wireListContainer">
+                    <div style="color: var(--text-muted); font-size: 0.72rem; text-align: center;">No active hose connections. Click port to wire.</div>
+                </div>
+            </div>
+
+            <h2>Classroom Demonstration Keys</h2>
+            <div class="hotkey-legend">
+                • <kbd>Space</kbd>: Run / Pause Physics Engine<br>
+                • <kbd>E</kbd> / <kbd>R</kbd> / <kbd>C</kbd>: Extend / Retract / Center All DCVs<br>
+                • <kbd>R</kbd> (Selected): Rotate Component 90°<br>
+                • <kbd>Del</kbd>: Delete Selected Component or Wire<br>
+                • <kbd>T</kbd>: Toggle ISO 1219-2 Component Designation Tags<br>
+                • <kbd>Middle-Drag</kbd>: Pan Canvas Camera
             </div>
         </div>
     </main>
 
     <script>
-        // ── COMPLETE COMPONENT LIBRARY DEFINITION ──
         const LIBRARY = {
             // ── 1. PUMPS & MOTORS ──
             pump_fixed: {
@@ -1398,34 +1419,43 @@ res_vented: {
 };
 
         // ── APPLICATION STATE & GLOBALS ──
+
+        // ── APPLICATION STATE & GLOBAL VARIABLES ──
         let canvas, ctx;
-        let scale = 1.0, panX = 0, panY = 0;
-        let mode = 'select'; // 'select', 'wire'
+        let scale = 1.0;
+        let panX = 0, panY = 0;
+        let isPanning = false;
+        let panStartX = 0, panStartY = 0;
+        
         let snapToGrid = true;
         let showIsoTags = true;
-        let wireStyle = 'solid-red';
         let simRunning = true;
         let activeFault = 'NONE';
+        let wireStyle = 'solid-red';
         let animOffset = 0;
 
         let placedComponents = []; // { id, key, x, y, rotation, tag, state }
-        let placedWires = []; // { id, fromCompId, fromPortId, toCompId, toPortId, style }
-
+        let placedWires = [];      // { id, fromCompId, fromPortId, toCompId, toPortId, style }
+        
         let selectedCompId = null;
         let selectedWireId = null;
         let draggingCompId = null;
         let dragOffsetX = 0, dragOffsetY = 0;
-
+        
         let isWiring = false;
-        let wireStartPort = null; // { compId, portId }
-        let currentMouseWorld = { x: 0, y: 0 };
+        let wireStartPort = null;      // { compId, portId }
+        let hoveredTargetPort = null;  // { compId, portId, pos, pDef, compTag }
+        let currentMouseWorld = { wx: 0, wy: 0, screenX: 0, screenY: 0 };
 
         // INITIALIZATION
         window.addEventListener('load', () => {
             canvas = document.getElementById('schematicCanvas');
             ctx = canvas.getContext('2d');
+            
+            // High-DPI Canvas & Layout Observer
             resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
+            const ro = new ResizeObserver(() => resizeCanvas());
+            ro.observe(document.getElementById('workspaceContainer'));
 
             populateSidebar();
             setupCanvasEvents();
@@ -1436,18 +1466,27 @@ res_vented: {
 
         function resizeCanvas() {
             const container = document.getElementById('workspaceContainer');
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
+            if (!container || !canvas) return;
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            const w = Math.max(100, Math.floor(rect.width));
+            const h = Math.max(100, Math.floor(rect.height));
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+
             render();
         }
 
         // PRELOAD A COMPLETE 5-COMPONENT CIRCUIT
         function setupPreloadedCircuit() {
-            const res = spawnComponent('res_vented', 200, 450);
-            const pump = spawnComponent('pump_fixed', 200, 300);
-            const prv = spawnComponent('prv_direct', 380, 300);
-            const dcv = spawnComponent('dcv_43_closed', 200, 150);
-            const cyl = spawnComponent('cyl_double', 420, 150);
+            const res = spawnComponent('res_vented', 200, 420);
+            const pump = spawnComponent('pump_fixed', 200, 280);
+            const prv = spawnComponent('prv_direct', 380, 280);
+            const dcv = spawnComponent('dcv_43_closed', 200, 140);
+            const cyl = spawnComponent('cyl_double', 420, 140);
 
             // Connect hoses
             placedWires.push({ id: 'w1', fromCompId: res.id, fromPortId: 'S', toCompId: pump.id, toPortId: 'S', style: 'solid-blue' });
@@ -1462,6 +1501,7 @@ res_vented: {
 
         function populateSidebar() {
             const container = document.getElementById('paletteContainer');
+            if (!container) return;
             container.innerHTML = '';
 
             const cats = {};
@@ -1497,9 +1537,15 @@ res_vented: {
 
                     card.addEventListener('dragstart', (e) => {
                         e.dataTransfer.setData('text/plain', comp.key);
+                        e.dataTransfer.effectAllowed = 'copy';
                     });
                     card.addEventListener('click', () => {
-                        spawnComponent(comp.key, 300 + Math.random()*50, 250 + Math.random()*50);
+                        const dpr = window.devicePixelRatio || 1;
+                        const cssW = (canvas.width / dpr);
+                        const cssH = (canvas.height / dpr);
+                        const centerWx = (cssW / 2 - panX) / scale;
+                        const centerWy = (cssH / 2 - panY) / scale;
+                        spawnComponent(comp.key, centerWx + (Math.random()*40 - 20), centerWy + (Math.random()*40 - 20));
                     });
 
                     grid.appendChild(card);
@@ -1516,17 +1562,13 @@ res_vented: {
             cards.forEach(card => {
                 const name = card.querySelector('.comp-name').innerText.toLowerCase();
                 const iso = card.querySelector('.comp-iso').innerText.toLowerCase();
-                if (name.includes(query) || iso.includes(query)) {
-                    card.style.display = 'flex';
-                } else {
-                    card.style.display = 'none';
-                }
+                card.style.display = (name.includes(query) || iso.includes(query)) ? 'flex' : 'none';
             });
         }
 
         function spawnComponent(key, x, y) {
             const def = LIBRARY[key];
-            if (!def) return;
+            if (!def) return null;
 
             const sameTypeCount = placedComponents.filter(c => c.key === key).length + 1;
             const tag = (def.tagPrefix || '0V') + sameTypeCount;
@@ -1550,6 +1592,7 @@ res_vented: {
 
             placedComponents.push(comp);
             selectedCompId = comp.id;
+            selectedWireId = null;
             updateUI();
             render();
             return comp;
@@ -1557,6 +1600,7 @@ res_vented: {
 
         function getPortWorldPos(comp, portId) {
             const def = LIBRARY[comp.key];
+            if (!def || !def.ports) return { x: comp.x, y: comp.y };
             const p = def.ports.find(pt => pt.id === portId);
             if (!p) return { x: comp.x, y: comp.y };
 
@@ -1567,76 +1611,102 @@ res_vented: {
             return { x: comp.x + rx, y: comp.y + ry };
         }
 
+        function getEventWorldPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const screenX = e.clientX - rect.left;
+            const screenY = e.clientY - rect.top;
+            const wx = (screenX - panX) / scale;
+            const wy = (screenY - panY) / scale;
+            return { screenX, screenY, wx, wy };
+        }
+
         // EVENT HANDLING
         function setupCanvasEvents() {
             const container = document.getElementById('workspaceContainer');
 
-            container.addEventListener('dragover', (e) => e.preventDefault());
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+            });
+            
             container.addEventListener('drop', (e) => {
                 e.preventDefault();
                 const key = e.dataTransfer.getData('text/plain');
                 if (key && LIBRARY[key]) {
-                    const rect = canvas.getBoundingClientRect();
-                    const screenX = e.clientX - rect.left;
-                    const screenY = e.clientY - rect.top;
-                    const worldX = (screenX - panX) / scale;
-                    const worldY = (screenY - panY) / scale;
-                    spawnComponent(key, worldX, worldY);
+                    const pos = getEventWorldPos(e);
+                    spawnComponent(key, pos.wx, pos.wy);
                 }
             });
 
             canvas.addEventListener('mousedown', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const screenX = e.clientX - rect.left;
-                const screenY = e.clientY - rect.top;
-                const wx = (screenX - panX) / scale;
-                const wy = (screenY - panY) / scale;
+                const pos = getEventWorldPos(e);
+                currentMouseWorld = pos;
 
-                // 1. Check if clicked on a port
+                // Middle Click or Space Drag -> Pan Camera
+                if (e.button === 1 || e.shiftKey) {
+                    isPanning = true;
+                    panStartX = e.clientX - panX;
+                    panStartY = e.clientY - panY;
+                    return;
+                }
+
+                // 1. Check if clicked on a Port -> Initiate Wiring
                 for (let comp of placedComponents) {
                     const def = LIBRARY[comp.key];
+                    if (!def || !def.ports) continue;
                     for (let p of def.ports) {
                         const pw = getPortWorldPos(comp, p.id);
-                        if (Math.hypot(wx - pw.x, wy - pw.y) < 16) {
+                        if (Math.hypot(pos.wx - pw.x, pos.wy - pw.y) < 18) {
                             isWiring = true;
                             wireStartPort = { compId: comp.id, portId: p.id };
+                            hoveredTargetPort = null;
+                            render();
                             return;
                         }
                     }
                 }
 
-                // If wiring and clicked away
+                // If wiring and clicked empty space -> cancel wiring
                 if (isWiring) {
                     isWiring = false;
                     wireStartPort = null;
+                    hoveredTargetPort = null;
                     render();
                     return;
                 }
 
-                // 2. Check if clicked on a component
+                // 2. Check if clicked on a Component -> Drag & Select
                 for (let i = placedComponents.length - 1; i >= 0; i--) {
                     const comp = placedComponents[i];
                     const def = LIBRARY[comp.key];
-                    if (Math.abs(wx - comp.x) < def.w/2 && Math.abs(wy - comp.y) < def.h/2) {
+                    const halfW = (def.w || 100) / 2 + 10;
+                    const halfH = (def.h || 80) / 2 + 10;
+
+                    if (Math.abs(pos.wx - comp.x) <= halfW && Math.abs(pos.wy - comp.y) <= halfH) {
                         selectedCompId = comp.id;
                         selectedWireId = null;
                         draggingCompId = comp.id;
-                        dragOffsetX = wx - comp.x;
-                        dragOffsetY = wy - comp.y;
+                        dragOffsetX = pos.wx - comp.x;
+                        dragOffsetY = pos.wy - comp.y;
+
+                        // Bring component to front of Z-index
+                        placedComponents.splice(i, 1);
+                        placedComponents.push(comp);
+
                         updateUI();
                         render();
                         return;
                     }
                 }
 
-                // 3. Check if clicked on a wire
+                // 3. Check if clicked on a Wire -> Select Wire
                 for (let w of placedWires) {
                     const c1 = placedComponents.find(c => c.id === w.fromCompId);
                     const c2 = placedComponents.find(c => c.id === w.toCompId);
                     if (c1 && c2) {
                         const p1 = getPortWorldPos(c1, w.fromPortId);
                         const p2 = getPortWorldPos(c2, w.toPortId);
-                        const dist = pointToSeqDist(wx, wy, p1.x, p1.y, p2.x, p2.y);
+                        const dist = pointToSeqDist(pos.wx, pos.wy, p1.x, p1.y, p2.x, p2.y);
                         if (dist < 10) {
                             selectedWireId = w.id;
                             selectedCompId = null;
@@ -1654,17 +1724,21 @@ res_vented: {
             });
 
             canvas.addEventListener('mousemove', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const screenX = e.clientX - rect.left;
-                const screenY = e.clientY - rect.top;
-                currentMouseWorld.x = (screenX - panX) / scale;
-                currentMouseWorld.y = (screenY - panY) / scale;
+                const pos = getEventWorldPos(e);
+                currentMouseWorld = pos;
+
+                if (isPanning) {
+                    panX = e.clientX - panStartX;
+                    panY = e.clientY - panStartY;
+                    render();
+                    return;
+                }
 
                 if (draggingCompId) {
                     const comp = placedComponents.find(c => c.id === draggingCompId);
                     if (comp) {
-                        let nx = currentMouseWorld.x - dragOffsetX;
-                        let ny = currentMouseWorld.y - dragOffsetY;
+                        let nx = currentMouseWorld.wx - dragOffsetX;
+                        let ny = currentMouseWorld.wy - dragOffsetY;
                         if (snapToGrid) {
                             nx = Math.round(nx / 20) * 20;
                             ny = Math.round(ny / 20) * 20;
@@ -1673,41 +1747,72 @@ res_vented: {
                         comp.y = ny;
                         render();
                     }
-                } else if (isWiring) {
+                } else if (isWiring && wireStartPort) {
+                    // Snapping & Target Validation
+                    hoveredTargetPort = null;
+                    let minDist = 26; // Snap radius
+
+                    for (let comp of placedComponents) {
+                        const def = LIBRARY[comp.key];
+                        if (!def || !def.ports) continue;
+                        for (let p of def.ports) {
+                            if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
+                            const pw = getPortWorldPos(comp, p.id);
+                            const dist = Math.hypot(currentMouseWorld.wx - pw.x, currentMouseWorld.wy - pw.y);
+                            if (dist < minDist) {
+                                minDist = dist;
+                                hoveredTargetPort = { compId: comp.id, portId: p.id, pos: pw, pDef: p, compTag: comp.tag };
+                            }
+                        }
+                    }
                     render();
                 }
             });
 
             window.addEventListener('mouseup', () => {
+                if (isPanning) {
+                    isPanning = false;
+                }
+
                 if (isWiring && wireStartPort) {
-                    for (let comp of placedComponents) {
-                        const def = LIBRARY[comp.key];
-                        for (let p of def.ports) {
-                            if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
-                            const pw = getPortWorldPos(comp, p.id);
-                            if (Math.hypot(currentMouseWorld.x - pw.x, currentMouseWorld.y - pw.y) < 18) {
-                                placedWires.push({
-                                    id: 'wire_' + Date.now(),
-                                    fromCompId: wireStartPort.compId,
-                                    fromPortId: wireStartPort.portId,
-                                    toCompId: comp.id,
-                                    toPortId: p.id,
-                                    style: wireStyle
-                                });
-                                isWiring = false;
-                                wireStartPort = null;
-                                updateUI();
-                                render();
-                                return;
-                            }
-                        }
+                    if (hoveredTargetPort) {
+                        // Successfully create new connection!
+                        placedWires.push({
+                            id: 'wire_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+                            fromCompId: wireStartPort.compId,
+                            fromPortId: wireStartPort.portId,
+                            toCompId: hoveredTargetPort.compId,
+                            toPortId: hoveredTargetPort.portId,
+                            style: wireStyle
+                        });
+                        selectedWireId = placedWires[placedWires.length - 1].id;
+                        selectedCompId = null;
                     }
+                    isWiring = false;
+                    wireStartPort = null;
+                    hoveredTargetPort = null;
+                    updateUI();
+                    render();
                 }
 
                 draggingCompId = null;
             });
 
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+                const pos = getEventWorldPos(e);
+
+                const newScale = Math.min(Math.max(0.3, scale * zoomFactor), 3.0);
+                panX = pos.screenX - pos.wx * newScale;
+                panY = pos.screenY - pos.wy * newScale;
+                scale = newScale;
+                render();
+            }, { passive: false });
+
             window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
                 if (e.key === 'Delete' || e.key === 'Backspace') {
                     deleteSelected();
                 } else if (e.key === 'r' || e.key === 'R') {
@@ -1717,8 +1822,6 @@ res_vented: {
                     toggleSim();
                 } else if (e.key === 'e' || e.key === 'E') {
                     setAllSpool(1);
-                } else if (e.key === 'r' || e.key === 'R') {
-                    setAllSpool(-1);
                 } else if (e.key === 'c' || e.key === 'C') {
                     setAllSpool(0);
                 } else if (e.key === 't' || e.key === 'T') {
@@ -1740,61 +1843,30 @@ res_vented: {
             return Math.hypot(x - xx, y - yy);
         }
 
-        // ── SIMULATION & RENDER ENGINE ──
+        // ── RENDER ENGINE ──
         function renderLoop() {
-            if (simRunning) {
-                animOffset += 1.5;
-                updatePhysicsAndTelemetry();
-            }
+            animOffset += 1.5;
             render();
             requestAnimationFrame(renderLoop);
         }
 
-        function updatePhysicsAndTelemetry() {
-            let pressure = 180.0;
-            let flow = 15.0;
-            let power = 4.5;
-            let temp = 48.0;
-
-            if (activeFault === 'PUMP_FAILURE') {
-                pressure = 0.0; flow = 0.0; power = 0.0;
-            } else if (activeFault === 'PRV_STUCK_OPEN') {
-                pressure = 4.5; flow = 15.0; power = 0.11;
-            } else if (activeFault === 'FILTER_CLOGGED') {
-                pressure = 195.0; flow = 12.0; power = 3.9;
-            } else if (activeFault === 'AIR_INGRESS') {
-                pressure = 120.0 + Math.sin(animOffset*0.2)*40;
-                flow = 10.0 + Math.cos(animOffset*0.2)*3;
-            }
-
-            power = (pressure * flow) / 600.0;
-
-            document.getElementById('telemetryPressure').innerText = pressure.toFixed(1) + ' Bar';
-            document.getElementById('telemetryFlow').innerText = flow.toFixed(1) + ' L/min';
-            document.getElementById('telemetryPower').innerText = power.toFixed(2) + ' kW';
-            document.getElementById('telemetryTemp').innerText = temp.toFixed(1) + ' °C';
-
-            // Actuator Position Simulation
-            placedComponents.forEach(comp => {
-                if (comp.key === 'cyl_double') {
-                    if (comp.state.spoolPos === 1 && comp.state.position < 100) {
-                        comp.state.position += 1.0;
-                    } else if (comp.state.spoolPos === -1 && comp.state.position > 0) {
-                        comp.state.position -= 1.0;
-                    }
-                }
-            });
-        }
-
         function render() {
-            if (!ctx) return;
+            if (!ctx || !canvas) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const cssW = canvas.width / dpr;
+            const cssH = canvas.height / dpr;
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.scale(dpr, dpr); // Scale for crisp High-DPI display
 
             ctx.save();
             ctx.translate(panX, panY);
             ctx.scale(scale, scale);
 
-            drawGrid();
+            drawGrid(cssW, cssH);
 
             // 1. Draw Wires with Animated Falstad Particles
             for (let w of placedWires) {
@@ -1820,50 +1892,72 @@ res_vented: {
                         ctx.strokeStyle = '#94a3b8'; ctx.setLineDash([3, 3]); particleColor = '#e2e8f0';
                     }
 
-                    const midX = (p1.x + p2.x) / 2;
+                    // Manhattan Orthogonal Routing
+                    const pathPoints = calculateManhattanPath(p1, p2);
                     ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(midX, p1.y);
-                    ctx.lineTo(midX, p2.y);
-                    ctx.lineTo(p2.x, p2.y);
+                    ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+                    for (let i = 1; i < pathPoints.length; i++) {
+                        ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+                    }
                     ctx.stroke();
                     ctx.setLineDash([]);
 
                     // Draw Falstad Animated Dots
                     if (simRunning && activeFault !== 'PUMP_FAILURE') {
-                        drawFalstadDotsOnPath([{x: p1.x, y: p1.y}, {x: midX, y: p1.y}, {x: midX, y: p2.y}, {x: p2.x, y: p2.y}], particleColor);
+                        drawFalstadDotsOnPath(pathPoints, particleColor);
                     }
 
                     if (isSelected) {
-                        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.stroke();
                     }
                 }
             }
 
-            // Draw Wire Draft
+            // Draw Wire Draft & Target Validation
             if (isWiring && wireStartPort) {
                 const c1 = placedComponents.find(c => c.id === wireStartPort.compId);
                 if (c1) {
                     const p1 = getPortWorldPos(c1, wireStartPort.portId);
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#facc15'; ctx.setLineDash([4, 4]);
-                    const midX = (p1.x + currentMouseWorld.x) / 2;
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(midX, p1.y);
-                    ctx.lineTo(midX, currentMouseWorld.y);
-                    ctx.lineTo(currentMouseWorld.x, currentMouseWorld.y);
-                    ctx.stroke(); ctx.setLineDash([]);
 
-                    // Highlight Valid Target Ports
+                    // 1. Highlight Start Port with Gold Ring
+                    ctx.beginPath(); ctx.arc(p1.x, p1.y, 10, 0, Math.PI * 2);
+                    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2.5; ctx.stroke();
+
+                    // 2. Highlight All Candidate Target Ports across Canvas
                     for (let comp of placedComponents) {
                         const def = LIBRARY[comp.key];
+                        if (!def || !def.ports) continue;
                         for (let p of def.ports) {
                             if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
                             const pw = getPortWorldPos(comp, p.id);
-                            ctx.beginPath();
-                            ctx.arc(pw.x, pw.y, 10, 0, Math.PI * 2);
+                            ctx.beginPath(); ctx.arc(pw.x, pw.y, 8, 0, Math.PI * 2);
                             ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2; ctx.stroke();
                         }
+                    }
+
+                    // 3. Draft Line Target Position
+                    const targetPos = hoveredTargetPort ? hoveredTargetPort.pos : { x: currentMouseWorld.wx, y: currentMouseWorld.wy };
+                    const draftPath = calculateManhattanPath(p1, targetPos);
+
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#facc15'; ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(draftPath[0].x, draftPath[0].y);
+                    for (let i = 1; i < draftPath.length; i++) {
+                        ctx.lineTo(draftPath[i].x, draftPath[i].y);
+                    }
+                    ctx.stroke(); ctx.setLineDash([]);
+
+                    // 4. Highlight Hovered Target Port
+                    if (hoveredTargetPort) {
+                        ctx.beginPath(); ctx.arc(hoveredTargetPort.pos.x, hoveredTargetPort.pos.y, 11, 0, Math.PI * 2);
+                        ctx.fillStyle = '#22c55e'; ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+
+                        // Tooltip Badge
+                        ctx.fillStyle = '#16a34a';
+                        ctx.fillRect(hoveredTargetPort.pos.x - 40, hoveredTargetPort.pos.y - 30, 80, 18);
+                        ctx.strokeStyle = '#ffffff'; ctx.strokeRect(hoveredTargetPort.pos.x - 40, hoveredTargetPort.pos.y - 30, 80, 18);
+                        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+                        ctx.fillText(`Connect: ${hoveredTargetPort.compTag}:${hoveredTargetPort.portId}`, hoveredTargetPort.pos.x, hoveredTargetPort.pos.y - 18);
                     }
                 }
             }
@@ -1871,6 +1965,7 @@ res_vented: {
             // 2. Draw Placed Components
             for (let comp of placedComponents) {
                 const def = LIBRARY[comp.key];
+                if (!def) continue;
                 const isSelected = (comp.id === selectedCompId);
 
                 ctx.save();
@@ -1881,33 +1976,51 @@ res_vented: {
 
                 if (isSelected) {
                     ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
-                    ctx.strokeRect(-def.w/2 - 8, -def.h/2 - 8, def.w + 16, def.h + 16);
+                    const w = def.w || 100, h = def.h || 80;
+                    ctx.strokeRect(-w/2 - 8, -h/2 - 8, w + 16, h + 16);
                     ctx.setLineDash([]);
                 }
 
                 ctx.restore();
 
-                // Draw Ports & ISO Tags
-                for (let p of def.ports) {
-                    const pw = getPortWorldPos(comp, p.id);
-                    ctx.beginPath();
-                    ctx.arc(pw.x, pw.y, 5, 0, Math.PI * 2);
-                    ctx.fillStyle = (p.type === 'pressure') ? '#ef4444' : (p.type === 'tank') ? '#3b82f6' : (p.type === 'pilot') ? '#06b6d4' : '#22c55e';
-                    ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
+                // Draw Ports & Labels
+                if (def.ports) {
+                    for (let p of def.ports) {
+                        const pw = getPortWorldPos(comp, p.id);
+                        ctx.beginPath();
+                        ctx.arc(pw.x, pw.y, 5, 0, Math.PI * 2);
+                        ctx.fillStyle = (p.type === 'pressure') ? '#ef4444' : (p.type === 'tank') ? '#3b82f6' : (p.type === 'pilot') ? '#06b6d4' : '#22c55e';
+                        ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
 
-                    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.fillText(p.id, pw.x + 8, pw.y + 3);
+                        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
+                        ctx.fillText(p.id, pw.x + 8, pw.y + 3);
+                    }
                 }
 
                 // Render ISO 1219-2 Designation Tag
                 if (showIsoTags) {
-                    ctx.fillStyle = '#0284c7'; ctx.fillRect(comp.x - 20, comp.y - def.h/2 - 20, 40, 16);
-                    ctx.strokeStyle = '#ffffff'; ctx.strokeRect(comp.x - 20, comp.y - def.h/2 - 20, 40, 16);
+                    const h = def.h || 80;
+                    ctx.fillStyle = '#0284c7'; ctx.fillRect(comp.x - 22, comp.y - h/2 - 20, 44, 16);
+                    ctx.strokeStyle = '#ffffff'; ctx.strokeRect(comp.x - 22, comp.y - h/2 - 20, 44, 16);
                     ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
-                    ctx.fillText(comp.tag, comp.x, comp.y - def.h/2 - 8);
+                    ctx.fillText(comp.tag, comp.x, comp.y - h/2 - 8);
                 }
             }
 
-            ctx.restore();
+            ctx.restore(); // World camera restore
+            ctx.restore(); // DPR scale restore
+        }
+
+        function calculateManhattanPath(p1, p2) {
+            const dx = Math.abs(p2.x - p1.x);
+            const dy = Math.abs(p2.y - p1.y);
+            if (dx > dy) {
+                const midX = (p1.x + p2.x) / 2;
+                return [{x: p1.x, y: p1.y}, {x: midX, y: p1.y}, {x: midX, y: p2.y}, {x: p2.x, y: p2.y}];
+            } else {
+                const midY = (p1.y + p2.y) / 2;
+                return [{x: p1.x, y: p1.y}, {x: p1.x, y: midY}, {x: p2.x, y: midY}, {x: p2.x, y: p2.y}];
+            }
         }
 
         function drawFalstadDotsOnPath(path, color) {
@@ -1941,9 +2054,9 @@ res_vented: {
             }
         }
 
-        function drawGrid() {
-            const gridCols = Math.ceil(canvas.width / (20 * scale)) + 5;
-            const gridRows = Math.ceil(canvas.height / (20 * scale)) + 5;
+        function drawGrid(cssW, cssH) {
+            const gridCols = Math.ceil(cssW / (20 * scale)) + 10;
+            const gridRows = Math.ceil(cssH / (20 * scale)) + 10;
             const startX = Math.floor((-panX / scale) / 20) * 20;
             const startY = Math.floor((-panY / scale) / 20) * 20;
 
@@ -1955,55 +2068,69 @@ res_vented: {
             }
         }
 
-        // TOOL ACTIONS
+        // ── TOOL ACTIONS & UI UPDATES ──
         function toggleSim() {
             simRunning = !simRunning;
-            const btn = document.getElementById('simToggleBtn');
-            btn.className = simRunning ? 'tool-btn btn-success' : 'tool-btn btn-danger';
-            btn.innerText = simRunning ? '▶ RUN SIMULATION (Space)' : '⏸ PAUSED (Space)';
+            const btn = document.getElementById('btnSim');
+            btn.innerText = simRunning ? '▶ Run Physics Engine' : '⏸ Pause Simulation';
+            btn.classList.toggle('active', simRunning);
         }
 
-        function setMode(m) {
-            mode = m;
-            document.getElementById('modeSelectBtn').classList.toggle('active', m === 'select');
-            document.getElementById('modeWireBtn').classList.toggle('active', m === 'wire');
-        }
-
-        function setWireStyle(s) { wireStyle = s; }
         function toggleSnap() {
             snapToGrid = !snapToGrid;
-            document.getElementById('snapBtn').innerText = snapToGrid ? '📐 Snap Grid: ON' : '📐 Snap Grid: OFF';
+            const btn = document.getElementById('btnSnap');
+            btn.innerText = snapToGrid ? '🧲 Snap Grid: ON' : '🧲 Snap Grid: OFF';
+            btn.classList.toggle('active', snapToGrid);
         }
+
         function toggleIsoTags() {
             showIsoTags = !showIsoTags;
-            document.getElementById('tagBtn').innerText = showIsoTags ? '🏷️ ISO Tags: ON' : '🏷️ ISO Tags: OFF';
+            const btn = document.getElementById('btnIsoTags');
+            btn.innerText = showIsoTags ? '🏷️ ISO 1219-2 Tags: ON' : '🏷️ ISO 1219-2 Tags: OFF';
+            btn.classList.toggle('active', showIsoTags);
             render();
+        }
+
+        function setWireStyle(s) {
+            wireStyle = s;
+            if (selectedWireId) {
+                const w = placedWires.find(wi => wi.id === selectedWireId);
+                if (w) w.style = s;
+                render();
+            }
         }
 
         function setFault(f) {
             activeFault = f;
             const banner = document.getElementById('faultBanner');
+            const txt = document.getElementById('faultText');
+
             if (f === 'NONE') {
                 banner.style.display = 'none';
             } else {
                 banner.style.display = 'block';
-                document.getElementById('faultText').innerText = f;
+                txt.innerText = f.replace('_', ' ');
             }
+            updateTelemetry();
             render();
         }
 
         function setAllSpool(pos) {
             placedComponents.forEach(c => {
-                if (c.key.startsWith('dcv_')) c.state.spoolPos = pos;
+                if (c.state && c.state.spoolPos !== undefined) {
+                    c.state.spoolPos = pos;
+                }
             });
-            updateUI();
             render();
         }
 
         function rotateSelected() {
             if (selectedCompId) {
                 const comp = placedComponents.find(c => c.id === selectedCompId);
-                if (comp) { comp.rotation = (comp.rotation + 90) % 360; render(); }
+                if (comp) {
+                    comp.rotation = (comp.rotation + 90) % 360;
+                    render();
+                }
             }
         }
 
@@ -2012,88 +2139,137 @@ res_vented: {
                 placedComponents = placedComponents.filter(c => c.id !== selectedCompId);
                 placedWires = placedWires.filter(w => w.fromCompId !== selectedCompId && w.toCompId !== selectedCompId);
                 selectedCompId = null;
+                updateUI();
+                render();
             } else if (selectedWireId) {
                 placedWires = placedWires.filter(w => w.id !== selectedWireId);
                 selectedWireId = null;
+                updateUI();
+                render();
             }
+        }
+
+        function deleteWire(wireId) {
+            placedWires = placedWires.filter(w => w.id !== wireId);
+            if (selectedWireId === wireId) selectedWireId = null;
             updateUI();
             render();
         }
 
         function clearCanvas() {
-            placedComponents = [];
-            placedWires = [];
-            selectedCompId = null; selectedWireId = null;
-            updateUI();
-            render();
+            if (confirm('Clear all components and hose connections from workspace?')) {
+                placedComponents = [];
+                placedWires = [];
+                selectedCompId = null;
+                selectedWireId = null;
+                updateUI();
+                render();
+            }
+        }
+
+        function zoomIn() { scale = Math.min(scale * 1.15, 3.0); render(); }
+        function zoomOut() { scale = Math.max(scale / 1.15, 0.3); render(); }
+        function resetZoom() { scale = 1.0; panX = 0; panY = 0; render(); }
+
+        function updateTelemetry() {
+            let press = 210;
+            let flow = 15.0;
+
+            if (activeFault === 'PUMP_FAILURE') { press = 0; flow = 0.0; }
+            else if (activeFault === 'FILTER_CLOG') { press = 225; flow = 12.0; }
+            else if (activeFault === 'PRV_STUCK_OPEN') { press = 15; flow = 15.0; }
+            else if (activeFault === 'AIR_INGRESS') { press = 160; flow = 10.5; }
+
+            const power = (press * flow / 600).toFixed(2);
+            document.getElementById('hudPressure').innerText = press + ' Bar';
+            document.getElementById('hudFlow').innerText = flow + ' L/min';
+            document.getElementById('hudPower').innerText = power + ' kW';
         }
 
         function updateUI() {
+            updateTelemetry();
+
+            // Inspector Card
             const card = document.getElementById('inspectorCard');
             if (selectedCompId) {
                 const comp = placedComponents.find(c => c.id === selectedCompId);
                 const def = LIBRARY[comp.key];
-                card.innerHTML = `
-                    <div style="font-weight: bold; color: var(--accent-cyan);">${def.title} (${comp.tag})</div>
-                    <div class="prop-row"><span class="prop-label">Category:</span><span class="prop-val">${def.cat}</span></div>
-                    <div class="prop-row"><span class="prop-label">ISO Ref:</span><span class="prop-val">${def.iso}</span></div>
-                    <div class="prop-row"><span class="prop-label">Position:</span><span class="prop-val">(${Math.round(comp.x)}, ${Math.round(comp.y)})</span></div>
-                    <div class="prop-row"><span class="prop-label">Rotation:</span><span class="prop-val">${comp.rotation}°</span></div>
-                    ${comp.key.startsWith('dcv_') ? `
-                        <div class="prop-row"><span class="prop-label">Spool State:</span><span class="prop-val">${comp.state.spoolPos === 1 ? 'Position 2 (Extend)' : comp.state.spoolPos === -1 ? 'Position 1 (Retract)' : 'Center (Neutral)'}</span></div>
+                if (comp && def) {
+                    card.innerHTML = `
+                        <div class="prop-row"><span class="prop-label">Name:</span><span class="prop-val">${def.title}</span></div>
+                        <div class="prop-row"><span class="prop-label">ISO Standard:</span><span class="prop-val">${def.iso}</span></div>
+                        <div class="prop-row"><span class="prop-label">Tag ID:</span><span class="prop-val">${comp.tag}</span></div>
+                        <div class="prop-row"><span class="prop-label">Position:</span><span class="prop-val">X: ${comp.x}, Y: ${comp.y}</span></div>
+                        <div class="prop-row"><span class="prop-label">Rotation:</span><span class="prop-val">${comp.rotation}°</span></div>
+                        <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.3rem;">${def.spec}</div>
+
                         <div class="ctrl-btn-group">
-                            <button class="action-btn" onclick="setCompSpool('${comp.id}', -1)">Pos 1 (R)</button>
-                            <button class="action-btn" onclick="setCompSpool('${comp.id}', 0)">Center (C)</button>
-                            <button class="action-btn" onclick="setCompSpool('${comp.id}', 1)">Pos 2 (E)</button>
+                            <button class="action-btn" onclick="rotateSelected()">🔄 Rotate 90°</button>
+                            <button class="action-btn" style="background: var(--accent-red);" onclick="deleteSelected()">🗑️ Delete</button>
                         </div>
-                    ` : ''}
-                `;
+                    `;
+                }
             } else if (selectedWireId) {
                 const w = placedWires.find(wi => wi.id === selectedWireId);
-                card.innerHTML = `
-                    <div style="font-weight: bold; color: var(--accent-cyan);">Hose Conductor (${w.id})</div>
-                    <div class="prop-row"><span class="prop-label">Style:</span><span class="prop-val">${w.style}</span></div>
-                `;
+                if (w) {
+                    const c1 = placedComponents.find(c => c.id === w.fromCompId);
+                    const c2 = placedComponents.find(c => c.id === w.toCompId);
+                    card.innerHTML = `
+                        <div class="prop-row"><span class="prop-label">Object:</span><span class="prop-val">Hose Conductor</span></div>
+                        <div class="prop-row"><span class="prop-label">From:</span><span class="prop-val">${c1 ? c1.tag : '?'} : ${w.fromPortId}</span></div>
+                        <div class="prop-row"><span class="prop-label">To:</span><span class="prop-val">${c2 ? c2.tag : '?'} : ${w.toPortId}</span></div>
+                        <div class="prop-row"><span class="prop-label">Style:</span><span class="prop-val">${w.style}</span></div>
+
+                        <div class="ctrl-btn-group">
+                            <button class="action-btn" style="background: var(--accent-red);" onclick="deleteSelected()">🗑️ Delete Line</button>
+                        </div>
+                    `;
+                }
             } else {
-                card.innerHTML = `<div style="color: var(--text-muted); text-align: center;">Click or place a component to inspect properties.</div>`;
+                card.innerHTML = `<div style="color: var(--text-muted); text-align: center; padding: 0.8rem;">👈 Click any component on canvas or drag from sidebar to inspect properties and connections.</div>`;
             }
 
-            // Update Wire List
-            const wireCard = document.getElementById('wireListCard');
+            // Active Connections List
+            const wireContainer = document.getElementById('wireListContainer');
             if (placedWires.length === 0) {
-                wireCard.innerHTML = `<div style="color: var(--text-muted);">No hoses connected yet.</div>`;
+                wireContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.72rem; text-align: center;">No active hose connections. Click port to wire.</div>`;
             } else {
-                wireCard.innerHTML = placedWires.map(w => `
-                    <div class="prop-row" style="border-bottom: 1px solid var(--panel-border); padding: 0.2rem 0;">
-                        <span>🔗 ${w.fromCompId.split('_')[1]} (${w.fromPortId}) → ${w.toCompId.split('_')[1]} (${w.toPortId})</span>
-                        <span style="color: var(--accent-red); cursor: pointer;" onclick="deleteWire('${w.id}')">✖</span>
-                    </div>
-                `).join('');
+                wireContainer.innerHTML = '';
+                placedWires.forEach((w, idx) => {
+                    const c1 = placedComponents.find(c => c.id === w.fromCompId);
+                    const c2 = placedComponents.find(c => c.id === w.toCompId);
+                    const item = document.createElement('div');
+                    item.className = 'wire-item' + (w.id === selectedWireId ? ' selected' : '');
+                    item.innerHTML = `
+                        <span><strong>#${idx+1}</strong> ${c1 ? c1.tag : '?'}:${w.fromPortId} ➔ ${c2 ? c2.tag : '?'}:${w.toPortId}</span>
+                        <button class="del-wire-btn" onclick="deleteWire('${w.id}')">✕</button>
+                    `;
+                    item.addEventListener('click', (e) => {
+                        if (e.target.tagName !== 'BUTTON') {
+                            selectedWireId = w.id;
+                            selectedCompId = null;
+                            updateUI();
+                            render();
+                        }
+                    });
+                    wireContainer.appendChild(item);
+                });
             }
-        }
-
-        function setCompSpool(id, pos) {
-            const comp = placedComponents.find(c => c.id === id);
-            if (comp) comp.state.spoolPos = pos;
-            updateUI();
-            render();
-        }
-
-        function deleteWire(id) {
-            placedWires = placedWires.filter(w => w.id !== id);
-            updateUI();
-            render();
         }
 
         function exportPNG() {
             const link = document.createElement('a');
             link.download = 'iso_1219_circuit_blueprint.png';
-            link.href = canvas.toDataURL();
+            link.href = canvas.toDataURL('image/png');
             link.click();
         }
 
         function exportJSON() {
-            const data = { components: placedComponents, wires: placedWires };
+            const data = {
+                components: placedComponents,
+                wires: placedWires,
+                fault: activeFault
+            };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
             link.download = 'iso_1219_circuit.json';
