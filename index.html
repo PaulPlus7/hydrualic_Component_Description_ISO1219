@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISO 1219 Interactive Fluid Power Schematic Builder & Hose Connection Canvas</title>
+    <title>ISO 1219 Interactive Fluid Power Schematic Builder & Simulation Engine v2</title>
     <style>
         :root {
             --bg-dark: #0f172a;
@@ -14,760 +14,739 @@
             --accent-red: #ef4444;
             --accent-blue: #3b82f6;
             --accent-green: #22c55e;
+            --accent-orange: #f97316;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --code-bg: #0b1120;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background-color: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
         header {
             background: #1e293b;
-            padding: 0.75rem 1.5rem;
+            padding: 0.75rem 1.25rem;
             border-bottom: 2px solid var(--panel-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             z-index: 10;
         }
 
-        header h1 {
-            font-size: 1.25rem;
-            color: var(--accent-cyan);
+        header h1 { font-size: 1.25rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem; }
+        .badge { background: rgba(56, 189, 248, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 1rem; font-weight: 600; }
+
+        /* TELEMETRY HEADER DASHBOARD */
+        .telemetry-bar {
             display: flex;
             align-items: center;
-            gap: 0.6rem;
-            font-weight: 700;
-        }
-
-        .badge {
-            background: rgba(56, 189, 248, 0.15);
-            border: 1px solid var(--accent-cyan);
-            color: var(--accent-cyan);
-            font-size: 0.75rem;
-            padding: 0.2rem 0.6rem;
-            border-radius: 1rem;
-            font-weight: 600;
-        }
-
-        .top-toolbar {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .tool-btn {
-            background: #0f172a;
+            gap: 1.25rem;
+            background: #0b1120;
+            padding: 0.4rem 1rem;
+            border-radius: 0.5rem;
             border: 1px solid var(--panel-border);
-            color: var(--text-main);
-            padding: 0.45rem 0.85rem;
-            border-radius: 0.4rem;
-            font-size: 0.82rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            transition: all 0.2s;
         }
 
-        .tool-btn:hover { background: #334155; border-color: var(--accent-cyan); }
-        .tool-btn.active { background: #0284c7; color: white; border-color: var(--accent-cyan); }
-        .tool-btn.danger:hover { background: #991b1b; border-color: var(--accent-red); }
+        .metric-item { display: flex; flex-direction: column; align-items: center; }
+        .metric-label { font-size: 0.65rem; color: var(--text-muted); font-weight: bold; text-transform: uppercase; }
+        .metric-val { font-size: 0.95rem; font-weight: bold; color: var(--accent-yellow); font-family: monospace; }
 
-        main {
-            display: grid;
-            grid-template-columns: 320px 1fr 340px;
-            flex: 1;
-            height: calc(100vh - 60px);
-            overflow: hidden;
-        }
-
-        /* Sidebar Component Palette */
-        .sidebar {
+        .toolbar {
             background: var(--panel-bg);
-            border-right: 1px solid var(--panel-border);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .search-box {
-            padding: 0.85rem;
             border-bottom: 1px solid var(--panel-border);
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 0.55rem 0.75rem;
-            background: #0f172a;
-            border: 1px solid var(--panel-border);
-            border-radius: 0.4rem;
-            color: var(--text-main);
-            font-size: 0.85rem;
-        }
-
-        .palette-scroll {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0.85rem;
+            padding: 0.5rem 1.25rem;
             display: flex;
-            flex-direction: column;
-            gap: 1rem;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
-        .category-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
+        .tool-group { display: flex; align-items: center; gap: 0.35rem; border-right: 1px solid var(--panel-border); padding-right: 0.75rem; }
+        .tool-btn {
+            background: #0f172a; border: 1px solid var(--panel-border); color: var(--text-main);
+            padding: 0.4rem 0.75rem; border-radius: 0.35rem; font-size: 0.8rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.35rem;
+        }
+        .tool-btn:hover { border-color: var(--accent-cyan); background: #1e293b; }
+        .tool-btn.active { background: #0284c7; color: white; border-color: var(--accent-cyan); }
+        .tool-btn.btn-danger { background: rgba(239, 68, 68, 0.2); border-color: var(--accent-red); color: var(--accent-red); }
+        .tool-btn.btn-danger:hover { background: var(--accent-red); color: white; }
+        .tool-btn.btn-success { background: rgba(34, 197, 94, 0.2); border-color: var(--accent-green); color: var(--accent-green); }
+        .tool-btn.btn-success:hover { background: var(--accent-green); color: white; }
+
+        select.tool-select {
+            background: #0f172a; color: var(--text-main); border: 1px solid var(--panel-border);
+            padding: 0.4rem 0.6rem; border-radius: 0.35rem; font-size: 0.8rem; cursor: pointer;
         }
 
-        .category-title {
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--accent-cyan);
-            border-bottom: 1px solid var(--panel-border);
-            padding-bottom: 0.3rem;
+        main { display: grid; grid-template-columns: 320px 1fr 340px; flex: 1; overflow: hidden; position: relative; }
+
+        /* SIDEBAR PALETTE */
+        .sidebar { background: var(--panel-bg); border-right: 1px solid var(--panel-border); display: flex; flex-direction: column; height: 100%; }
+        .search-box { padding: 0.75rem; border-bottom: 1px solid var(--panel-border); }
+        .search-box input {
+            width: 100%; padding: 0.5rem 0.75rem; background: #0f172a; border: 1px solid var(--panel-border);
+            border-radius: 0.4rem; color: var(--text-main); font-size: 0.85rem;
         }
+
+        .palette-scroll { flex: 1; overflow-y: auto; padding: 0.75rem; display: flex; flex-direction: column; gap: 1rem; }
+        .category-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        .category-title { font-size: 0.75rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--panel-border); padding-bottom: 0.25rem; }
+        .comp-grid { display: grid; grid-template-columns: 1fr; gap: 0.4rem; }
 
         .comp-card {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid var(--panel-border);
-            border-radius: 0.5rem;
-            padding: 0.65rem;
-            cursor: grab;
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: column;
-            gap: 0.3rem;
-            user-select: none;
+            background: #0f172a; border: 1px solid var(--panel-border); border-radius: 0.4rem; padding: 0.5rem 0.75rem;
+            cursor: grab; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between;
         }
+        .comp-card:hover { border-color: var(--accent-cyan); background: #1e293b; transform: translateX(2px); }
+        .comp-info { display: flex; flex-direction: column; }
+        .comp-name { font-size: 0.82rem; font-weight: 600; color: var(--text-main); }
+        .comp-iso { font-size: 0.7rem; color: var(--text-muted); }
+        .add-icon { font-size: 1rem; color: var(--accent-cyan); font-weight: bold; }
 
-        .comp-card:hover {
-            border-color: var(--accent-cyan);
-            background: rgba(56, 189, 248, 0.08);
-            transform: translateY(-1px);
+        /* CANVAS WORKSPACE */
+        .workspace-container { position: relative; width: 100%; height: 100%; background: #050811; overflow: hidden; cursor: crosshair; }
+        canvas#schematicCanvas { width: 100%; height: 100%; display: block; }
+
+        /* RIGHT INSPECTOR PANEL */
+        .inspector { background: var(--panel-bg); border-left: 1px solid var(--panel-border); padding: 1rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; }
+        .inspector h2 { font-size: 0.95rem; color: var(--accent-cyan); text-transform: uppercase; border-bottom: 1px solid var(--panel-border); padding-bottom: 0.4rem; }
+        .inspector-card { background: #0f172a; border: 1px solid var(--panel-border); border-radius: 0.5rem; padding: 0.85rem; font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.5rem; }
+        .prop-row { display: flex; justify-content: space-between; align-items: center; }
+        .prop-label { color: var(--text-muted); font-weight: 500; }
+        .prop-val { color: var(--text-main); font-weight: bold; }
+
+        .ctrl-btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.5rem; }
+        .action-btn { background: #0284c7; color: white; border: none; padding: 0.4rem; border-radius: 0.35rem; font-size: 0.75rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .action-btn:hover { background: #0369a1; }
+
+        .hotkey-legend { font-size: 0.72rem; color: var(--text-muted); line-height: 1.5; background: #0f172a; padding: 0.6rem; border-radius: 0.4rem; border: 1px solid var(--panel-border); }
+        .hotkey-legend kbd { background: #1e293b; color: var(--accent-cyan); padding: 0.1rem 0.3rem; border-radius: 0.2rem; border: 1px solid var(--panel-border); font-family: monospace; }
+
+        /* FAULT BANNER */
+        .fault-banner {
+            display: none; background: rgba(239, 68, 68, 0.2); border: 1px solid var(--accent-red);
+            color: var(--accent-red); padding: 0.5rem; border-radius: 0.4rem; font-size: 0.8rem;
+            font-weight: bold; text-align: center; animation: pulse 1.5s infinite;
         }
-
-        .comp-card:active { cursor: grabbing; }
-
-        .comp-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .comp-name {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-main);
-        }
-
-        .comp-iso {
-            font-size: 0.7rem;
-            color: var(--accent-yellow);
-        }
-
-        .comp-desc {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            line-height: 1.3;
-        }
-
-        /* Canvas Workspace */
-        .workspace-container {
-            position: relative;
-            background: #050811;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .canvas-toolbar {
-            position: absolute;
-            top: 1rem;
-            left: 1rem;
-            z-index: 5;
-            background: rgba(30, 41, 59, 0.85);
-            backdrop-filter: blur(8px);
-            border: 1px solid var(--panel-border);
-            border-radius: 0.5rem;
-            padding: 0.4rem 0.6rem;
-            display: flex;
-            gap: 0.5rem;
-            align-items: center;
-        }
-
-        .canvas-toolbar select {
-            background: #0f172a;
-            color: var(--text-main);
-            border: 1px solid var(--panel-border);
-            padding: 0.35rem 0.5rem;
-            border-radius: 0.35rem;
-            font-size: 0.8rem;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-            cursor: crosshair;
-        }
-
-        /* Inspector & Diagnostic Right Panel */
-        .inspector-panel {
-            background: var(--panel-bg);
-            border-left: 1px solid var(--panel-border);
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            padding: 1rem;
-            overflow-y: auto;
-        }
-
-        .panel-section {
-            background: #0f172a;
-            border: 1px solid var(--panel-border);
-            border-radius: 0.5rem;
-            padding: 0.85rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem;
-        }
-
-        .panel-section h3 {
-            font-size: 0.85rem;
-            color: var(--accent-cyan);
-            border-bottom: 1px solid var(--panel-border);
-            padding-bottom: 0.3rem;
-            text-transform: uppercase;
-        }
-
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .info-value {
-            color: var(--text-main);
-            font-weight: 600;
-        }
-
-        .conn-list {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 0.4rem;
-            max-height: 180px;
-            overflow-y: auto;
-        }
-
-        .conn-item {
-            background: #1e293b;
-            padding: 0.4rem 0.6rem;
-            border-radius: 0.35rem;
-            font-size: 0.78rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-left: 3px solid var(--accent-green);
-        }
-
-        .conn-item button {
-            background: transparent;
-            border: none;
-            color: var(--accent-red);
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: 0.3rem;
-            font-size: 0.72rem;
-            font-weight: 700;
-            text-align: center;
-        }
-
-        .status-ok { background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid #22c55e; }
-        .status-warn { background: rgba(250, 204, 21, 0.2); color: #facc15; border: 1px solid #facc15; }
-
-        .guide-box {
-            background: rgba(56, 189, 248, 0.05);
-            border-left: 3px solid var(--accent-cyan);
-            padding: 0.75rem;
-            border-radius: 0.35rem;
-            font-size: 0.78rem;
-            line-height: 1.4;
-            color: #cbd5e1;
-        }
-
-        .guide-box strong { color: var(--accent-cyan); }
+        @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>⚡ ISO 1219 Interactive Schematic Builder <span class="badge">Hose Routing Engine</span></h1>
-        
-        <div class="top-toolbar">
-            <button class="tool-btn" onclick="rotateSelected()" title="Rotate Selected Component (Key: R)">🔄 Rotate 90°</button>
-            <button class="tool-btn danger" onclick="deleteSelected()" title="Delete Selected Item (Key: Delete)">🗑️ Delete</button>
-            <button class="tool-btn" onclick="clearCanvas()">🧹 Clear Canvas</button>
-            <button class="tool-btn" onclick="exportPNG()">📷 Export PNG</button>
-            <button class="tool-btn" onclick="exportJSON()">💾 Export JSON</button>
+        <h1>⚙️ ISO 1219 Schematic Builder & Simulator <span class="badge">v2 Physics Engine</span></h1>
+
+        <!-- LIVE TELEMETRY HEADER -->
+        <div class="telemetry-bar">
+            <div class="metric-item">
+                <span class="metric-label">System Pressure</span>
+                <span class="metric-val" id="telemetryPressure">0.0 Bar</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Pump Flow</span>
+                <span class="metric-val" id="telemetryFlow">0.0 L/min</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Hydraulic Power</span>
+                <span class="metric-val" id="telemetryPower">0.00 kW</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Oil Temp</span>
+                <span class="metric-val" id="telemetryTemp">45.0 °C</span>
+            </div>
         </div>
     </header>
 
+    <!-- TOOLBAR -->
+    <div class="toolbar">
+        <div class="tool-group">
+            <button class="tool-btn btn-success" id="simToggleBtn" onclick="toggleSim()">▶ RUN SIMULATION (Space)</button>
+            <button class="tool-btn" id="modeSelectBtn" onclick="setMode('select')">🖐️ Select / Drag</button>
+            <button class="tool-btn" id="modeWireBtn" onclick="setMode('wire')">🔌 Hose Line Wire</button>
+        </div>
+
+        <div class="tool-group">
+            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: bold;">Hose Type:</span>
+            <select class="tool-select" id="wireStyleSelect" onchange="setWireStyle(this.value)">
+                <option value="solid-red">🔴 High Working Pressure (P)</option>
+                <option value="solid-blue">🔵 Low Tank Return (T)</option>
+                <option value="dashed-cyan">🔷 Pilot Control Signal (X/Y)</option>
+                <option value="dotted-gray">⚪ Case Leakage Drain (L)</option>
+            </select>
+        </div>
+
+        <div class="tool-group">
+            <button class="tool-btn" onclick="toggleSnap()" id="snapBtn">📐 Snap Grid: ON</button>
+            <button class="tool-btn" onclick="toggleIsoTags()" id="tagBtn">🏷️ ISO Tags: ON</button>
+            <button class="tool-btn" onclick="rotateSelected()">🔄 Rotate (R)</button>
+            <button class="tool-btn btn-danger" onclick="deleteSelected()">🗑️ Delete</button>
+        </div>
+
+        <div class="tool-group">
+            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: bold;">Fault Injector:</span>
+            <select class="tool-select" id="faultSelect" onchange="setFault(this.value)">
+                <option value="NONE">✅ None (Normal Operation)</option>
+                <option value="PUMP_FAILURE">⚠️ Pump Loss of Prime / Motor Failure</option>
+                <option value="FILTER_CLOGGED">⚠️ Filter Element Clogged (Delta P > 3.5 Bar)</option>
+                <option value="PRV_STUCK_OPEN">⚠️ Relief Valve Poppet Jammed Open</option>
+                <option value="AIR_INGRESS">⚠️ Air Leak Ingress / Suction Cavitation</option>
+            </select>
+        </div>
+
+        <div style="margin-left: auto; display: flex; gap: 0.4rem;">
+            <button class="tool-btn" onclick="clearCanvas()">🧹 Clear</button>
+            <button class="tool-btn" onclick="exportPNG()">📷 Export PNG</button>
+            <button class="tool-btn" onclick="exportJSON()">💾 Export JSON</button>
+        </div>
+    </div>
+
     <main>
-        <!-- Sidebar Palette -->
+        <!-- SIDEBAR COMPONENT LIBRARY PALETTE -->
         <div class="sidebar">
             <div class="search-box">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search ISO 1219 symbol..." oninput="filterComponents()">
+                <input type="text" id="searchInput" placeholder="Search 33+ ISO components..." oninput="filterComponents()">
             </div>
             <div class="palette-scroll" id="paletteContainer">
-                <!-- Injected via JavaScript -->
+                <!-- Dynamically populated -->
             </div>
         </div>
 
-        <!-- Canvas Workspace -->
+        <!-- CANVAS WORKSPACE -->
         <div class="workspace-container" id="workspaceContainer">
-            <div class="canvas-toolbar">
-                <label style="font-size: 0.8rem; color: var(--text-muted);">Hose Style:</label>
-                <select id="wireStyleSelect" onchange="setWireStyle(this.value)">
-                    <option value="solid-red">High Pressure (Solid Red)</option>
-                    <option value="solid-blue">Tank Return (Solid Blue)</option>
-                    <option value="dashed-cyan">Pilot Line (Dashed Cyan)</option>
-                    <option value="dotted-gray">Drain Line (Dotted Gray)</option>
-                </select>
-                <button class="tool-btn" id="snapBtn" onclick="toggleSnap()">Grid Snap: ON</button>
-                <button class="tool-btn" onclick="zoomIn()">➕ Zoom In</button>
-                <button class="tool-btn" onclick="zoomOut()">➖ Zoom Out</button>
-                <button class="tool-btn" onclick="resetZoom()">🎯 Reset View</button>
-            </div>
-
             <canvas id="schematicCanvas"></canvas>
         </div>
 
-        <!-- Right Inspector Panel -->
-        <div class="inspector-panel">
-            <div class="panel-section">
-                <h3>Component Inspector</h3>
-                <div id="inspectorCard">
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">Click a component on canvas to inspect properties.</div>
-                </div>
+        <!-- RIGHT INSPECTOR PANEL -->
+        <div class="inspector">
+            <h2>Component Inspector</h2>
+            <div class="inspector-card" id="inspectorCard">
+                <div style="color: var(--text-muted); text-align: center;">Click or place a component to inspect properties, state, and controls.</div>
             </div>
 
-            <div class="panel-section">
-                <h3>Global Connections (<span id="connCount">0</span>)</h3>
-                <ul class="conn-list" id="connList">
-                    <li style="font-size: 0.78rem; color: var(--text-muted);">No hose connections created yet. Drag between ports to connect!</li>
-                </ul>
+            <div class="fault-banner" id="faultBanner">
+                ⚠️ FAULT ACTIVE: <span id="faultText">Pump Failure</span>
             </div>
 
-            <div class="panel-section">
-                <h3>Routing & Wiring Guide</h3>
-                <div class="guide-box">
-                    <strong>Port Drag & Drop Routing:</strong><br>
-                    1. Click & drag directly from any component <strong>Port Marker</strong>.<br>
-                    2. Valid target ports on other components will glow <strong>green</strong>.<br>
-                    3. Release mouse over a highlighted port to finalize the <strong>Orthogonal Hose Line</strong>.<br>
-                    4. Dragging components dynamically re-routes attached hoses!
-                </div>
+            <h2>Classroom Hotkeys</h2>
+            <div class="hotkey-legend">
+                <kbd>Space</kbd> Run / Pause Simulation<br>
+                <kbd>E</kbd> Extend All DCVs (Pos 2)<br>
+                <kbd>R</kbd> Retract All DCVs (Pos 1)<br>
+                <kbd>C</kbd> Center All DCVs (Neutral)<br>
+                <kbd>T</kbd> Toggle ISO 1219-2 Tags<br>
+                <kbd>Del</kbd> Delete Selected Symbol/Hose<br>
+                <kbd>Drag Port</kbd> Connect Orthogonal Hose
+            </div>
+
+            <h2>Active Hose Connections</h2>
+            <div class="inspector-card" id="wireListCard" style="max-height: 200px; overflow-y: auto;">
+                <div style="color: var(--text-muted);">No hoses connected yet. Click & drag between ports.</div>
             </div>
         </div>
     </main>
 
     <script>
-        // ── ISO 1219 COMPONENT DEFINITIONS LIBRARY ──
+        // ── COMPLETE COMPONENT LIBRARY DEFINITION ──
         const LIBRARY = {
+            // 1. PUMPS & MOTORS
             pump_fixed: {
-                title: 'Fixed Displacement Hydraulic Pump',
-                cat: '1. Pumps & Motors',
-                iso: 'ISO 1219-1: Sec 4.1',
-                spec: 'Fixed displacement unidirectional hydraulic pump.',
-                w: 100, h: 100,
+                title: 'Fixed Displacement Hydraulic Pump', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 4.1', tagPrefix: '0P',
+                spec: 'Delivers fixed flow per motor revolution.', w: 90, h: 90,
                 ports: [
-                    { id: 'P', label: 'P (Outlet)', relX: 0, relY: -50, type: 'pressure', dir: 'up' },
-                    { id: 'S', label: 'S (Suction)', relX: 0, relY: 50, type: 'suction', dir: 'down' },
-                    { id: 'L', label: 'L (Drain)', relX: 50, relY: 0, type: 'drain', dir: 'right' }
+                    { id: 'P', label: 'Outlet (P)', relX: 0, relY: -45, type: 'pressure' },
+                    { id: 'S', label: 'Suction (S)', relX: 0, relY: 45, type: 'suction' },
+                    { id: 'L', label: 'Drain (L)', relX: 45, relY: 0, type: 'drain' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
-                    let p = new Path2D(); p.arc(0, 0, 35, 0, Math.PI * 2); ctx.stroke(p);
-                    ctx.beginPath(); ctx.moveTo(0, -35); ctx.lineTo(-10, -20); ctx.lineTo(10, -20); ctx.closePath(); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(0, -35); ctx.lineTo(0, -50); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(0, 35); ctx.lineTo(0, 50); ctx.stroke();
-                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(35, 0); ctx.lineTo(50, 0); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(-8, -16); ctx.lineTo(8, -16); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, -45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 30); ctx.lineTo(0, 45); ctx.stroke();
+                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(45, 0); ctx.stroke(); ctx.setLineDash([]);
                 }
             },
             pump_var: {
-                title: 'Variable Pressure-Comp Pump',
-                cat: '1. Pumps & Motors',
-                iso: 'ISO 1219-1: Sec 4.2',
-                spec: 'Variable displacement pressure-compensated axial piston pump.',
-                w: 100, h: 100,
+                title: 'Variable Pressure-Comp Pump', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 4.2', tagPrefix: '0P',
+                spec: 'Adjusts swashplate angle to reduce flow when deadheading.', w: 90, h: 90,
                 ports: [
-                    { id: 'P', label: 'P (Outlet)', relX: 0, relY: -50, type: 'pressure', dir: 'up' },
-                    { id: 'S', label: 'S (Suction)', relX: 0, relY: 50, type: 'suction', dir: 'down' }
+                    { id: 'P', label: 'Outlet (P)', relX: 0, relY: -45, type: 'pressure' },
+                    { id: 'S', label: 'Suction (S)', relX: 0, relY: 45, type: 'suction' }
                 ],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
-                    let p = new Path2D(); p.arc(0, 0, 35, 0, Math.PI * 2); ctx.stroke(p);
-                    ctx.beginPath(); ctx.moveTo(0, -35); ctx.lineTo(-10, -20); ctx.lineTo(10, -20); ctx.closePath(); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(0, -35); ctx.lineTo(0, -50); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(0, 35); ctx.lineTo(0, 50); ctx.stroke();
-                    ctx.strokeStyle = '#facc15'; ctx.fillStyle = '#facc15';
-                    ctx.beginPath(); ctx.moveTo(-40, 40); ctx.lineTo(40, -40); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(40, -40); ctx.lineTo(28, -38); ctx.lineTo(38, -28); ctx.closePath(); ctx.fill();
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
+                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
+                    ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(-8, -16); ctx.lineTo(8, -16); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, -45); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 30); ctx.lineTo(0, 45); ctx.stroke();
+                    ctx.strokeStyle = '#facc15'; ctx.beginPath(); ctx.moveTo(-35, 35); ctx.lineTo(35, -35); ctx.stroke();
+                    ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.moveTo(35, -35); ctx.lineTo(25, -33); ctx.lineTo(33, -25); ctx.closePath(); ctx.fill();
                 }
             },
             motor_fixed: {
-                title: 'Fixed Hydraulic Motor',
-                cat: '1. Pumps & Motors',
-                iso: 'ISO 1219-1: Sec 4.3',
-                spec: 'Fixed displacement bidirectional hydraulic motor.',
-                w: 100, h: 100,
+                title: 'Fixed Displacement Hydraulic Motor', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 5.1', tagPrefix: '1M',
+                spec: 'Converts fluid pressure into rotary shaft motion.', w: 90, h: 90,
                 ports: [
-                    { id: 'A', label: 'A (Port A)', relX: 0, relY: -50, type: 'work', dir: 'up' },
-                    { id: 'B', label: 'B (Port B)', relX: 0, relY: 50, type: 'work', dir: 'down' }
+                    { id: 'A', label: 'Inlet A', relX: -45, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Outlet B', relX: 45, relY: 0, type: 'work' },
+                    { id: 'L', label: 'Case Drain', relX: 0, relY: 45, type: 'drain' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
-                    let p = new Path2D(); p.arc(0, 0, 35, 0, Math.PI * 2); ctx.stroke(p);
-                    ctx.beginPath(); ctx.moveTo(0, -35); ctx.lineTo(-10, -50); ctx.lineTo(10, -50); ctx.closePath(); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(0, 35); ctx.lineTo(-10, 50); ctx.lineTo(10, 50); ctx.closePath(); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(0, -35); ctx.lineTo(0, -50); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(0, 35); ctx.lineTo(0, 50); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-16, -8); ctx.lineTo(-16, 8); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(16, -8); ctx.lineTo(16, 8); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-45, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(45, 0); ctx.stroke();
                 }
             },
             electric_motor: {
-                title: 'Electric Motor Prime Mover (M)',
-                cat: '1. Pumps & Motors',
-                iso: 'ISO 1219-1: Sec 3.1',
-                spec: 'Electric motor prime drive.',
-                w: 80, h: 80,
-                ports: [
-                    { id: 'OUT', label: 'Shaft', relX: 40, relY: 0, type: 'work', dir: 'right' }
-                ],
+                title: 'Electric Motor Prime Mover (M)', cat: '1. Pumps & Motors', iso: 'ISO 1219-1: Sec 3.1', tagPrefix: '0M',
+                spec: 'Electric motor driving the pump shaft.', w: 80, h: 80,
+                ports: [{ id: 'SHAFT', label: 'Drive Shaft', relX: 40, relY: 0, type: 'work' }],
                 draw: function(ctx) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    let p = new Path2D(); p.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke(p);
-                    ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI * 2); ctx.stroke();
+                    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                     ctx.fillText('M', 0, 0);
-                    ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(28, 0); ctx.lineTo(40, 0); ctx.stroke();
                 }
             },
+
+            // 2. DIRECTIONAL CONTROL VALVES
             dcv_22: {
-                title: '2/2 NC Solenoid Valve',
-                cat: '2. Directional Valves',
-                iso: 'ISO 1219-1: Sec 5.1',
-                spec: '2-port 2-position normally closed solenoid valve.',
-                w: 120, h: 80,
+                title: '2/2 NC Solenoid Valve', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.1', tagPrefix: '1V',
+                spec: '2-port 2-position normally closed valve.', w: 90, h: 70,
                 ports: [
-                    { id: 'P', label: 'P (Inlet)', relX: -25, relY: 40, type: 'pressure', dir: 'down' },
-                    { id: 'A', label: 'A (Outlet)', relX: -25, relY: -40, type: 'work', dir: 'up' }
+                    { id: 'P', label: 'Port P', relX: -25, relY: 35, type: 'pressure' },
+                    { id: 'A', label: 'Port A', relX: -25, relY: -35, type: 'work' }
                 ],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-50, -30, 50, 60); ctx.strokeRect(0, -30, 50, 60);
-                    // Left Box (NC Blocked)
-                    ctx.beginPath(); ctx.moveTo(-35, 15); ctx.lineTo(-15, 15); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(-25, 15); ctx.lineTo(-25, 30); ctx.stroke();
-                    // Right Box (Flow P->A)
-                    ctx.beginPath(); ctx.moveTo(25, 20); ctx.lineTo(25, -20); ctx.stroke();
-                    ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.moveTo(25, -20); ctx.lineTo(20, -10); ctx.lineTo(30, -10); ctx.closePath(); ctx.fill();
-                    // Solenoid on left
-                    ctx.strokeRect(-70, -15, 20, 30); ctx.fillStyle = '#38bdf8'; ctx.font = '10px sans-serif'; ctx.fillText('SOL', -65, 5);
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-40, -25, 30, 50); ctx.strokeRect(-10, -25, 30, 50);
+                    ctx.fillStyle = '#ef4444'; ctx.fillRect(-30, -5, 10, 10);
                 }
             },
             dcv_42: {
-                title: '4/2 Solenoid-Spring DCV',
-                cat: '2. Directional Valves',
-                iso: 'ISO 1219-1: Sec 5.2',
-                spec: '4-port 2-position directional control valve.',
-                w: 140, h: 100,
+                title: '4/2 Solenoid-Spring DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.2', tagPrefix: '1V',
+                spec: '4-port 2-position directional control valve.', w: 120, h: 80,
                 ports: [
-                    { id: 'P', label: 'P (Supply)', relX: -30, relY: 40, type: 'pressure', dir: 'down' },
-                    { id: 'T', label: 'T (Tank)', relX: 30, relY: 40, type: 'tank', dir: 'down' },
-                    { id: 'A', label: 'A (Port A)', relX: -30, relY: -40, type: 'work', dir: 'up' },
-                    { id: 'B', label: 'B (Port B)', relX: 30, relY: -40, type: 'work', dir: 'up' }
+                    { id: 'P', label: 'Port P', relX: -20, relY: 40, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 20, relY: 40, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -20, relY: -40, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 20, relY: -40, type: 'work' }
                 ],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-60, -30, 60, 60); ctx.strokeRect(0, -30, 60, 60);
-                    // Left Box: P->A, B->T
-                    ctx.beginPath(); ctx.moveTo(-30, 20); ctx.lineTo(-30, -20); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(-10, -20); ctx.lineTo(-10, 20); ctx.stroke();
-                    // Right Box: P->B, A->T
-                    ctx.beginPath(); ctx.moveTo(10, 20); ctx.lineTo(50, -20); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(10, -20); ctx.lineTo(50, 20); ctx.stroke();
-                    // Solenoid & Spring
-                    ctx.strokeRect(-80, -15, 20, 30);
-                    ctx.beginPath(); ctx.moveTo(60, 0); ctx.lineTo(75, 0); ctx.stroke();
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-40, -25, 40, 50); ctx.strokeRect(0, -25, 40, 50);
+                    ctx.fillStyle = '#38bdf8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText('P', -20, 20); ctx.fillText('T', 20, 20); ctx.fillText('A', -20, -15); ctx.fillText('B', 20, -15);
                 }
             },
             dcv_43_closed: {
-                title: '4/3 Closed Center DCV',
-                cat: '2. Directional Valves',
-                iso: 'ISO 1219-1: Sec 5.3',
-                spec: '4-port 3-position spring centered closed-center spool valve.',
-                w: 180, h: 100,
+                title: '4/3 Closed Center DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
+                spec: '4-port 3-position valve with all ports blocked in center.', w: 150, h: 80,
                 ports: [
-                    { id: 'P', label: 'P (Supply)', relX: -30, relY: 40, type: 'pressure', dir: 'down' },
-                    { id: 'T', label: 'T (Tank)', relX: 30, relY: 40, type: 'tank', dir: 'down' },
-                    { id: 'A', label: 'A (Port A)', relX: -30, relY: -40, type: 'work', dir: 'up' },
-                    { id: 'B', label: 'B (Port B)', relX: 30, relY: -40, type: 'work', dir: 'up' }
+                    { id: 'P', label: 'Port P', relX: 0, relY: 40, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 30, relY: 40, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -30, relY: -40, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 30, relY: -40, type: 'work' }
                 ],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-75, -30, 50, 60); ctx.strokeRect(-25, -30, 50, 60); ctx.strokeRect(25, -30, 50, 60);
-                    // Center box: All blocked (T-bars)
-                    [-15, 15].forEach(x => {
-                        ctx.beginPath(); ctx.moveTo(x - 5, -15); ctx.lineTo(x + 5, -15); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x, -25); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(x - 5, 15); ctx.lineTo(x + 5, 15); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(x, 15); ctx.lineTo(x, 25); ctx.stroke();
-                    });
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-60, -25, 40, 50); ctx.strokeRect(-20, -25, 40, 50); ctx.strokeRect(20, -25, 40, 50);
+                    ctx.fillStyle = '#facc15'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('CLOSED CENTER', 0, 0);
                 }
             },
-            prv_direct: {
-                title: 'Direct-Operated Relief Valve',
-                cat: '3. Pressure Control',
-                iso: 'ISO 1219-1: Sec 6.1',
-                spec: 'Direct-acting spring loaded pressure relief valve.',
-                w: 100, h: 100,
+            dcv_43_open: {
+                title: '4/3 Open (H) Center DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
+                spec: 'All ports connect to tank in center position.', w: 150, h: 80,
                 ports: [
-                    { id: 'P', label: 'P (Inlet)', relX: -40, relY: 0, type: 'pressure', dir: 'left' },
-                    { id: 'T', label: 'T (Tank)', relX: 40, relY: 0, type: 'tank', dir: 'right' }
+                    { id: 'P', label: 'Port P', relX: 0, relY: 40, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 30, relY: 40, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -30, relY: -40, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 30, relY: -40, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-60, -25, 40, 50); ctx.strokeRect(-20, -25, 40, 50); ctx.strokeRect(20, -25, 40, 50);
+                    ctx.fillStyle = '#38bdf8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('OPEN CENTER', 0, 0);
+                }
+            },
+            dcv_43_tandem: {
+                title: '4/3 Tandem Center DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
+                spec: 'P connects to T in center while work ports A and B are locked.', w: 150, h: 80,
+                ports: [
+                    { id: 'P', label: 'Port P', relX: 0, relY: 40, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 30, relY: 40, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -30, relY: -40, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 30, relY: -40, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-60, -25, 40, 50); ctx.strokeRect(-20, -25, 40, 50); ctx.strokeRect(20, -25, 40, 50);
+                    ctx.fillStyle = '#22c55e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TANDEM CENTER', 0, 0);
+                }
+            },
+            dcv_43_float: {
+                title: '4/3 Float Center DCV', cat: '2. Directional Valves', iso: 'ISO 1219-1: Sec 6.3', tagPrefix: '1V',
+                spec: 'P blocked; A and B vent to tank T in center position.', w: 150, h: 80,
+                ports: [
+                    { id: 'P', label: 'Port P', relX: 0, relY: 40, type: 'pressure' },
+                    { id: 'T', label: 'Port T', relX: 30, relY: 40, type: 'tank' },
+                    { id: 'A', label: 'Port A', relX: -30, relY: -40, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 30, relY: -40, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-60, -25, 40, 50); ctx.strokeRect(-20, -25, 40, 50); ctx.strokeRect(20, -25, 40, 50);
+                    ctx.fillStyle = '#f97316'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('FLOAT CENTER', 0, 0);
+                }
+            },
+
+            // 3. PRESSURE CONTROL VALVES
+            prv_direct: {
+                title: 'Direct-Operated Relief Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.1', tagPrefix: '0V',
+                spec: 'Limits maximum circuit pressure by opening to tank.', w: 90, h: 90,
+                ports: [
+                    { id: 'P', label: 'Inlet (P)', relX: -45, relY: 0, type: 'pressure' },
+                    { id: 'T', label: 'Tank (T)', relX: 45, relY: 0, type: 'tank' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
                     ctx.strokeRect(-25, -25, 50, 50);
-                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-25, 0); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(40, 0); ctx.stroke();
-                    // Arrow offset
-                    ctx.beginPath(); ctx.moveTo(-10, 15); ctx.lineTo(-10, -15); ctx.stroke();
-                    // Pilot line dashed
-                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(-35, 0); ctx.lineTo(-35, -35); ctx.lineTo(0, -35); ctx.lineTo(0, -25); ctx.stroke(); ctx.setLineDash([]);
-                    // Spring on right
-                    ctx.beginPath(); ctx.moveTo(0, 25); ctx.lineTo(0, 40); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-25, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(45, 0); ctx.stroke();
+                    ctx.strokeStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.stroke();
                 }
             },
             prv_reducing: {
-                title: 'Pressure Reducing Valve (NO)',
-                cat: '3. Pressure Control',
-                iso: 'ISO 1219-1: Sec 6.2',
-                spec: 'Normally open 2-way pressure reducing valve with downstream pilot.',
-                w: 100, h: 100,
+                title: 'Pressure Reducing Valve (NO)', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.2', tagPrefix: '0V',
+                spec: 'Maintains reduced downstream working pressure.', w: 90, h: 90,
                 ports: [
-                    { id: 'P', label: 'P (Inlet)', relX: -40, relY: 0, type: 'pressure', dir: 'left' },
-                    { id: 'A', label: 'A (Reduced)', relX: 40, relY: 0, type: 'work', dir: 'right' },
-                    { id: 'L', label: 'L (Drain)', relX: 0, relY: 40, type: 'drain', dir: 'down' }
+                    { id: 'P', label: 'Inlet (P)', relX: -45, relY: 0, type: 'pressure' },
+                    { id: 'A', label: 'Reduced (A)', relX: 45, relY: 0, type: 'work' },
+                    { id: 'Y', label: 'Drain (Y)', relX: 0, relY: 45, type: 'drain' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
                     ctx.strokeRect(-25, -25, 50, 50);
-                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(40, 0); ctx.stroke();
-                    // Straight flow arrow through center
-                    ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(5, -6); ctx.lineTo(5, 6); ctx.closePath(); ctx.fill();
-                    // Downstream pilot line
-                    ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(35, 0); ctx.lineTo(35, -35); ctx.lineTo(0, -35); ctx.lineTo(0, -25); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(45, 0); ctx.stroke();
                 }
             },
-            check_valve: {
-                title: 'Spring-Loaded Check Valve',
-                cat: '4. Flow Control',
-                iso: 'ISO 1219-1: Sec 7.1',
-                spec: 'Poppet check valve allowing free flow in one direction only.',
-                w: 100, h: 80,
+            auto_cutoff: {
+                title: 'Automatic Cut-Off Valve', cat: '3. Pressure Control', iso: 'ISO 1219-1: Sec 7.4', tagPrefix: '0V',
+                spec: 'Unloads pump when system accumulator is fully charged.', w: 90, h: 90,
                 ports: [
-                    { id: 'IN', label: 'Inlet (Free Flow)', relX: -40, relY: 0, type: 'work', dir: 'left' },
-                    { id: 'OUT', label: 'Outlet (Blocked)', relX: 40, relY: 0, type: 'work', dir: 'right' }
+                    { id: 'P', label: 'Inlet P', relX: -45, relY: 0, type: 'pressure' },
+                    { id: 'T', label: 'Tank T', relX: 45, relY: 0, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-25, -25, 50, 50);
+                    ctx.fillStyle = '#facc15'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('CUT-OFF', 0, 0);
+                }
+            },
+
+            // 4. FLOW CONTROL & NON-RETURN
+            check_valve: {
+                title: 'Spring-Loaded Check Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.1', tagPrefix: '1V',
+                spec: 'Allows free flow in one direction; blocks reverse.', w: 80, h: 60,
+                ports: [
+                    { id: 'IN', label: 'Inlet', relX: -40, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet', relX: 40, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.moveTo(-20, -15); ctx.lineTo(-5, 0); ctx.lineTo(-20, 15); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(5, 0, 8, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(40, 0); ctx.stroke();
+                }
+            },
+            po_check: {
+                title: 'Pilot-to-Open Check Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.2', tagPrefix: '1V',
+                spec: 'Check valve unseated by external pilot signal X.', w: 90, h: 80,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 45, relY: 0, type: 'work' },
+                    { id: 'X', label: 'Pilot X', relX: 0, relY: 40, type: 'pilot' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
                     ctx.strokeRect(-25, -20, 50, 40);
-                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-10, 0); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(40, 0); ctx.stroke();
-                    // Ball & seat
-                    ctx.beginPath(); ctx.moveTo(-10, -12); ctx.lineTo(-2, 0); ctx.lineTo(-10, 12); ctx.stroke();
-                    ctx.beginPath(); ctx.arc(4, 0, 7, 0, Math.PI * 2); ctx.stroke();
+                    ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(0, 40); ctx.stroke(); ctx.setLineDash([]);
                 }
             },
             throttle_needle: {
-                title: 'Adjustable Throttle Needle Valve',
-                cat: '4. Flow Control',
-                iso: 'ISO 1219-1: Sec 7.2',
-                spec: 'Variable area flow restrictor for speed regulation.',
-                w: 100, h: 80,
+                title: 'Adjustable Throttle Needle Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.3', tagPrefix: '1V',
+                spec: 'Variable orifice for flow rate regulation.', w: 80, h: 60,
                 ports: [
-                    { id: 'A', label: 'Port A', relX: -40, relY: 0, type: 'work', dir: 'left' },
-                    { id: 'B', label: 'Port B', relX: 40, relY: 0, type: 'work', dir: 'right' }
+                    { id: 'A', label: 'Port A', relX: -40, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 40, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
                     ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(40, 0); ctx.stroke();
-                    // Throttle constrictions
-                    ctx.beginPath(); ctx.arc(-10, -12, 15, Math.PI * 0.2, Math.PI * 0.8); ctx.stroke();
-                    ctx.beginPath(); ctx.arc(-10, 12, 15, -Math.PI * 0.8, -Math.PI * 0.2); ctx.stroke();
-                    // Arrow
-                    ctx.strokeStyle = '#facc15'; ctx.beginPath(); ctx.moveTo(-15, 20); ctx.lineTo(15, -20); ctx.stroke();
+                    ctx.strokeStyle = '#facc15'; ctx.beginPath(); ctx.moveTo(-15, -15); ctx.lineTo(0, 0); ctx.lineTo(15, -15); ctx.stroke();
                 }
             },
-            cyl_double: {
-                title: 'Double-Acting Cylinder',
-                cat: '5. Actuators & Rotators',
-                iso: 'ISO 1219-1: Sec 8.1',
-                spec: 'Linear actuator with cap end and rod end pressure ports.',
-                w: 160, h: 80,
+            fixed_throttle: {
+                title: 'Fixed Throttle / Orifice Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.3', tagPrefix: '1V',
+                spec: 'Fixed constriction line in fluid conductor.', w: 80, h: 60,
                 ports: [
-                    { id: 'CAP', label: 'Cap Port A', relX: -50, relY: 30, type: 'work', dir: 'down' },
-                    { id: 'ROD', label: 'Rod Port B', relX: 30, relY: 30, type: 'work', dir: 'down' }
+                    { id: 'A', label: 'Port A', relX: -40, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 40, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#1e293b';
-                    // Barrel
-                    ctx.strokeRect(-60, -25, 100, 50);
-                    // Piston head & rod
-                    ctx.fillStyle = '#38bdf8';
-                    ctx.fillRect(-20, -23, 12, 46);
-                    ctx.fillRect(-8, -6, 75, 12);
-                    // Ports
-                    ctx.beginPath(); ctx.moveTo(-50, 25); ctx.lineTo(-50, 30); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(30, 25); ctx.lineTo(30, 30); ctx.stroke();
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-10, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0, -10, 10, 0, Math.PI); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0, 10, 10, Math.PI, 0); ctx.stroke();
+                }
+            },
+            temp_comp_flow: {
+                title: 'Temperature-Compensated Flow Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.4', tagPrefix: '1V',
+                spec: 'Viscosity-independent regulated flow control.', w: 90, h: 70,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 45, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-25, -20, 50, 40);
+                    ctx.fillStyle = '#facc15'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TEMP COMP', 0, 0);
+                }
+            },
+            flow_divider: {
+                title: 'Flow Divider / Combiner Valve', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.5', tagPrefix: '1V',
+                spec: 'Splits one input flow into two equal output streams.', w: 100, h: 80,
+                ports: [
+                    { id: 'IN', label: 'Inlet', relX: 0, relY: 40, type: 'work' },
+                    { id: 'A', label: 'Outlet A', relX: -30, relY: -40, type: 'work' },
+                    { id: 'B', label: 'Outlet B', relX: 30, relY: -40, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-40, -25, 80, 50);
+                    ctx.fillStyle = '#22c55e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('DIVIDER 50/50', 0, 0);
+                }
+            },
+
+            // 5. ACTUATORS & ROTATORS
+            cyl_double: {
+                title: 'Double-Acting Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.1', tagPrefix: '1A',
+                spec: 'Linear actuator powered in both directions.', w: 160, h: 80,
+                ports: [
+                    { id: 'A', label: 'Cap End (A)', relX: -50, relY: 40, type: 'work' },
+                    { id: 'B', label: 'Rod End (B)', relX: 30, relY: 40, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-70, -25, 110, 50); // Body
+                    ctx.fillStyle = '#64748b'; ctx.fillRect(-20, -23, 10, 46); // Piston
+                    ctx.fillRect(-10, -6, 80, 12); // Rod
+                }
+            },
+            cyl_telescopic: {
+                title: 'Telescopic Multi-Stage Cylinder', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.2', tagPrefix: '1A',
+                spec: 'Multi-sleeve long stroke cylinder.', w: 160, h: 80,
+                ports: [
+                    { id: 'A', label: 'Cap End (A)', relX: -50, relY: 40, type: 'work' },
+                    { id: 'B', label: 'Rod End (B)', relX: 30, relY: 40, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-70, -30, 110, 60);
+                    ctx.strokeRect(-30, -20, 80, 40);
+                    ctx.fillRect(50, -6, 30, 12);
                 }
             },
             rack_pinion: {
-                title: 'Rack and Pinion Actuator',
-                cat: '5. Actuators & Rotators',
-                iso: 'ISO 1219-1: Sec 8.2',
-                spec: 'Dual-piston linear rack driving central gear pinion.',
-                w: 140, h: 90,
+                title: 'Rack and Pinion Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.3', tagPrefix: '1A',
+                spec: 'Dual-piston linear rack driving center rotary pinion.', w: 140, h: 80,
                 ports: [
-                    { id: 'A', label: 'Port A', relX: -50, relY: 35, type: 'work', dir: 'down' },
-                    { id: 'B', label: 'Port B', relX: 50, relY: 35, type: 'work', dir: 'down' }
+                    { id: 'A', label: 'Port A', relX: -45, relY: 40, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 45, relY: 40, type: 'work' }
                 ],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-55, -20, 110, 40);
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff';
+                    ctx.strokeRect(-60, -20, 120, 40);
                     ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.stroke();
-                    ctx.fillStyle = '#38bdf8'; ctx.fillRect(-45, -10, 10, 20); ctx.fillRect(35, -10, 10, 20);
                 }
             },
+            rotary_double: {
+                title: 'Double-Acting Rotary Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.4', tagPrefix: '1A',
+                spec: 'Limited angle rotary drive (0-280 deg).', w: 90, h: 90,
+                ports: [
+                    { id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' },
+                    { id: 'B', label: 'Port B', relX: 45, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
+                    ctx.fillStyle = '#facc15'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('ROTARY', 0, 0);
+                }
+            },
+            rotary_spring: {
+                title: 'Spring-Return Rotary Actuator', cat: '5. Actuators & Rotators', iso: 'ISO 1219-1: Sec 9.4', tagPrefix: '1A',
+                spec: 'Rotary actuator with spring reset.', w: 90, h: 90,
+                ports: [{ id: 'A', label: 'Port A', relX: -45, relY: 0, type: 'work' }],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
+                }
+            },
+
+            // 6. ACCUMULATORS & STORAGE
             acc_bladder: {
-                title: 'Bladder Type Accumulator',
-                cat: '6. Accumulators & Storage',
-                iso: 'ISO 1219-1: Sec 11.2',
-                spec: 'Gas-charged bladder accumulator for energy storage.',
-                w: 80, h: 120,
-                ports: [
-                    { id: 'P', label: 'Liquid Port P', relX: 0, relY: 55, type: 'pressure', dir: 'down' }
-                ],
+                title: 'Bladder Type Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.2', tagPrefix: '0Z',
+                spec: 'Gas-charged rubber bladder accumulator.', w: 80, h: 100,
+                ports: [{ id: 'P', label: 'Liquid Port', relX: 0, relY: 50, type: 'pressure' }],
                 draw: function(ctx) {
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#facc15';
                     ctx.beginPath(); ctx.arc(0, -25, 25, Math.PI, 0); ctx.lineTo(25, 25); ctx.arc(0, 25, 25, 0, Math.PI); ctx.closePath(); ctx.stroke();
-                    // Inner Bladder
                     ctx.beginPath(); ctx.arc(0, -5, 18, 0, Math.PI); ctx.stroke();
-                    ctx.fillStyle = '#facc15'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('N2', 0, -20);
-                    ctx.beginPath(); ctx.moveTo(0, 50); ctx.lineTo(0, 55); ctx.stroke();
+                    ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('N2', 0, -20);
                 }
             },
+            acc_piston: {
+                title: 'Piston / Cylindrical Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.2', tagPrefix: '0Z',
+                spec: 'Cylindrical shell with floating separator piston.', w: 80, h: 100,
+                ports: [{ id: 'P', label: 'Liquid Port', relX: 0, relY: 50, type: 'pressure' }],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-25, -45, 50, 90);
+                    ctx.fillStyle = '#64748b'; ctx.fillRect(-23, -5, 46, 10);
+                }
+            },
+            acc_diaphragm: {
+                title: 'Diaphragm Accumulator', cat: '6. Accumulators & Storage', iso: 'ISO 1219-1: Sec 11.2', tagPrefix: '0Z',
+                spec: 'Spherical shell with clamped flexible membrane.', w: 80, h: 90,
+                ports: [{ id: 'P', label: 'Liquid Port', relX: 0, relY: 45, type: 'pressure' }],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(30, 0); ctx.stroke();
+                }
+            },
+
+            // 7. RESERVOIRS & CONDITIONING
             res_vented: {
-                title: 'Vented Open Reservoir',
-                cat: '7. Reservoirs & Conditioning',
-                iso: 'ISO 1219-1: Sec 12.1',
-                spec: 'Atmospheric fluid storage tank with submerged lines.',
-                w: 100, h: 70,
+                title: 'Vented Open Reservoir', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 11.1', tagPrefix: '0T',
+                spec: 'Standard open-to-atmosphere fluid tank.', w: 100, h: 70,
                 ports: [
-                    { id: 'RET', label: 'Return Line', relX: -25, relY: -25, type: 'tank', dir: 'up' },
-                    { id: 'SUC', label: 'Suction Line', relX: 25, relY: -25, type: 'suction', dir: 'up' }
+                    { id: 'S', label: 'Suction', relX: -25, relY: -35, type: 'suction' },
+                    { id: 'R', label: 'Return', relX: 25, relY: -35, type: 'tank' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
-                    ctx.beginPath(); ctx.moveTo(-40, -20); ctx.lineTo(-40, 20); ctx.lineTo(40, 20); ctx.lineTo(40, -20); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(-25, -25); ctx.lineTo(-25, 10); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(25, -25); ctx.lineTo(25, 10); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-40, -25); ctx.lineTo(-40, 25); ctx.lineTo(40, 25); ctx.lineTo(40, -25); ctx.stroke();
+                }
+            },
+            res_pressurised: {
+                title: 'Pressurised Sealed Reservoir', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 11.1', tagPrefix: '0T',
+                spec: 'Fully enclosed gas-boosted reservoir.', w: 100, h: 70,
+                ports: [
+                    { id: 'S', label: 'Suction', relX: -25, relY: -35, type: 'suction' },
+                    { id: 'R', label: 'Return', relX: 25, relY: -35, type: 'tank' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-40, -25, 80, 50);
                 }
             },
             filter_clogging: {
-                title: 'Filter with Clogging Indicator',
-                cat: '7. Reservoirs & Conditioning',
-                iso: 'ISO 1219-1: Sec 12.2',
-                spec: 'Fluid filter element with optical clogging pop-up indicator.',
-                w: 90, h: 90,
+                title: 'Filter with Optical Clogging Indicator', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 10.1', tagPrefix: '0Z',
+                spec: 'Traps contaminants; pop-up flags clogging Delta P.', w: 90, h: 90,
                 ports: [
-                    { id: 'IN', label: 'Inlet', relX: -40, relY: 0, type: 'work', dir: 'left' },
-                    { id: 'OUT', label: 'Outlet', relX: 40, relY: 0, type: 'work', dir: 'right' }
+                    { id: 'IN', label: 'Inlet', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet', relX: 45, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.save(); ctx.rotate(Math.PI / 4); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
-                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    ctx.save(); ctx.rotate(45 * Math.PI / 180); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
                     ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, 30); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(45, 0); ctx.stroke();
                 }
             },
-            press_switch: {
-                title: 'Adjustable SPDT Pressure Switch',
-                cat: '8. Instrumentation',
-                iso: 'ISO 1219-1: Sec 13.1',
-                spec: 'Pressure-actuated electric contact switch.',
-                w: 80, h: 90,
+            cooler: {
+                title: 'Heat Exchanger Cooler', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 10.2', tagPrefix: '0Z',
+                spec: 'Cools hydraulic oil via air or water cooling.', w: 90, h: 90,
                 ports: [
-                    { id: 'P', label: 'Sensing Port P', relX: 0, relY: 40, type: 'pressure', dir: 'down' }
+                    { id: 'IN', label: 'Inlet', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet', relX: 45, relY: 0, type: 'work' }
                 ],
                 draw: function(ctx) {
                     ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
-                    ctx.strokeRect(-25, -25, 50, 50);
-                    ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#38bdf8'; ctx.textAlign = 'center'; ctx.fillText('P >', 0, 5);
-                    ctx.beginPath(); ctx.moveTo(0, 25); ctx.lineTo(0, 40); ctx.stroke();
+                    ctx.save(); ctx.rotate(45 * Math.PI / 180); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(45, 0); ctx.stroke();
+                }
+            },
+            heater: {
+                title: 'Fluid Heater', cat: '7. Reservoirs & Conditioning', iso: 'ISO 1219-1: Sec 10.3', tagPrefix: '0Z',
+                spec: 'Warms cold fluid in tank.', w: 90, h: 90,
+                ports: [
+                    { id: 'IN', label: 'Inlet', relX: -45, relY: 0, type: 'work' },
+                    { id: 'OUT', label: 'Outlet', relX: 45, relY: 0, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
+                    ctx.save(); ctx.rotate(45 * Math.PI / 180); ctx.strokeRect(-22, -22, 44, 44); ctx.restore();
+                    ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(45, 0); ctx.stroke();
+                }
+            },
+
+            // 8. INSTRUMENTATION & SWITCHES
+            press_switch: {
+                title: 'Adjustable SPDT Pressure Switch', cat: '8. Instrumentation', iso: 'ISO 1219-1: Sec 12.1', tagPrefix: '0S',
+                spec: 'Triggers electrical contact on pressure setpoint.', w: 80, h: 80,
+                ports: [{ id: 'P', label: 'Sensing Port', relX: 0, relY: 40, type: 'pressure' }],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2; ctx.strokeStyle = '#38bdf8';
+                    ctx.strokeRect(-20, -20, 40, 40);
+                    ctx.fillStyle = '#facc15'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('P>⚡', 0, 0);
                 }
             }
         };
 
-        // ── GLOBAL APPLICATION STATE ──
+        // ── APPLICATION STATE & GLOBALS ──
         let canvas, ctx;
-        let scale = 1.0;
-        let panX = 0, panY = 0;
-        let mode = 'select'; // 'select', 'wire', 'delete'
+        let scale = 1.0, panX = 0, panY = 0;
+        let mode = 'select'; // 'select', 'wire'
         let snapToGrid = true;
+        let showIsoTags = true;
         let wireStyle = 'solid-red';
+        let simRunning = true;
+        let activeFault = 'NONE';
+        let animOffset = 0;
 
-        let placedComponents = []; // Array of component instances: { id, key, x, y, rotation, name }
-
-        // REQUIRED GLOBAL CONNECTION DATA STRUCTURE:
-        // connections = [{ id, fromComponent, fromPort, toComponent, toPort, fromCompId, fromPortId, toCompId, toPortId, style }]
-        let connections = [];
-        window.connections = connections; // Global access for debugging / inspection
+        let placedComponents = []; // { id, key, x, y, rotation, tag, state }
+        let placedWires = []; // { id, fromCompId, fromPortId, toCompId, toPortId, style }
 
         let selectedCompId = null;
-        let selectedConnId = null;
+        let selectedWireId = null;
         let draggingCompId = null;
         let dragOffsetX = 0, dragOffsetY = 0;
 
         let isWiring = false;
-        let wireStartPort = null; // { compId, portId, x, y, portDef }
+        let wireStartPort = null; // { compId, portId }
         let currentMouseWorld = { x: 0, y: 0 };
-        let hoveredTargetPort = null; // Stores currently hovered valid target port during wiring drag
 
-        // ── INIT & EVENT SETUP ──
+        // INITIALIZATION
         window.addEventListener('load', () => {
             canvas = document.getElementById('schematicCanvas');
             ctx = canvas.getContext('2d');
-
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
 
             populateSidebar();
             setupCanvasEvents();
+            setupPreloadedCircuit();
 
-            renderLoop();
+            requestAnimationFrame(renderLoop);
         });
 
         function resizeCanvas() {
@@ -777,7 +756,25 @@
             render();
         }
 
-        // ── POPULATE SIDEBAR PALETTE ──
+        // PRELOAD A COMPLETE 5-COMPONENT CIRCUIT
+        function setupPreloadedCircuit() {
+            const res = spawnComponent('res_vented', 200, 450);
+            const pump = spawnComponent('pump_fixed', 200, 300);
+            const prv = spawnComponent('prv_direct', 380, 300);
+            const dcv = spawnComponent('dcv_43_closed', 200, 150);
+            const cyl = spawnComponent('cyl_double', 420, 150);
+
+            // Connect hoses
+            placedWires.push({ id: 'w1', fromCompId: res.id, fromPortId: 'S', toCompId: pump.id, toPortId: 'S', style: 'solid-blue' });
+            placedWires.push({ id: 'w2', fromCompId: pump.id, fromPortId: 'P', toCompId: dcv.id, toPortId: 'P', style: 'solid-red' });
+            placedWires.push({ id: 'w3', fromCompId: pump.id, fromPortId: 'P', toCompId: prv.id, toPortId: 'P', style: 'solid-red' });
+            placedWires.push({ id: 'w4', fromCompId: prv.id, fromPortId: 'T', toCompId: res.id, toPortId: 'R', style: 'solid-blue' });
+            placedWires.push({ id: 'w5', fromCompId: dcv.id, fromPortId: 'A', toCompId: cyl.id, toPortId: 'A', style: 'solid-red' });
+            placedWires.push({ id: 'w6', fromCompId: dcv.id, fromPortId: 'B', toCompId: cyl.id, toPortId: 'B', style: 'solid-blue' });
+
+            updateUI();
+        }
+
         function populateSidebar() {
             const container = document.getElementById('paletteContainer');
             container.innerHTML = '';
@@ -798,33 +795,32 @@
                 title.innerText = catName;
                 group.appendChild(title);
 
+                const grid = document.createElement('div');
+                grid.className = 'comp-grid';
+
                 cats[catName].forEach(comp => {
                     const card = document.createElement('div');
                     card.className = 'comp-card';
-                    card.setAttribute('draggable', 'true');
-
+                    card.draggable = true;
                     card.innerHTML = `
-                        <div class="comp-header">
+                        <div class="comp-info">
                             <span class="comp-name">${comp.title}</span>
-                            <span class="comp-iso">${comp.iso.split(':')[0]}</span>
+                            <span class="comp-iso">${comp.iso}</span>
                         </div>
-                        <div class="comp-desc">${comp.spec}</div>
+                        <span class="add-icon">+</span>
                     `;
 
                     card.addEventListener('dragstart', (e) => {
                         e.dataTransfer.setData('text/plain', comp.key);
                     });
-
                     card.addEventListener('click', () => {
-                        // Double click / single click fallback spawn at center
-                        const worldX = (-panX + canvas.width / 2) / scale;
-                        const worldY = (-panY + canvas.height / 2) / scale;
-                        spawnComponent(comp.key, worldX, worldY);
+                        spawnComponent(comp.key, 300 + Math.random()*50, 250 + Math.random()*50);
                     });
 
-                    group.appendChild(card);
+                    grid.appendChild(card);
                 });
 
+                group.appendChild(grid);
                 container.appendChild(group);
             }
         }
@@ -843,86 +839,53 @@
             });
         }
 
-        // ── COMPONENT INSTANTIATION & PORT WORLD POS ──
         function spawnComponent(key, x, y) {
-            if (!LIBRARY[key]) return;
+            const def = LIBRARY[key];
+            if (!def) return;
+
+            const sameTypeCount = placedComponents.filter(c => c.key === key).length + 1;
+            const tag = (def.tagPrefix || '0V') + sameTypeCount;
+
             const comp = {
-                id: 'comp_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                id: 'comp_' + Date.now() + '_' + Math.floor(Math.random()*1000),
                 key: key,
                 x: snapToGrid ? Math.round(x / 20) * 20 : x,
                 y: snapToGrid ? Math.round(y / 20) * 20 : y,
                 rotation: 0,
-                name: LIBRARY[key].title
+                tag: tag,
+                state: {
+                    spoolPos: 0,
+                    setting: 180,
+                    openingPercent: 100,
+                    position: 0,
+                    flowQ: 15.0,
+                    pressureP: 0.0
+                }
             };
 
             placedComponents.push(comp);
             selectedCompId = comp.id;
-            selectedConnId = null;
             updateUI();
             render();
+            return comp;
         }
 
         function getPortWorldPos(comp, portId) {
             const def = LIBRARY[comp.key];
             const p = def.ports.find(pt => pt.id === portId);
-            if (!p) return { x: comp.x, y: comp.y, dir: 'up' };
+            if (!p) return { x: comp.x, y: comp.y };
 
             const rad = comp.rotation * Math.PI / 180;
             const rx = p.relX * Math.cos(rad) - p.relY * Math.sin(rad);
             const ry = p.relX * Math.sin(rad) + p.relY * Math.cos(rad);
 
-            return {
-                x: comp.x + rx,
-                y: comp.y + ry,
-                type: p.type,
-                dir: p.dir || 'up'
-            };
+            return { x: comp.x + rx, y: comp.y + ry };
         }
 
-        // ── HOSE CONNECTION ENGINE (DATA STRUCTURE & VALIDATION) ──
-        function addConnection(fromComp, fromPortId, toComp, toPortId, style = 'solid-red') {
-            // Prevent self connection
-            if (fromComp.id === toComp.id && fromPortId === toPortId) return null;
-
-            // Prevent duplicate connection between exact same pair
-            const existing = connections.find(c => 
-                (c.fromCompId === fromComp.id && c.fromPortId === fromPortId && c.toCompId === toComp.id && c.toPortId === toPortId) ||
-                (c.fromCompId === toComp.id && c.fromPortId === toPortId && c.toCompId === fromComp.id && c.toPortId === fromPortId)
-            );
-            if (existing) return existing;
-
-            const newConn = {
-                id: 'conn_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-                fromComponent: fromComp,   // Direct reference to source component
-                fromPort: fromPortId,      // Port ID string (e.g. 'P')
-                toComponent: toComp,       // Direct reference to target component
-                toPort: toPortId,          // Port ID string (e.g. 'A')
-                fromCompId: fromComp.id,
-                fromPortId: fromPortId,
-                toCompId: toComp.id,
-                toPortId: toPortId,
-                style: style || wireStyle
-            };
-
-            connections.push(newConn);
-            updateUI();
-            render();
-            return newConn;
-        }
-
-        function removeConnection(connId) {
-            connections = connections.filter(c => c.id !== connId);
-            window.connections = connections;
-            if (selectedConnId === connId) selectedConnId = null;
-            updateUI();
-            render();
-        }
-
-        // ── CANVAS EVENT HANDLING ──
+        // EVENT HANDLING
         function setupCanvasEvents() {
             const container = document.getElementById('workspaceContainer');
 
-            // Drag and drop from palette onto canvas
             container.addEventListener('dragover', (e) => e.preventDefault());
             container.addEventListener('drop', (e) => {
                 e.preventDefault();
@@ -937,7 +900,6 @@
                 }
             });
 
-            // Mouse Down: Start Port Dragging OR Component Selection / Dragging
             canvas.addEventListener('mousedown', (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const screenX = e.clientX - rect.left;
@@ -945,42 +907,34 @@
                 const wx = (screenX - panX) / scale;
                 const wy = (screenY - panY) / scale;
 
-                // 1. Check if clicked directly on any component PORT MARKER to start hose connection
+                // 1. Check if clicked on a port
                 for (let comp of placedComponents) {
                     const def = LIBRARY[comp.key];
                     for (let p of def.ports) {
                         const pw = getPortWorldPos(comp, p.id);
                         if (Math.hypot(wx - pw.x, wy - pw.y) < 16) {
-                            // Start Hose Dragging Connection
                             isWiring = true;
-                            wireStartPort = { compId: comp.id, portId: p.id, x: pw.x, y: pw.y, portDef: p };
-                            hoveredTargetPort = null;
-                            render();
+                            wireStartPort = { compId: comp.id, portId: p.id };
                             return;
                         }
                     }
                 }
 
-                // If currently wiring and clicked in blank space, cancel wiring
+                // If wiring and clicked away
                 if (isWiring) {
                     isWiring = false;
                     wireStartPort = null;
-                    hoveredTargetPort = null;
                     render();
                     return;
                 }
 
-                // 2. Check if clicked on a Component Body
+                // 2. Check if clicked on a component
                 for (let i = placedComponents.length - 1; i >= 0; i--) {
                     const comp = placedComponents[i];
                     const def = LIBRARY[comp.key];
-                    if (Math.abs(wx - comp.x) < def.w / 2 && Math.abs(wy - comp.y) < def.h / 2) {
+                    if (Math.abs(wx - comp.x) < def.w/2 && Math.abs(wy - comp.y) < def.h/2) {
                         selectedCompId = comp.id;
-                        selectedConnId = null;
-                        if (mode === 'delete') {
-                            deleteSelected();
-                            return;
-                        }
+                        selectedWireId = null;
                         draggingCompId = comp.id;
                         dragOffsetX = wx - comp.x;
                         dragOffsetY = wy - comp.y;
@@ -990,21 +944,17 @@
                     }
                 }
 
-                // 3. Check if clicked on a Connection Hose Line
-                for (let c of connections) {
-                    const c1 = c.fromComponent || placedComponents.find(comp => comp.id === c.fromCompId);
-                    const c2 = c.toComponent || placedComponents.find(comp => comp.id === c.toCompId);
+                // 3. Check if clicked on a wire
+                for (let w of placedWires) {
+                    const c1 = placedComponents.find(c => c.id === w.fromCompId);
+                    const c2 = placedComponents.find(c => c.id === w.toCompId);
                     if (c1 && c2) {
-                        const p1 = getPortWorldPos(c1, c.fromPortId || c.fromPort);
-                        const p2 = getPortWorldPos(c2, c.toPortId || c.toPort);
-                        const dist = pointToOrthogonalDist(wx, wy, p1, p2);
+                        const p1 = getPortWorldPos(c1, w.fromPortId);
+                        const p2 = getPortWorldPos(c2, w.toPortId);
+                        const dist = pointToSeqDist(wx, wy, p1.x, p1.y, p2.x, p2.y);
                         if (dist < 10) {
-                            selectedConnId = c.id;
+                            selectedWireId = w.id;
                             selectedCompId = null;
-                            if (mode === 'delete') {
-                                removeConnection(c.id);
-                                return;
-                            }
                             updateUI();
                             render();
                             return;
@@ -1012,14 +962,12 @@
                     }
                 }
 
-                // Clicked in empty workspace
                 selectedCompId = null;
-                selectedConnId = null;
+                selectedWireId = null;
                 updateUI();
                 render();
             });
 
-            // Mouse Move: Drag Component OR Drag Hose Line with Visual Validation & Target Snapping
             canvas.addEventListener('mousemove', (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const screenX = e.clientX - rect.left;
@@ -1040,88 +988,61 @@
                         comp.y = ny;
                         render();
                     }
-                } else if (isWiring && wireStartPort) {
-                    // Check if mouse is hovering close to any valid target port for SNAP & HIGHLIGHT
-                    hoveredTargetPort = null;
-                    for (let comp of placedComponents) {
-                        const def = LIBRARY[comp.key];
-                        for (let p of def.ports) {
-                            // Prevent self-connection to exact same port
-                            if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
-
-                            const pw = getPortWorldPos(comp, p.id);
-                            const dist = Math.hypot(currentMouseWorld.x - pw.x, currentMouseWorld.y - pw.y);
-
-                            if (dist < 22) { // Target Snap Radius
-                                hoveredTargetPort = { compId: comp.id, portId: p.id, x: pw.x, y: pw.y, comp: comp };
-                                break;
-                            }
-                        }
-                        if (hoveredTargetPort) break;
-                    }
+                } else if (isWiring) {
                     render();
                 }
             });
 
-            // Mouse Up: Release to Finalize Hose Connection or Stop Dragging Component
-            window.addEventListener('mouseup', (e) => {
+            window.addEventListener('mouseup', () => {
                 if (isWiring && wireStartPort) {
-                    let target = hoveredTargetPort;
-
-                    // Fallback search if mouseup triggered without mousemove frame
-                    if (!target) {
-                        for (let comp of placedComponents) {
-                            const def = LIBRARY[comp.key];
-                            for (let p of def.ports) {
-                                if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
-                                const pw = getPortWorldPos(comp, p.id);
-                                if (Math.hypot(currentMouseWorld.x - pw.x, currentMouseWorld.y - pw.y) < 22) {
-                                    target = { compId: comp.id, portId: p.id, comp: comp };
-                                    break;
-                                }
+                    for (let comp of placedComponents) {
+                        const def = LIBRARY[comp.key];
+                        for (let p of def.ports) {
+                            if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
+                            const pw = getPortWorldPos(comp, p.id);
+                            if (Math.hypot(currentMouseWorld.x - pw.x, currentMouseWorld.y - pw.y) < 18) {
+                                placedWires.push({
+                                    id: 'wire_' + Date.now(),
+                                    fromCompId: wireStartPort.compId,
+                                    fromPortId: wireStartPort.portId,
+                                    toCompId: comp.id,
+                                    toPortId: p.id,
+                                    style: wireStyle
+                                });
+                                isWiring = false;
+                                wireStartPort = null;
+                                updateUI();
+                                render();
+                                return;
                             }
-                            if (target) break;
                         }
                     }
-
-                    if (target) {
-                        const sourceComp = placedComponents.find(c => c.id === wireStartPort.compId);
-                        const targetComp = target.comp || placedComponents.find(c => c.id === target.compId);
-
-                        if (sourceComp && targetComp) {
-                            addConnection(sourceComp, wireStartPort.portId, targetComp, target.portId, wireStyle);
-                        }
-                    }
-
-                    isWiring = false;
-                    wireStartPort = null;
-                    hoveredTargetPort = null;
-                    render();
                 }
 
                 draggingCompId = null;
             });
 
-            // Keyboard Shortcuts
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Delete' || e.key === 'Backspace') {
                     deleteSelected();
                 } else if (e.key === 'r' || e.key === 'R') {
                     rotateSelected();
+                } else if (e.key === ' ') {
+                    e.preventDefault();
+                    toggleSim();
+                } else if (e.key === 'e' || e.key === 'E') {
+                    setAllSpool(1);
+                } else if (e.key === 'r' || e.key === 'R') {
+                    setAllSpool(-1);
+                } else if (e.key === 'c' || e.key === 'C') {
+                    setAllSpool(0);
+                } else if (e.key === 't' || e.key === 'T') {
+                    toggleIsoTags();
                 }
             });
         }
 
-        // Distance from point to orthogonal segment array
-        function pointToOrthogonalDist(px, py, p1, p2) {
-            const midX = (p1.x + p2.x) / 2;
-            const d1 = pointToLineDist(px, py, p1.x, p1.y, midX, p1.y);
-            const d2 = pointToLineDist(px, py, midX, p1.y, midX, p2.y);
-            const d3 = pointToLineDist(px, py, midX, p2.y, p2.x, p2.y);
-            return Math.min(d1, d2, d3);
-        }
-
-        function pointToLineDist(x, y, x1, y1, x2, y2) {
+        function pointToSeqDist(x, y, x1, y1, x2, y2) {
             const A = x - x1, B = y - y1, C = x2 - x1, D = y2 - y1;
             const dot = A * C + B * D;
             const len_sq = C * C + D * D;
@@ -1134,10 +1055,50 @@
             return Math.hypot(x - xx, y - yy);
         }
 
-        // ── RENDER ENGINE ──
+        // ── SIMULATION & RENDER ENGINE ──
         function renderLoop() {
+            if (simRunning) {
+                animOffset += 1.5;
+                updatePhysicsAndTelemetry();
+            }
             render();
             requestAnimationFrame(renderLoop);
+        }
+
+        function updatePhysicsAndTelemetry() {
+            let pressure = 180.0;
+            let flow = 15.0;
+            let power = 4.5;
+            let temp = 48.0;
+
+            if (activeFault === 'PUMP_FAILURE') {
+                pressure = 0.0; flow = 0.0; power = 0.0;
+            } else if (activeFault === 'PRV_STUCK_OPEN') {
+                pressure = 4.5; flow = 15.0; power = 0.11;
+            } else if (activeFault === 'FILTER_CLOGGED') {
+                pressure = 195.0; flow = 12.0; power = 3.9;
+            } else if (activeFault === 'AIR_INGRESS') {
+                pressure = 120.0 + Math.sin(animOffset*0.2)*40;
+                flow = 10.0 + Math.cos(animOffset*0.2)*3;
+            }
+
+            power = (pressure * flow) / 600.0;
+
+            document.getElementById('telemetryPressure').innerText = pressure.toFixed(1) + ' Bar';
+            document.getElementById('telemetryFlow').innerText = flow.toFixed(1) + ' L/min';
+            document.getElementById('telemetryPower').innerText = power.toFixed(2) + ' kW';
+            document.getElementById('telemetryTemp').innerText = temp.toFixed(1) + ' °C';
+
+            // Actuator Position Simulation
+            placedComponents.forEach(comp => {
+                if (comp.key === 'cyl_double') {
+                    if (comp.state.spoolPos === 1 && comp.state.position < 100) {
+                        comp.state.position += 1.0;
+                    } else if (comp.state.spoolPos === -1 && comp.state.position > 0) {
+                        comp.state.position -= 1.0;
+                    }
+                }
+            });
         }
 
         function render() {
@@ -1148,31 +1109,32 @@
             ctx.translate(panX, panY);
             ctx.scale(scale, scale);
 
-            // Draw Background Dot Grid
             drawGrid();
 
-            // 1. DRAW HOSES / CONNECTIONS (Global Array: connections)
-            for (let c of connections) {
-                const c1 = c.fromComponent || placedComponents.find(comp => comp.id === c.fromCompId);
-                const c2 = c.toComponent || placedComponents.find(comp => comp.id === c.toCompId);
-
+            // 1. Draw Wires with Animated Falstad Particles
+            for (let w of placedWires) {
+                const c1 = placedComponents.find(c => c.id === w.fromCompId);
+                const c2 = placedComponents.find(c => c.id === w.toCompId);
                 if (c1 && c2) {
-                    const p1 = getPortWorldPos(c1, c.fromPortId || c.fromPort);
-                    const p2 = getPortWorldPos(c2, c.toPortId || c.toPort);
-                    const isSelected = (c.id === selectedConnId);
+                    const p1 = getPortWorldPos(c1, w.fromPortId);
+                    const p2 = getPortWorldPos(c2, w.toPortId);
+                    const isSelected = (w.id === selectedWireId);
 
-                    ctx.lineWidth = isSelected ? 4.5 : 3;
-                    if (c.style === 'solid-red') {
-                        ctx.strokeStyle = '#ef4444'; ctx.setLineDash([]);
-                    } else if (c.style === 'solid-blue') {
-                        ctx.strokeStyle = '#3b82f6'; ctx.setLineDash([]);
-                    } else if (c.style === 'dashed-cyan') {
-                        ctx.strokeStyle = '#06b6d4'; ctx.setLineDash([6, 4]);
-                    } else if (c.style === 'dotted-gray') {
-                        ctx.strokeStyle = '#94a3b8'; ctx.setLineDash([3, 3]);
+                    ctx.lineWidth = isSelected ? 4 : 3;
+                    let particleColor = '#facc15';
+
+                    if (w.style === 'solid-red') {
+                        ctx.strokeStyle = activeFault === 'AIR_INGRESS' ? '#f97316' : '#ef4444';
+                        ctx.setLineDash([]);
+                        particleColor = '#facc15';
+                    } else if (w.style === 'solid-blue') {
+                        ctx.strokeStyle = '#3b82f6'; ctx.setLineDash([]); particleColor = '#93c5fd';
+                    } else if (w.style === 'dashed-cyan') {
+                        ctx.strokeStyle = '#06b6d4'; ctx.setLineDash([6, 4]); particleColor = '#a5f3fc';
+                    } else if (w.style === 'dotted-gray') {
+                        ctx.strokeStyle = '#94a3b8'; ctx.setLineDash([3, 3]); particleColor = '#e2e8f0';
                     }
 
-                    // Render Orthogonal 90-Degree Lines
                     const midX = (p1.x + p2.x) / 2;
                     ctx.beginPath();
                     ctx.moveTo(p1.x, p1.y);
@@ -1182,69 +1144,46 @@
                     ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Highlight line selection
+                    // Draw Falstad Animated Dots
+                    if (simRunning && activeFault !== 'PUMP_FAILURE') {
+                        drawFalstadDotsOnPath([{x: p1.x, y: p1.y}, {x: midX, y: p1.y}, {x: midX, y: p2.y}, {x: p2.x, y: p2.y}], particleColor);
+                    }
+
                     if (isSelected) {
-                        ctx.strokeStyle = '#facc15';
-                        ctx.lineWidth = 1.5;
-                        ctx.stroke();
+                        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1; ctx.stroke();
                     }
                 }
             }
 
-            // 2. DRAW ACTIVE HOSE DRAFT & VISUAL VALIDATION TARGET HIGHLIGHTS
+            // Draw Wire Draft
             if (isWiring && wireStartPort) {
                 const c1 = placedComponents.find(c => c.id === wireStartPort.compId);
                 if (c1) {
                     const p1 = getPortWorldPos(c1, wireStartPort.portId);
-                    const targetPos = hoveredTargetPort ? { x: hoveredTargetPort.x, y: hoveredTargetPort.y } : currentMouseWorld;
-
-                    // Orthogonal Draft Line
-                    const midX = (p1.x + targetPos.x) / 2;
-                    ctx.lineWidth = 3;
-                    ctx.strokeStyle = hoveredTargetPort ? '#22c55e' : '#facc15';
-                    ctx.setLineDash([6, 4]);
-
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#facc15'; ctx.setLineDash([4, 4]);
+                    const midX = (p1.x + currentMouseWorld.x) / 2;
                     ctx.beginPath();
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(midX, p1.y);
-                    ctx.lineTo(midX, targetPos.y);
-                    ctx.lineTo(targetPos.x, targetPos.y);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
+                    ctx.lineTo(midX, currentMouseWorld.y);
+                    ctx.lineTo(currentMouseWorld.x, currentMouseWorld.y);
+                    ctx.stroke(); ctx.setLineDash([]);
 
-                    // Highlight ALL Valid Target Ports on Canvas with Glowing Green Rings
+                    // Highlight Valid Target Ports
                     for (let comp of placedComponents) {
                         const def = LIBRARY[comp.key];
                         for (let p of def.ports) {
                             if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
-
                             const pw = getPortWorldPos(comp, p.id);
-                            const isHovered = (hoveredTargetPort && hoveredTargetPort.compId === comp.id && hoveredTargetPort.portId === p.id);
-
-                            // Target Outer Ring
                             ctx.beginPath();
-                            ctx.arc(pw.x, pw.y, isHovered ? 14 : 10, 0, Math.PI * 2);
-                            ctx.strokeStyle = isHovered ? '#22c55e' : '#10b981';
-                            ctx.lineWidth = isHovered ? 3 : 2;
-                            ctx.stroke();
-
-                            if (isHovered) {
-                                ctx.fillStyle = '#22c55e';
-                                ctx.beginPath();
-                                ctx.arc(pw.x, pw.y, 6, 0, Math.PI * 2);
-                                ctx.fill();
-
-                                // Snap Badge Label
-                                ctx.fillStyle = '#ffffff';
-                                ctx.font = 'bold 11px sans-serif';
-                                ctx.fillText(`Snap: ${p.id}`, pw.x + 14, pw.y - 12);
-                            }
+                            ctx.arc(pw.x, pw.y, 10, 0, Math.PI * 2);
+                            ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2; ctx.stroke();
                         }
                     }
                 }
             }
 
-            // 3. DRAW PLACED COMPONENTS
+            // 2. Draw Placed Components
             for (let comp of placedComponents) {
                 const def = LIBRARY[comp.key];
                 const isSelected = (comp.id === selectedCompId);
@@ -1253,39 +1192,68 @@
                 ctx.translate(comp.x, comp.y);
                 ctx.rotate(comp.rotation * Math.PI / 180);
 
-                // Render Component Custom Symbol
                 def.draw(ctx);
 
-                // Selection Box
                 if (isSelected) {
-                    ctx.strokeStyle = '#facc15';
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
                     ctx.strokeRect(-def.w/2 - 8, -def.h/2 - 8, def.w + 16, def.h + 16);
                     ctx.setLineDash([]);
                 }
 
                 ctx.restore();
 
-                // Draw Component Port Markers
+                // Draw Ports & ISO Tags
                 for (let p of def.ports) {
                     const pw = getPortWorldPos(comp, p.id);
                     ctx.beginPath();
-                    ctx.arc(pw.x, pw.y, 6, 0, Math.PI * 2);
-                    ctx.fillStyle = (p.type === 'pressure') ? '#ef4444' : (p.type === 'tank') ? '#3b82f6' : '#22c55e';
-                    ctx.fill();
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
+                    ctx.arc(pw.x, pw.y, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = (p.type === 'pressure') ? '#ef4444' : (p.type === 'tank') ? '#3b82f6' : (p.type === 'pilot') ? '#06b6d4' : '#22c55e';
+                    ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
 
-                    // Port ID Label
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 10px sans-serif';
-                    ctx.fillText(p.id, pw.x + 8, pw.y + 3);
+                    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.fillText(p.id, pw.x + 8, pw.y + 3);
+                }
+
+                // Render ISO 1219-2 Designation Tag
+                if (showIsoTags) {
+                    ctx.fillStyle = '#0284c7'; ctx.fillRect(comp.x - 20, comp.y - def.h/2 - 20, 40, 16);
+                    ctx.strokeStyle = '#ffffff'; ctx.strokeRect(comp.x - 20, comp.y - def.h/2 - 20, 40, 16);
+                    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(comp.tag, comp.x, comp.y - def.h/2 - 8);
                 }
             }
 
             ctx.restore();
+        }
+
+        function drawFalstadDotsOnPath(path, color) {
+            let spacing = 18;
+            let segs = [];
+            let totalLen = 0;
+
+            for (let i = 0; i < path.length - 1; i++) {
+                let dx = path[i+1].x - path[i].x;
+                let dy = path[i+1].y - path[i].y;
+                let len = Math.hypot(dx, dy);
+                segs.push({ p1: path[i], p2: path[i+1], len: len });
+                totalLen += len;
+            }
+
+            let startDist = (animOffset * 2) % spacing;
+            for (let d = startDist; d < totalLen; d += spacing) {
+                let accum = 0;
+                for (let seg of segs) {
+                    if (accum + seg.len >= d) {
+                        let ratio = (d - accum) / seg.len;
+                        let px = seg.p1.x + ratio * (seg.p2.x - seg.p1.x);
+                        let py = seg.p1.y + ratio * (seg.p2.y - seg.p1.y);
+
+                        ctx.fillStyle = color;
+                        ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI * 2); ctx.fill();
+                        break;
+                    }
+                    accum += seg.len;
+                }
+            }
         }
 
         function drawGrid() {
@@ -1302,131 +1270,148 @@
             }
         }
 
-        // ── TOOL & ACTIONS ──
-        function toggleSnap() {
-            snapToGrid = !snapToGrid;
-            document.getElementById('snapBtn').innerText = `Grid Snap: ${snapToGrid ? 'ON' : 'OFF'}`;
+        // TOOL ACTIONS
+        function toggleSim() {
+            simRunning = !simRunning;
+            const btn = document.getElementById('simToggleBtn');
+            btn.className = simRunning ? 'tool-btn btn-success' : 'tool-btn btn-danger';
+            btn.innerText = simRunning ? '▶ RUN SIMULATION (Space)' : '⏸ PAUSED (Space)';
         }
 
-        function setWireStyle(s) {
-            wireStyle = s;
+        function setMode(m) {
+            mode = m;
+            document.getElementById('modeSelectBtn').classList.toggle('active', m === 'select');
+            document.getElementById('modeWireBtn').classList.toggle('active', m === 'wire');
+        }
+
+        function setWireStyle(s) { wireStyle = s; }
+        function toggleSnap() {
+            snapToGrid = !snapToGrid;
+            document.getElementById('snapBtn').innerText = snapToGrid ? '📐 Snap Grid: ON' : '📐 Snap Grid: OFF';
+        }
+        function toggleIsoTags() {
+            showIsoTags = !showIsoTags;
+            document.getElementById('tagBtn').innerText = showIsoTags ? '🏷️ ISO Tags: ON' : '🏷️ ISO Tags: OFF';
+            render();
+        }
+
+        function setFault(f) {
+            activeFault = f;
+            const banner = document.getElementById('faultBanner');
+            if (f === 'NONE') {
+                banner.style.display = 'none';
+            } else {
+                banner.style.display = 'block';
+                document.getElementById('faultText').innerText = f;
+            }
+            render();
+        }
+
+        function setAllSpool(pos) {
+            placedComponents.forEach(c => {
+                if (c.key.startsWith('dcv_')) c.state.spoolPos = pos;
+            });
+            updateUI();
+            render();
         }
 
         function rotateSelected() {
             if (selectedCompId) {
                 const comp = placedComponents.find(c => c.id === selectedCompId);
-                if (comp) {
-                    comp.rotation = (comp.rotation + 90) % 360;
-                    render();
-                }
+                if (comp) { comp.rotation = (comp.rotation + 90) % 360; render(); }
             }
         }
 
         function deleteSelected() {
             if (selectedCompId) {
-                // Delete component and attached connections
                 placedComponents = placedComponents.filter(c => c.id !== selectedCompId);
-                connections = connections.filter(c => c.fromCompId !== selectedCompId && c.toCompId !== selectedCompId);
-                window.connections = connections;
+                placedWires = placedWires.filter(w => w.fromCompId !== selectedCompId && w.toCompId !== selectedCompId);
                 selectedCompId = null;
-                updateUI();
-                render();
-            } else if (selectedConnId) {
-                removeConnection(selectedConnId);
+            } else if (selectedWireId) {
+                placedWires = placedWires.filter(w => w.id !== selectedWireId);
+                selectedWireId = null;
             }
+            updateUI();
+            render();
         }
 
         function clearCanvas() {
-            if (confirm('Clear all components and connections from canvas?')) {
-                placedComponents = [];
-                connections = [];
-                window.connections = connections;
-                selectedCompId = null;
-                selectedConnId = null;
-                updateUI();
-                render();
-            }
+            placedComponents = [];
+            placedWires = [];
+            selectedCompId = null; selectedWireId = null;
+            updateUI();
+            render();
         }
 
-        function zoomIn() { scale *= 1.15; render(); }
-        function zoomOut() { scale /= 1.15; render(); }
-        function resetZoom() { scale = 1.0; panX = 0; panY = 0; render(); }
-
-        // ── UPDATE INSPECTOR UI ──
         function updateUI() {
             const card = document.getElementById('inspectorCard');
-            const connList = document.getElementById('connList');
-            const connCount = document.getElementById('connCount');
-
-            connCount.innerText = connections.length;
-
-            // Update Connections List
-            if (connections.length === 0) {
-                connList.innerHTML = `<li style="font-size: 0.78rem; color: var(--text-muted);">No hose connections created yet. Drag between ports to connect!</li>`;
-            } else {
-                connList.innerHTML = '';
-                connections.forEach((c, idx) => {
-                    const c1 = c.fromComponent || placedComponents.find(comp => comp.id === c.fromCompId);
-                    const c2 = c.toComponent || placedComponents.find(comp => comp.id === c.toCompId);
-
-                    const name1 = c1 ? LIBRARY[c1.key].title.split(' ')[0] : 'Comp1';
-                    const name2 = c2 ? LIBRARY[c2.key].title.split(' ')[0] : 'Comp2';
-
-                    const li = document.createElement('li');
-                    li.className = 'conn-item';
-                    li.innerHTML = `
-                        <span><strong>${name1}</strong> [${c.fromPortId || c.fromPort}] ➔ <strong>${name2}</strong> [${c.toPortId || c.toPort}]</span>
-                        <button onclick="removeConnection('${c.id}')">✕</button>
-                    `;
-                    connList.appendChild(li);
-                });
-            }
-
-            // Update Component Properties
             if (selectedCompId) {
                 const comp = placedComponents.find(c => c.id === selectedCompId);
-                if (comp) {
-                    const def = LIBRARY[comp.key];
-                    card.innerHTML = `
-                        <div class="info-row"><span>Name:</span><span class="info-value">${def.title}</span></div>
-                        <div class="info-row"><span>ISO Ref:</span><span class="info-value">${def.iso}</span></div>
-                        <div class="info-row"><span>Position:</span><span class="info-value">(${Math.round(comp.x)}, ${Math.round(comp.y)})</span></div>
-                        <div class="info-row"><span>Rotation:</span><span class="info-value">${comp.rotation}°</span></div>
-                        <div class="info-row"><span>Ports:</span><span class="info-value">${def.ports.map(p => p.id).join(', ')}</span></div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">${def.spec}</div>
-                    `;
-                    return;
-                }
+                const def = LIBRARY[comp.key];
+                card.innerHTML = `
+                    <div style="font-weight: bold; color: var(--accent-cyan);">${def.title} (${comp.tag})</div>
+                    <div class="prop-row"><span class="prop-label">Category:</span><span class="prop-val">${def.cat}</span></div>
+                    <div class="prop-row"><span class="prop-label">ISO Ref:</span><span class="prop-val">${def.iso}</span></div>
+                    <div class="prop-row"><span class="prop-label">Position:</span><span class="prop-val">(${Math.round(comp.x)}, ${Math.round(comp.y)})</span></div>
+                    <div class="prop-row"><span class="prop-label">Rotation:</span><span class="prop-val">${comp.rotation}°</span></div>
+                    ${comp.key.startsWith('dcv_') ? `
+                        <div class="prop-row"><span class="prop-label">Spool State:</span><span class="prop-val">${comp.state.spoolPos === 1 ? 'Position 2 (Extend)' : comp.state.spoolPos === -1 ? 'Position 1 (Retract)' : 'Center (Neutral)'}</span></div>
+                        <div class="ctrl-btn-group">
+                            <button class="action-btn" onclick="setCompSpool('${comp.id}', -1)">Pos 1 (R)</button>
+                            <button class="action-btn" onclick="setCompSpool('${comp.id}', 0)">Center (C)</button>
+                            <button class="action-btn" onclick="setCompSpool('${comp.id}', 1)">Pos 2 (E)</button>
+                        </div>
+                    ` : ''}
+                `;
+            } else if (selectedWireId) {
+                const w = placedWires.find(wi => wi.id === selectedWireId);
+                card.innerHTML = `
+                    <div style="font-weight: bold; color: var(--accent-cyan);">Hose Conductor (${w.id})</div>
+                    <div class="prop-row"><span class="prop-label">Style:</span><span class="prop-val">${w.style}</span></div>
+                `;
+            } else {
+                card.innerHTML = `<div style="color: var(--text-muted); text-align: center;">Click or place a component to inspect properties.</div>`;
             }
 
-            card.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-muted);">Click a component on canvas to inspect properties.</div>`;
+            // Update Wire List
+            const wireCard = document.getElementById('wireListCard');
+            if (placedWires.length === 0) {
+                wireCard.innerHTML = `<div style="color: var(--text-muted);">No hoses connected yet.</div>`;
+            } else {
+                wireCard.innerHTML = placedWires.map(w => `
+                    <div class="prop-row" style="border-bottom: 1px solid var(--panel-border); padding: 0.2rem 0;">
+                        <span>🔗 ${w.fromCompId.split('_')[1]} (${w.fromPortId}) → ${w.toCompId.split('_')[1]} (${w.toPortId})</span>
+                        <span style="color: var(--accent-red); cursor: pointer;" onclick="deleteWire('${w.id}')">✖</span>
+                    </div>
+                `).join('');
+            }
         }
 
-        // ── EXPORT BLUEPRINT DATA ──
+        function setCompSpool(id, pos) {
+            const comp = placedComponents.find(c => c.id === id);
+            if (comp) comp.state.spoolPos = pos;
+            updateUI();
+            render();
+        }
+
+        function deleteWire(id) {
+            placedWires = placedWires.filter(w => w.id !== id);
+            updateUI();
+            render();
+        }
+
         function exportPNG() {
             const link = document.createElement('a');
-            link.download = 'ISO_1219_Hydraulic_Circuit_Blueprint.png';
-            link.href = canvas.toDataURL('image/png');
+            link.download = 'iso_1219_circuit_blueprint.png';
+            link.href = canvas.toDataURL();
             link.click();
         }
 
         function exportJSON() {
-            const data = {
-                version: '1.0',
-                created: new Date().toISOString(),
-                components: placedComponents,
-                connections: connections.map(c => ({
-                    id: c.id,
-                    fromComponentId: c.fromCompId,
-                    fromPort: c.fromPortId || c.fromPort,
-                    toComponentId: c.toCompId,
-                    toPort: c.toPortId || c.toPort,
-                    style: c.style
-                }))
-            };
+            const data = { components: placedComponents, wires: placedWires };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
-            link.download = 'ISO_1219_Circuit_Blueprint.json';
+            link.download = 'iso_1219_circuit.json';
             link.href = URL.createObjectURL(blob);
             link.click();
         }
