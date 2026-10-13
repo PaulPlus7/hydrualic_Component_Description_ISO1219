@@ -187,6 +187,7 @@
             <button class="tool-btn" id="btnIsoTags" onclick="toggleIsoTags()">🏷️ ISO 1219-2 Tags: ON</button>
             <button class="tool-btn active" id="btnLive" onclick="toggleLiveData()">📊 Live Data: ON</button>
             <button class="tool-btn active" id="btnNames" onclick="toggleNames()">🔤 Names: ON</button>
+            <button class="tool-btn active" id="btnFx" onclick="toggleActivityFx()">✨ Activity FX: ON</button>
             <button class="tool-btn" onclick="resetSimulation()">⏮ Reset Sim</button>
             <select class="tool-select" id="simSpeedSelect" onchange="setSimSpeed(this.value)" title="Simulation speed">
                 <option value="0.25">0.25×</option>
@@ -2601,6 +2602,20 @@ class HydraulicSolver {
             }
         }
 
+        // 2b. a reservoir is a fixed-pressure boundary: its port flow is whatever the rest of its node delivers
+        //     (without this the hoses attached to the tank cannot balance and show ≈ 0 L/min)
+        {
+            const isRes = (c) => /^res_/.test(c.key), sum = new Map(), resPorts = new Map();
+            for (const comp of this.comps) {
+                for (const p of (this.library[comp.key].ports || [])) {
+                    const idx = this._nodeOf(comp.id, p.id), k = `${comp.id}:${p.id}`;
+                    if (isRes(comp)) { if (!resPorts.has(idx)) resPorts.set(idx, []); resPorts.get(idx).push(k); }
+                    else { const f = portFlow.get(k); if (f) sum.set(idx, (sum.get(idx) || 0) + f); }
+                }
+            }
+            resPorts.forEach((keys, idx) => keys.forEach(k => portFlow.set(k, -(sum.get(idx) || 0) / keys.length)));
+        }
+
         // 3. relief valves
         let relieving = [];
         for (const rv of this.reliefs) {
@@ -3232,7 +3247,7 @@ function drawLiveOverlay(ctx, comp, def) {
     // ── relief / pressure valves: open indicator ──
     if (st.reliefSettingBar !== undefined) {
         ctx.beginPath(); ctx.arc(0, -38, 5, 0, Math.PI * 2);
-        ctx.fillStyle = st.reliefOpen ? '#f97316' : '#334155'; ctx.fill();
+        ctx.fillStyle = st.reliefOpen ? fxBlinkState('relief').color : '#334155'; ctx.fill();
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
     }
 
@@ -4066,6 +4081,177 @@ function drawWireDraft() {
     ctx.restore();
 }
 
+
+// ════════ STAGE 7 — ACTIVITY BLINK & BALL FLOW ════════
+let showActivityFx = true;
+
+const FX = {
+    blinkPeriodS: 2.2,                    // one full colour cycle – deliberately slow
+    minFlow: 0.05,                        // L/min below which a component counts as idle
+    clock: () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000,
+    palette: {
+        work:   ['#22d3ee', '#4ade80'],   // cyan  ↔ green
+        relief: ['#f97316', '#ef4444'],   // orange ↔ red
+        alarm:  ['#ef4444', '#fde047']    // red   ↔ yellow
+    },
+    ball: { returnColor: '#38bdf8', dumpColor: '#fb923c', plainColor: '#f8fafc', spacing: 16, speedBase: 14, speedGain: 3.5 }
+};
+
+// ── colour helpers ─────────────────────────────────────────────────────────
+function fxRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function fxMix(a, b, t) { const A = fxRgb(a), B = fxRgb(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; }
+function fxShade(hex, f) { return `rgb(${fxRgb(hex).map(v => Math.round(v * f)).join(',')})`; }
+
+// current blink colour for an activity kind (w = 0..1 position in the slow cycle)
+function fxBlinkState(kind, tSec) {
+    const pal = FX.palette[kind] || FX.palette.work;
+    const w = 0.5 + 0.5 * Math.sin(2 * Math.PI * (tSec === undefined ? FX.clock() : tSec) / FX.blinkPeriodS);
+    return { w, color: fxMix(pal[0], pal[1], w) };
+}
+
+// ── what counts as "activated" ─────────────────────────────────────────────
+function fxPortType(def, id) { const p = def && def.ports && def.ports.find(q => q.id === id); return p ? p.type : null; }
+
+// returns null (idle) or { kind: 'work'|'relief'|'alarm', level: 0..1 }
+function compActivity(comp) {
+    if (!showActivityFx || !simIsLive()) return null;
+    const st = simEngine.lastResult.componentStates[comp.id]; if (!st) return null;
+    const cs = comp.state || {}, def = LIBRARY[comp.key];
+
+    if (st.cavitating || cs.clogged === true || st.stalled) return { kind: 'alarm', level: 1 };
+    if (st.reliefOpen) return { kind: 'relief', level: Math.min(1, (st.reliefFlowLmin || 0) / 15) };
+
+    let q = 0;
+    for (const v of Object.values(st.portFlows || {})) q = Math.max(q, Math.abs(v));
+    if (q >= FX.minFlow) {
+        // a pressure-control valve passing oil to a tank port is dumping energy → relief colours
+        if (def && /^3\./.test(def.cat || '') && st.pathFlowsLmin) {
+            for (const [k, Q] of Object.entries(st.pathFlowsLmin)) {
+                const [a, b] = k.split('>'), to = Q >= 0 ? b : a;
+                if (Math.abs(Q) >= FX.minFlow && fxPortType(def, to) === 'tank') return { kind: 'relief', level: Math.min(1, Math.abs(Q) / 15) };
+            }
+        }
+        return { kind: 'work', level: Math.min(1, q / 20) };
+    }
+    if ((comp.key === 'press_switch' || comp.key === 'temp_switch' || comp.key === 'level_switch') && cs.contactClosed === true) return { kind: 'work', level: 0.6 };
+    return null;
+}
+
+// glow + tinted backdrop that pulses slowly; call before def.draw(), then fxEnd()
+function fxBegin(ctx, comp, def) {
+    const a = compActivity(comp);
+    if (!a) return null;
+    const b = fxBlinkState(a.kind), bb = defBounds(def), lvl = 0.55 + 0.45 * a.level;
+    ctx.save();
+    ctx.globalAlpha = (0.05 + 0.13 * b.w) * lvl;
+    ctx.fillStyle = b.color;
+    ctx.fillRect(bb.x0 + 2, Math.max(bb.y0, -72), bb.x1 - bb.x0 - 4, Math.min(bb.y1, 50) - Math.max(bb.y0, -72));
+    ctx.restore();
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = (6 + 12 * b.w) * lvl;
+    return a;
+}
+function fxEnd(ctx) { ctx.shadowBlur = 0; ctx.shadowColor = 'transparent'; }
+
+// ── balls ──────────────────────────────────────────────────────────────────
+function fxSphere(ctx, x, y, r, hex) {
+    const g = ctx.createRadialGradient ? ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r) : null;
+    if (g && g.addColorStop) {
+        g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, hex); g.addColorStop(1, fxShade(hex, 0.45));
+        ctx.fillStyle = g;
+    } else ctx.fillStyle = hex;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+}
+// hose particle: glossy ball when style.ball, otherwise the plain flat dot
+function fxParticle(ctx, x, y, r, color, style) {
+    if (style && style.ball) fxSphere(ctx, x, y, r, style.color || FX.ball.returnColor);
+    else { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+}
+function fxBallsAlong(ctx, pts, phase, r, hex, spacing) {
+    let total = 0; const segs = [];
+    for (let i = 0; i < pts.length - 1; i++) { const len = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y); segs.push({ a: pts[i], b: pts[i + 1], len }); total += len; }
+    const start = ((phase % spacing) + spacing) % spacing;
+    for (let d = start; d < total; d += spacing) {
+        let acc = 0;
+        for (const s of segs) {
+            if (acc + s.len >= d) { const t = s.len > 0 ? (d - acc) / s.len : 0; fxSphere(ctx, s.a.x + t * (s.b.x - s.a.x), s.a.y + t * (s.b.y - s.a.y), r, hex); break; }
+            acc += s.len;
+        }
+    }
+}
+
+// Which hoses are return lines to the tank?  (hose inside a tank-referenced node, not the pump suction line)
+function fxClassifyWire(w) {
+    if (!showActivityFx || !simIsLive()) return null;
+    const g = simEngine._graph; if (!g) return null;
+    const c1 = placedComponents.find(c => c.id === w.fromCompId), c2 = placedComponents.find(c => c.id === w.toCompId);
+    if (!c1 || !c2) return null;
+    const d1 = LIBRARY[c1.key], d2 = LIBRARY[c2.key];
+    const t1 = fxPortType(d1, w.fromPortId), t2 = fxPortType(d2, w.toPortId);
+    if (t1 === 'suction' || t2 === 'suction') return null;                               // pump suction: plain dots
+    const nid = g.portToNodeMap.get(`${w.fromCompId}:${w.fromPortId}`), node = nid && g.nodes.get(nid);
+    if (!((node && node.isTankRef) || t1 === 'tank' || t2 === 'tank')) return null;
+    const dumping = (c, d, port) => {                                                   // pressure valve passing oil to its tank port
+        const st = simEngine.lastResult.componentStates[c.id];
+        return !!(st && fxPortType(d, port) === 'tank' && (st.reliefOpen || (/^3\./.test(d.cat || '') && Object.values(st.portFlows || {}).some(v => Math.abs(v) >= FX.minFlow))));
+    };
+    const dump = dumping(c1, d1, w.fromPortId) || dumping(c2, d2, w.toPortId);
+    return { ball: true, color: dump ? FX.ball.dumpColor : FX.ball.returnColor, dump };
+}
+
+// route of the balls inside a component between two of its ports (local coordinates)
+function fxInternalPath(pa, pb) {
+    const a = { x: pa.relX, y: pa.relY }, b = { x: pb.relX, y: pb.relY };
+    if (Math.abs(a.y - b.y) < 5 && Math.abs(a.y) > 5) {                                  // both ports on the same side → U through the body
+        const yin = a.y - Math.sign(a.y) * 28;
+        return [a, { x: a.x, y: yin }, { x: b.x, y: yin }, b];
+    }
+    return [a, b];
+}
+
+// balls travelling through the symbol along every solved path (P→T, P→A, B→T, S→P …)
+function drawInternalFlow(ctx, comp, def) {
+    if (!showActivityFx || !simIsLive()) return;
+    if (/^(cyl_|rack_|rotary_|junction_|res_)/.test(comp.key) || !def.ports) return;
+    const st = simEngine.lastResult.componentStates[comp.id];
+    if (!st || !st.pathFlowsLmin) return;
+    const eng = simEngine;
+    comp._fxPh = comp._fxPh || {};
+    for (const [k, Q] of Object.entries(st.pathFlowsLmin)) {
+        if (Math.abs(Q) < FX.minFlow) continue;
+        let [a, b] = k.split('>'); if (Q < 0) [a, b] = [b, a];                          // follow the real flow direction
+        const pa = def.ports.find(p => p.id === a), pb = def.ports.find(p => p.id === b);
+        if (!pa || !pb) continue;
+        const rec = comp._fxPh[k] || (comp._fxPh[k] = { phase: 0, frame: -1 });
+        if (rec.frame !== eng.frameId) {                                                 // advance once per physics frame (freezes on pause)
+            rec.frame = eng.frameId;
+            rec.phase = (rec.phase + (FX.ball.speedBase + FX.ball.speedGain * Math.min(Math.abs(Q), 40)) * eng.frameSimDt) % 24000;
+        }
+        const toTank = pb.type === 'tank';
+        const dump = toTank && (st.reliefOpen || /^3\./.test(def.cat || ''));
+        const hex = dump ? FX.ball.dumpColor : toTank ? FX.ball.returnColor : FX.ball.plainColor;
+        fxBallsAlong(ctx, fxInternalPath(pa, pb), rec.phase, 3 + Math.min(Math.abs(Q) / 25, 1.2), hex, FX.ball.spacing);
+    }
+}
+
+function drawFxLegend(ctx, cssW, cssH) {
+    const x = 18, y = cssH - 98;
+    ctx.save();
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.82)'; ctx.fillRect(x - 8, y - 14, 190, 62);
+    ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#e2e8f0';
+    [[FX.ball.dumpColor, 'Relief / dump flow to tank'], [FX.ball.returnColor, 'Return flow to tank'], [FX.palette.work[0], 'Blinking = carrying flow']].forEach(([hex, txt], i) => {
+        fxSphere(ctx, x + 6, y + 4 + i * 17, 5, hex); ctx.fillStyle = '#e2e8f0'; ctx.fillText(txt, x + 18, y + 8 + i * 17);
+    });
+    ctx.restore();
+}
+
+function toggleActivityFx() {
+    showActivityFx = !showActivityFx;
+    const b = document.getElementById('btnFx');
+    if (b) { b.innerText = '✨ Activity FX: ' + (showActivityFx ? 'ON' : 'OFF'); b.classList.toggle('active', showActivityFx); }
+    render();
+}
+
 // ── APPLICATION STATE & GLOBALS ──
 
         // ── APPLICATION STATE & GLOBAL VARIABLES ──
@@ -4530,7 +4716,7 @@ canvas.addEventListener('wheel', (e) => {
                     ctx.setLineDash([]);
 
                     // Flow particles: speed/direction from this hose's solved Q (frozen & dimmed at Q = 0)
-                    if (live) drawFalstadDotsOnPath(pathPoints, particleColor, w);
+                    if (live) drawFalstadDotsOnPath(pathPoints, particleColor, w, fxClassifyWire(w));
                     else if (simRunning && activeFault !== 'PUMP_FAILURE') drawFalstadDotsOnPath(pathPoints, particleColor);
 
                     if (isSelected) {
@@ -4554,8 +4740,11 @@ canvas.addEventListener('wheel', (e) => {
                 ctx.rotate(comp.rotation * Math.PI / 180);
 
                 // Symbol drawers get the live state: cylinders offset piston/rod from comp.state.position (0–100 %)
+                fxBegin(ctx, comp, def);                      // slow colour blink + glow while the component carries flow
                 def.draw(ctx, comp.state || {}, comp);
-                drawLiveOverlay(ctx, comp, def);              // active spool envelope, relief LED, motor spoke, accumulator level …
+                fxEnd(ctx);
+                drawLiveOverlay(ctx, comp, def);
+                drawInternalFlow(ctx, comp, def);             // balls travelling through the valve / pump along the solved paths              // active spool envelope, relief LED, motor spoke, accumulator level …
 
                 if (isSelected) {
                     ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
@@ -4604,6 +4793,7 @@ canvas.addEventListener('wheel', (e) => {
             ctx.restore(); // World camera restore
 
             if (live) drawPressureLegend(ctx, cssW, cssH, pRef);   // screen-space colour key
+            if (live && showActivityFx) drawFxLegend(ctx, cssW, cssH);
 
             ctx.restore(); // DPR scale restore
         }
@@ -4629,8 +4819,8 @@ canvas.addEventListener('wheel', (e) => {
         //     v = 0 (dots frozen and dimmed)                                  for Q ≈ 0
         // Q > 0 moves from → to along the hose, Q < 0 reverses.  `wire` carries flowLmin and the running phase;
         // without it (engine not live) the old free-running animation is used.
-        function drawFalstadDotsOnPath(path, color, wire) {
-            const spacing = HYD_DOT.spacing;
+        function drawFalstadDotsOnPath(path, color, wire, style) {
+            const spacing = (style && style.ball) ? 26 : HYD_DOT.spacing;
             const segs = [];
             let totalLen = 0;
 
@@ -4654,6 +4844,7 @@ canvas.addEventListener('wheel', (e) => {
                 phase = wire.phase || 0;
                 alpha = moving ? 1 : 0.28;
                 radius = 2.8 + Math.min(Math.abs(Q) / 30, 1.2);
+                if (style && style.ball && moving) radius = 4.6 + Math.min(Math.abs(Q) / 18, 1.8);   // return-to-tank balls
             } else {
                 phase = animOffset * 2;
             }
@@ -4669,7 +4860,7 @@ canvas.addEventListener('wheel', (e) => {
                         const ratio = seg.len > 0 ? (d - accum) / seg.len : 0;
                         const px = seg.p1.x + ratio * (seg.p2.x - seg.p1.x);
                         const py = seg.p1.y + ratio * (seg.p2.y - seg.p1.y);
-                        ctx.beginPath(); ctx.arc(px, py, radius, 0, Math.PI * 2); ctx.fill();
+                        fxParticle(ctx, px, py, radius, color, (style && style.ball && radius > 4) ? style : null);
                         break;
                     }
                     accum += seg.len;
