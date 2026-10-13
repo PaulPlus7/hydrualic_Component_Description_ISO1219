@@ -162,19 +162,19 @@
         <div class="telemetry-bar">
             <div class="metric-item">
                 <span class="metric-label">Pressure</span>
-                <span class="metric-val" id="hudPressure">210 Bar</span>
+                <span class="metric-val" id="hudPressure">– Bar</span>
             </div>
             <div class="metric-item">
                 <span class="metric-label">Flow Rate</span>
-                <span class="metric-val" id="hudFlow">15.0 L/min</span>
+                <span class="metric-val" id="hudFlow">– L/min</span>
             </div>
             <div class="metric-item">
                 <span class="metric-label">Hydraulic Power</span>
-                <span class="metric-val" id="hudPower">5.25 kW</span>
+                <span class="metric-val" id="hudPower">– kW</span>
             </div>
             <div class="metric-item">
                 <span class="metric-label">Oil Temp</span>
-                <span class="metric-val" id="hudTemp">48 °C</span>
+                <span class="metric-val" id="hudTemp">– °C</span>
             </div>
         </div>
     </header>
@@ -182,9 +182,18 @@
     <!-- TOOLBAR -->
     <div class="toolbar">
         <div class="tool-group">
-            <button class="tool-btn active" id="btnSim" onclick="toggleSim()">▶ Run Physics Engine</button>
+            <button class="tool-btn" id="btnSim" onclick="toggleSim()">▶ Run Physics Engine</button>
             <button class="tool-btn" id="btnSnap" onclick="toggleSnap()">🧲 Snap Grid: ON</button>
             <button class="tool-btn" id="btnIsoTags" onclick="toggleIsoTags()">🏷️ ISO 1219-2 Tags: ON</button>
+            <button class="tool-btn active" id="btnLive" onclick="toggleLiveData()">📊 Live Data: ON</button>
+            <button class="tool-btn" onclick="resetSimulation()">⏮ Reset Sim</button>
+            <select class="tool-select" id="simSpeedSelect" onchange="setSimSpeed(this.value)" title="Simulation speed">
+                <option value="0.25">0.25×</option>
+                <option value="0.5">0.5×</option>
+                <option value="1" selected>1× speed</option>
+                <option value="2">2×</option>
+                <option value="4">4×</option>
+            </select>
         </div>
 
         <div class="tool-group">
@@ -218,6 +227,7 @@
             <button class="tool-btn btn-danger" onclick="clearCanvas()">🗑️ Clear All</button>
             <button class="tool-btn btn-success" onclick="exportPNG()">📷 Export Image</button>
             <button class="tool-btn" onclick="exportJSON()">💾 Save Blueprint</button>
+            <button class="tool-btn" style="border-color: var(--accent-yellow); color: var(--accent-yellow);" onclick="exportSystemGraph()">🌐 System Graph</button>
         </div>
     </div>
 
@@ -884,6 +894,37 @@
                     ctx.beginPath(); ctx.moveTo(30, 25); ctx.lineTo(30, 45); ctx.stroke();
                 }
             },
+            junction_tee: {
+                title: 'T-Junction / Branch Node', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 3.1', tagPrefix: '0J',
+                spec: '3-way fluid line junction node for splitting primary flow into secondary branch lines. Double-click any hose wire to insert automatically.', w: 60, h: 60,
+                ports: [
+                    { id: '1', label: 'Port 1', relX: -20, relY: 0, type: 'work' },
+                    { id: '2', label: 'Port 2', relX: 20, relY: 0, type: 'work' },
+                    { id: '3', label: 'Port 3', relX: 0, relY: 20, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(20, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 20); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+                }
+            },
+            junction_cross: {
+                title: 'Cross Junction / Manifold Node', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 3.1', tagPrefix: '0J',
+                spec: '4-way fluid distribution node for splitting or combining 4 intersecting conductor lines.', w: 60, h: 60,
+                ports: [
+                    { id: '1', label: 'Port 1', relX: -20, relY: 0, type: 'work' },
+                    { id: '2', label: 'Port 2', relX: 20, relY: 0, type: 'work' },
+                    { id: '3', label: 'Port 3', relX: 0, relY: -20, type: 'work' },
+                    { id: '4', label: 'Port 4', relX: 0, relY: 20, type: 'work' }
+                ],
+                draw: function(ctx) {
+                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(20, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(0, 20); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+                }
+            },
             flow_fuse: {
                 title: 'Flow Fuse (Velocity Fuse)', cat: '4. Flow Control', iso: 'ISO 1219-1: Sec 8.11', tagPrefix: '1V',
                 spec: 'Line rupture safety valve that trips closed upon excessive differential pressure to lock load.', w: 100, h: 80,
@@ -937,11 +978,11 @@
                     { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' },
                     { id: 'B', label: 'Rod Port B', relX: 30, relY: 35, type: 'work' }
                 ],
-                draw: function(ctx) {
+                draw: function(ctx, st) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
                     ctx.strokeRect(-60, -25, 120, 50); // Cylinder barrel
-                    ctx.fillRect(-20, -22, 12, 44); // Piston head
-                    ctx.fillRect(-8, -6, 80, 12); // Piston rod
+                    const s = liveStroke(st), hx = -58 + s * 104; ctx.fillRect(hx, -22, 12, 44); // Piston head (follows live stroke)
+                    ctx.fillRect(hx + 12, -6, 118, 12); // Piston rod
                     ctx.beginPath(); ctx.moveTo(-50, 25); ctx.lineTo(-50, 35); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(30, 25); ctx.lineTo(30, 35); ctx.stroke();
                 }
@@ -953,13 +994,13 @@
                     { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' },
                     { id: 'B', label: 'Rod Port B', relX: 30, relY: 35, type: 'work' }
                 ],
-                draw: function(ctx) {
+                draw: function(ctx, st) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
                     ctx.strokeRect(-60, -25, 120, 50);
-                    ctx.fillRect(-20, -22, 12, 44);
-                    ctx.fillRect(-8, -6, 80, 12);
+                    const s = liveStroke(st), hx = -58 + s * 104; ctx.fillRect(hx, -22, 12, 44);
+                    ctx.fillRect(hx + 12, -6, 118, 12);
                     // Cushion spears
-                    ctx.fillRect(-32, -10, 12, 20); ctx.fillRect(-8, -10, 12, 20);
+                    ctx.fillRect(hx - 12, -10, 12, 20); ctx.fillRect(hx + 12, -10, 12, 20);
                     // Adjustable needle arrows
                     ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5;
                     ctx.beginPath(); ctx.moveTo(-45, -30); ctx.lineTo(-35, -15); ctx.stroke();
@@ -974,17 +1015,17 @@
                 ports: [
                     { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' }
                 ],
-                draw: function(ctx) {
+                draw: function(ctx, st) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
                     ctx.strokeRect(-60, -25, 120, 50);
-                    ctx.fillRect(-35, -22, 12, 44);
-                    ctx.fillRect(-23, -6, 95, 12);
+                    const s = liveStroke(st), hx = -58 + s * 96; ctx.fillRect(hx, -22, 12, 44);
+                    ctx.fillRect(hx + 12, -6, 118, 12);
                     // Return Spring Coil
                     ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
                     ctx.beginPath();
-                    for(let x = -20; x <= 50; x += 10) {
-                        ctx.lineTo(x, (x % 20 === 0) ? -15 : 15);
-                    }
+                    const sx0 = hx + 14, sx1 = 56, n = 8; // spring compresses with the stroke
+                    ctx.moveTo(sx0, 0);
+                    for (let i = 1; i <= n; i++) ctx.lineTo(sx0 + (sx1 - sx0) * i / n, (i % 2) ? -15 : 15);
                     ctx.stroke();
                     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
                     ctx.beginPath(); ctx.moveTo(-50, 25); ctx.lineTo(-50, 35); ctx.stroke();
@@ -997,11 +1038,11 @@
                     { id: 'A', label: 'Port A', relX: -40, relY: 35, type: 'work' },
                     { id: 'B', label: 'Port B', relX: 40, relY: 35, type: 'work' }
                 ],
-                draw: function(ctx) {
+                draw: function(ctx, st) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
                     ctx.strokeRect(-50, -25, 100, 50);
-                    ctx.fillRect(-6, -22, 12, 44);
-                    ctx.fillRect(-75, -6, 150, 12); // Double rod extending both ways
+                    const s = liveStroke(st, 0.5), hx = -48 + s * 84; ctx.fillRect(hx, -22, 12, 44);
+                    ctx.fillRect(hx + 6 - 75, -6, 150, 12); // Double rod extending both ways
                     ctx.beginPath(); ctx.moveTo(-40, 25); ctx.lineTo(-40, 35); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(40, 25); ctx.lineTo(40, 35); ctx.stroke();
                 }
@@ -1013,12 +1054,14 @@
                     { id: 'A', label: 'Cap Port A', relX: -50, relY: 35, type: 'work' },
                     { id: 'B', label: 'Rod Port B', relX: 40, relY: 35, type: 'work' }
                 ],
-                draw: function(ctx) {
+                draw: function(ctx, st) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff';
                     ctx.strokeRect(-60, -30, 120, 60); // Base barrel
-                    ctx.strokeRect(-40, -22, 90, 44);  // Stage 2 sleeve
-                    ctx.strokeRect(-20, -14, 60, 28);  // Stage 3 sleeve
-                    ctx.fillStyle = '#64748b'; ctx.fillRect(40, -6, 40, 12); // Final rod
+                    const s = liveStroke(st, 0.5), s1 = Math.min(1, s / 0.33), s2 = Math.min(1, Math.max(0, (s - 0.33) / 0.33)), s3 = Math.min(1, Math.max(0, (s - 0.66) / 0.34));
+                    const e2 = 30 + 45 * s1, e3 = e2 - 10 + 45 * s2; // stage edges follow the live stroke
+                    ctx.strokeRect(-40, -22, e2 + 40, 44);  // Stage 2 sleeve
+                    ctx.strokeRect(-20, -14, e3 + 20, 28);  // Stage 3 sleeve
+                    ctx.fillStyle = '#64748b'; ctx.fillRect(e3, -6, 50 + 40 * s3, 12); // Final rod
                     ctx.beginPath(); ctx.moveTo(-50, 30); ctx.lineTo(-50, 35); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(40, 30); ctx.lineTo(40, 35); ctx.stroke();
                 }
@@ -1030,11 +1073,12 @@
                     { id: 'A', label: 'Port A', relX: -50, relY: 35, type: 'work' },
                     { id: 'B', label: 'Port B', relX: 50, relY: 35, type: 'work' }
                 ],
-                draw: function(ctx) {
+                draw: function(ctx, st) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#38bdf8';
                     ctx.strokeRect(-60, -15, 120, 30); // Long tube
-                    ctx.fillRect(-15, -28, 30, 13);    // Outer carriage block
-                    ctx.strokeRect(-15, -28, 30, 13);
+                    const cx = -45 + 90 * liveStroke(st, 0.5);
+                    ctx.fillRect(cx - 15, -28, 30, 13);    // Outer carriage block
+                    ctx.strokeRect(cx - 15, -28, 30, 13);
                     ctx.beginPath(); ctx.moveTo(-50, 15); ctx.lineTo(-50, 35); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(50, 15); ctx.lineTo(50, 35); ctx.stroke();
                 }
@@ -1047,10 +1091,10 @@
                     { id: 'B', label: 'Rod Port B', relX: 20, relY: 35, type: 'work' },
                     { id: 'L', label: 'Gland Drain L', relX: 50, relY: -35, type: 'drain' }
                 ],
-                draw: function(ctx) {
+                draw: function(ctx, st) {
                     ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#64748b';
                     ctx.strokeRect(-60, -25, 120, 50);
-                    ctx.fillRect(-20, -22, 12, 44); ctx.fillRect(-8, -6, 80, 12);
+                    const s = liveStroke(st), hx = -58 + s * 104; ctx.fillRect(hx, -22, 12, 44); ctx.fillRect(hx + 12, -6, 118, 12);
                     ctx.beginPath(); ctx.moveTo(-50, 25); ctx.lineTo(-50, 35); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(20, 25); ctx.lineTo(20, 35); ctx.stroke();
                     // Gland Drain Port L (Dashed)
@@ -1418,7 +1462,1954 @@ res_vented: {
             }
 };
 
-        // ── APPLICATION STATE & GLOBALS ──
+        
+        // ── 5. SYSTEM GRAPH NODAL PHYSICS TOPOLOGY MODULE ──
+        class Node {
+            constructor(id) {
+                this.id = id;
+                this.pressure = 0.0;
+                this.ports = [];
+                this.wireIds = [];
+                this.isTankRef = false;
+            }
+            addPort(compId, portId, portType = 'work') {
+                this.ports.push({ compId, portId, portType });
+            }
+        }
+
+        class Edge {
+            constructor(id, compId, compKey, fromPort, toPort, fromNodeId, toNodeId, state) {
+                this.id = id;
+                this.compId = compId;
+                this.compKey = compKey;
+                this.fromPort = fromPort;
+                this.toPort = toPort;
+                this.fromNodeId = fromNodeId;
+                this.toNodeId = toNodeId;
+                this.flow = 0.0;
+                this.state = state ? { ...state } : {};
+            }
+        }
+
+        class DisjointSet {
+            constructor() {
+                this.parent = new Map();
+            }
+            makeSet(x) {
+                if (!this.parent.has(x)) {
+                    this.parent.set(x, x);
+                }
+            }
+            find(x) {
+                if (!this.parent.has(x)) this.makeSet(x);
+                if (this.parent.get(x) === x) return x;
+                const root = this.find(this.parent.get(x));
+                this.parent.set(x, root);
+                return root;
+            }
+            union(x, y) {
+                const rootX = this.find(x);
+                const rootY = this.find(y);
+                if (rootX !== rootY) {
+                    this.parent.set(rootX, rootY);
+                }
+            }
+        }
+
+        
+// ── HYDRAULIC COMPONENT STRATEGY PATTERN & REGISTRY ────────────────────────
+
+class HydraulicComponent {
+    constructor(config = {}) {
+        this.id = config.id || 'comp_unknown';
+        this.key = config.key || 'generic';
+        this.state = config.state ? { ...config.state } : {};
+        this.params = config.params ? { ...config.params } : {};
+    }
+
+    /**
+     * Returns pressure drop DeltaP (Bar) for a given flow rate Q (L/min).
+     */
+    getDeltaP(flow) {
+        const R = this.getResistance();
+        return R * flow * Math.abs(flow);
+    }
+
+    /**
+     * Returns flow rate Q (L/min) given a differential pressure DeltaP (Bar).
+     */
+    getFlow(deltaP) {
+        const R = this.getResistance();
+        if (R <= 0) return Math.sign(deltaP) * 999.0;
+        return Math.sign(deltaP) * Math.sqrt(Math.abs(deltaP) / R);
+    }
+
+    getResistance() {
+        return this.params.resistance || 0.01;
+    }
+
+    step(dt, nodePressures = {}, nodeFlows = {}) {
+        // Base state step
+    }
+}
+
+// ── 1. ACCUMULATOR STRATEGY ─────────────────────────────────────────────────
+class AccumulatorComponent extends HydraulicComponent {
+    constructor(config = {}) {
+        super(config);
+        this.V0 = this.params.V0 || 5.0;            // Total volume (L)
+        this.P0 = this.params.P0 || 100.0;          // Pre-charge pressure (Bar)
+        this.gamma = this.params.gamma || 1.4;       // Adiabatic gas constant
+        this.currentFluidV = this.params.initialFluidV || 0.0; // Current fluid volume (L)
+    }
+
+    getGasPressure() {
+        if (this.key === 'acc_spring') {
+            const k = this.params.kSpring || 15.0; // Bar/L
+            return this.P0 + k * this.currentFluidV;
+        } else if (this.key === 'acc_weighted') {
+            return this.params.Pweight || 150.0; // Constant gravity weight pressure
+        } else {
+            // Gas-charged accumulators (bladder, piston, diaphragm): Boyle's Law
+            const gasV = Math.max(0.05, this.V0 - this.currentFluidV);
+            return this.P0 * Math.pow(this.V0 / gasV, this.gamma);
+        }
+    }
+
+    getFlow(deltaP) {
+        const P_line = this.params.linePressure || 0.0;
+        const P_gas = this.getGasPressure();
+        const diffP = P_line - P_gas;
+        const R = this.getResistance();
+        // Positive flow = charging (sink), Negative flow = discharging (source)
+        return Math.sign(diffP) * Math.sqrt(Math.abs(diffP) / R);
+    }
+
+    step(dt, nodePressures = {}, nodeFlows = {}) {
+        const lineP = nodePressures['P'] || nodePressures['IN'] || nodePressures['T'] || 0.0;
+        this.params.linePressure = lineP;
+        const gasP = this.getGasPressure();
+
+        const Q = this.getFlow(lineP - gasP); // L/min
+        const dV = (Q / 60.0) * dt;          // Liters per second * dt
+        
+        this.currentFluidV = Math.min(this.V0 * 0.95, Math.max(0.0, this.currentFluidV + dV));
+        
+        this.state.fluidVolume = this.currentFluidV.toFixed(2) + ' L';
+        this.state.gasPressure = gasP.toFixed(1) + ' Bar';
+        this.state.mode = Q > 0.1 ? 'CHARGING (Sink)' : Q < -0.1 ? 'DISCHARGING (Source)' : 'STATIONARY';
+    }
+}
+
+// ── 2. COMPLEX ACTUATOR STRATEGY ───────────────────────────────────────────
+class CylinderComponent extends HydraulicComponent {
+    constructor(config = {}) {
+        super(config);
+        this.boreDiam = this.params.boreDiam || 80.0;      // mm
+        this.rodDiam = this.params.rodDiam || 45.0;        // mm
+        this.strokeLength = this.params.strokeLength || 500.0; // mm
+        this.position = this.params.position !== undefined ? this.params.position : 0.0; // 0.0 to 1.0
+        this.cushionCd = this.params.cushionCd || 5.0;
+
+        // Calculate areas in cm^2
+        this.Acap = (Math.PI / 4) * Math.pow(this.boreDiam / 10, 2);
+        this.Arod = (Math.PI / 4) * Math.pow(this.rodDiam / 10, 2);
+        this.Aann = this.Acap - this.Arod;
+
+        if (this.key === 'cyl_double_rod') {
+            // Equal area cylinder: Cap and Rod areas equal
+            this.Aleft = this.Aann;
+            this.Aright = this.Aann;
+        } else {
+            this.Aleft = this.Acap;
+            this.Aright = this.Aann;
+        }
+    }
+
+    getActiveArea(port, pos) {
+        if (this.key === 'cyl_telescopic') {
+            // Multi-stage sleeve active area drop-off
+            if (pos <= 0.33) return this.Acap * 1.0;
+            else if (pos <= 0.66) return this.Acap * 0.65;
+            else return this.Acap * 0.35;
+        }
+        return port === 'A' ? this.Aleft : this.Aright;
+    }
+
+    getResistance() {
+        let R = this.params.resistance || 0.02;
+        if (this.key === 'cyl_cushion') {
+            // Exponential damping resistance coefficient in final 10% of stroke
+            if (this.position > 0.90) {
+                R *= Math.exp(this.cushionCd * ((this.position - 0.90) / 0.10));
+            } else if (this.position < 0.10) {
+                R *= Math.exp(this.cushionCd * ((0.10 - this.position) / 0.10));
+            }
+        }
+        return R;
+    }
+
+    step(dt, nodePressures = {}, nodeFlows = {}) {
+        const pCap = nodePressures['A'] || 0.0;
+        const pRod = nodePressures['B'] || 0.0;
+
+        const areaCap = this.getActiveArea('A', this.position);
+        const areaRod = this.getActiveArea('B', this.position);
+
+        const forceCap = pCap * areaCap * 10; // 1 bar x 1 cm^2 = 10 N
+        const forceRod = pRod * areaRod * 10;
+        const netForce = forceCap - forceRod - (this.params.loadForce || 0.0);
+
+        let v = netForce / 50.0; // mm/s
+        if ((this.position >= 1.0 && v > 0) || (this.position <= 0.0 && v < 0)) {
+            v = 0;
+        }
+
+        this.position = Math.min(1.0, Math.max(0.0, this.position + (v * dt / this.strokeLength)));
+        this.state.position = (this.position * 100).toFixed(1) + '%';
+        this.state.activeAreaCm2 = areaCap.toFixed(1) + ' cm²';
+
+        if (this.key === 'cyl_gland_drain') {
+            // Internal seal weep leakage routed to Port L
+            const kWeep = 0.001;
+            const weepFlow = Math.max(pCap, pRod) * kWeep;
+            this.state.glandLeakageLmin = weepFlow.toFixed(3) + ' L/min';
+        }
+    }
+}
+
+// ── 3. FLUID CONDITIONING & FILTERS STRATEGY ──────────────────────────────
+class FilterComponent extends HydraulicComponent {
+    constructor(config = {}) {
+        super(config);
+        this.Rclean = this.params.Rclean || 0.005;
+        this.deltaRclogging = this.params.deltaRclogging || 0.0;
+        this.clogged = false;
+    }
+
+    getResistance() {
+        return this.Rclean + this.deltaRclogging;
+    }
+
+    step(dt, nodePressures = {}, nodeFlows = {}) {
+        const pIn = nodePressures['IN'] || 0.0;
+        const pOut = nodePressures['OUT'] || 0.0;
+        const deltaP = Math.abs(pIn - pOut);
+
+        const Q = nodeFlows['IN'] || 15.0;
+        this.deltaRclogging += 0.00005 * Math.abs(Q) * dt;
+
+        if (deltaP >= 3.5) {
+            this.clogged = true;
+        }
+
+        this.state.clogged = this.clogged;
+        this.state.deltaP = deltaP.toFixed(2) + ' Bar';
+        this.state.totalResistance = this.getResistance().toFixed(3);
+    }
+}
+
+// ── 4. SENSORS & SWITCHES STRATEGY ─────────────────────────────────────────
+class SensorComponent extends HydraulicComponent {
+    constructor(config = {}) {
+        super(config);
+        this.contactClosed = false;
+        this.signalOutputmA = 4.0;
+        this.readoutLmin = 0.0;
+    }
+
+    step(dt, nodePressures = {}, nodeFlows = {}) {
+        if (this.key === 'press_switch') {
+            const P = nodePressures['P'] || 0.0;
+            const setting = this.params.setting || 150.0;
+            const hyst = this.params.hysteresis || 10.0;
+
+            if (P >= setting) this.contactClosed = true;
+            else if (P <= (setting - hyst)) this.contactClosed = false;
+
+            this.state.contactClosed = this.contactClosed;
+            this.state.sensedPressure = P.toFixed(1) + ' Bar';
+        } else if (this.key === 'press_transducer') {
+            const P = nodePressures['P'] || 0.0;
+            const maxP = this.params.maxPressure || 250.0;
+            this.signalOutputmA = 4.0 + Math.min(16.0, Math.max(0.0, (P / maxP) * 16.0));
+            this.state.signalOutputmA = this.signalOutputmA.toFixed(2) + ' mA';
+            this.state.sensedPressure = P.toFixed(1) + ' Bar';
+        } else if (this.key === 'flowmeter') {
+            const Q = Math.abs(nodeFlows['IN'] || nodeFlows['OUT'] || 0.0);
+            this.readoutLmin = Q;
+            this.state.readoutLmin = Q.toFixed(1) + ' L/min';
+        } else if (this.key === 'level_switch') {
+            const level = this.params.fluidLevel !== undefined ? this.params.fluidLevel : 85.0;
+            this.contactClosed = level >= 20.0;
+            this.state.contactClosed = this.contactClosed;
+            this.state.levelPercent = level.toFixed(0) + '%';
+        } else if (this.key === 'temp_switch') {
+            const temp = this.params.fluidTemp !== undefined ? this.params.fluidTemp : 55.0;
+            this.contactClosed = temp >= 60.0;
+            this.state.contactClosed = this.contactClosed;
+            this.state.tempC = temp.toFixed(1) + ' °C';
+        }
+    }
+}
+
+// ── 5. PUMPS & MOTORS STRATEGY ─────────────────────────────────────────────
+class PumpComponent extends HydraulicComponent {
+    step(dt, nodePressures = {}, nodeFlows = {}) {
+        const Qrated = this.params.flowQ || 15.0;
+        if (this.key === 'pump_var') {
+            const P = nodePressures['P'] || 0.0;
+            const Pcomp = this.params.Pcomp || 210.0;
+            const factor = P >= Pcomp ? Math.max(0.02, 1.0 - (P - Pcomp) / 20.0) : 1.0;
+            this.state.flowQ = (Qrated * factor).toFixed(1) + ' L/min';
+            this.state.swashplateAngle = (factor * 18.0).toFixed(1) + '°';
+        } else {
+            this.state.flowQ = Qrated.toFixed(1) + ' L/min';
+        }
+    }
+}
+
+// ── 6. VALVES STRATEGY ─────────────────────────────────────────────────────
+class ValveComponent extends HydraulicComponent {
+    step(dt, nodePressures = {}, nodeFlows = {}) {
+        if (this.key.startsWith('dcv_')) {
+            const pos = this.state.spoolPos || 0;
+            this.state.spoolState = pos === 1 ? 'EXTEND' : pos === -1 ? 'RETRACT' : 'NEUTRAL';
+        } else if (this.key.startsWith('prv_') || this.key === 'sequence' || this.key === 'counterbalance') {
+            const P = nodePressures['P'] || nodePressures['IN'] || 0.0;
+            const setP = this.params.setting || 180.0;
+            this.state.isOpen = P >= setP;
+            this.state.setting = setP.toFixed(0) + ' Bar';
+        }
+    }
+}
+
+// ── 7. HYDRAULIC COMPONENT REGISTRY ───────────────────────────────────────
+class HydraulicComponentRegistry {
+    constructor() {
+        this.registry = new Map();
+        this.initDefaultRegistry();
+    }
+
+    register(key, handlerClass) {
+        this.registry.set(key, handlerClass);
+    }
+
+    createInstance(key, config = {}) {
+        const fullConfig = { key, ...config };
+        const HandlerClass = this.registry.get(key) || HydraulicComponent;
+        return new HandlerClass(fullConfig);
+    }
+
+    getHandler(key) {
+        return this.registry.get(key) || HydraulicComponent;
+    }
+
+    initDefaultRegistry() {
+        // Accumulators
+        ['acc_bladder', 'acc_piston', 'acc_diaphragm', 'acc_spring', 'acc_weighted'].forEach(k => {
+            this.register(k, AccumulatorComponent);
+        });
+
+        // Actuators
+        ['cyl_double', 'cyl_cushion', 'cyl_single_spring', 'cyl_double_rod', 'cyl_telescopic', 'cyl_rodless', 'cyl_gland_drain', 'rack_pinion', 'rotary_double', 'rotary_spring'].forEach(k => {
+            this.register(k, CylinderComponent);
+        });
+
+        // Conditioning & Filters
+        ['strainer', 'filter_clogging', 'cooler', 'heater', 'frl_trio', 'muffler', 'quick_disconnect'].forEach(k => {
+            this.register(k, FilterComponent);
+        });
+
+        // Sensors & Switches
+        ['press_switch', 'press_transducer', 'flowmeter', 'level_switch', 'temp_switch'].forEach(k => {
+            this.register(k, SensorComponent);
+        });
+
+        // Pumps & Motors
+        ['pump_fixed', 'pump_var', 'motor_fixed', 'motor_var', 'electric_motor', 'manual_pump', 'air_compressor'].forEach(k => {
+            this.register(k, PumpComponent);
+        });
+
+        // Valves
+        ['dcv_22', 'dcv_32_nc', 'dcv_42', 'dcv_43_closed', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float', 'dcv_pilot_2stage', 'logic_cartridge', 'ball_valve_2way',
+         'prv_direct', 'prv_pilot', 'prv_prop', 'prv_reducing', 'prv_3way', 'sequence', 'counterbalance', 'unloading', 'brake', 'auto_cutoff',
+         'check_valve', 'po_check', 'po_check_close', 'po_check_vented', 'fixed_throttle', 'throttle_needle', 'flow_control', 'flow_regulator', 'temp_comp_flow', 'flow_divider', 'flow_fuse', 'air_bleed', 'isolation_gate'].forEach(k => {
+            this.register(k, ValveComponent);
+        });
+    }
+}
+
+// Global Registry Instance
+const componentRegistry = new HydraulicComponentRegistry();
+
+
+
+class SystemGraph {
+            constructor() {
+                this.nodes = new Map();
+                this.edges = [];
+                this.portToNodeMap = new Map();
+            }
+
+            static buildGraph(placedComponents = [], placedWires = [], library = {}) {
+                const graph = new SystemGraph();
+                const dsu = new DisjointSet();
+
+                placedComponents.forEach(comp => {
+                    const def = library[comp.key];
+                    const ports = def && def.ports ? def.ports : [];
+                    ports.forEach(p => {
+                        const portKey = `${comp.id}:${p.id}`;
+                        dsu.makeSet(portKey);
+                    });
+                });
+
+                placedWires.forEach(wire => {
+                    const u = `${wire.fromCompId}:${wire.fromPortId}`;
+                    const v = `${wire.toCompId}:${wire.toPortId}`;
+                    dsu.makeSet(u);
+                    dsu.makeSet(v);
+                    dsu.union(u, v);
+                });
+
+                const rootToNodeMap = new Map();
+                let nodeCounter = 0;
+
+                dsu.parent.forEach((_, portKey) => {
+                    const root = dsu.find(portKey);
+                    if (!rootToNodeMap.has(root)) {
+                        const nodeId = `node_${nodeCounter++}`;
+                        const node = new Node(nodeId);
+                        rootToNodeMap.set(root, node);
+                        graph.nodes.set(nodeId, node);
+                    }
+
+                    const node = rootToNodeMap.get(root);
+                    graph.portToNodeMap.set(portKey, node.id);
+
+                    const [compId, portId] = portKey.split(':');
+                    const comp = placedComponents.find(c => c.id === compId);
+                    const def = comp && library[comp.key];
+                    const pDef = def && def.ports ? def.ports.find(p => p.id === portId) : null;
+                    const portType = pDef ? pDef.type : 'work';
+
+                    node.addPort(compId, portId, portType);
+
+                    if (comp && (comp.key === 'res_vented' || comp.key === 'res_pressurised')) {
+                        node.isTankRef = true;
+                    }
+                });
+
+                placedWires.forEach(wire => {
+                    const u = `${wire.fromCompId}:${wire.fromPortId}`;
+                    const nodeId = graph.portToNodeMap.get(u);
+                    if (nodeId && graph.nodes.has(nodeId)) {
+                        const node = graph.nodes.get(nodeId);
+                        if (!node.wireIds.includes(wire.id)) {
+                            node.wireIds.push(wire.id);
+                        }
+                    }
+                });
+
+                placedComponents.forEach(comp => {
+                    const def = library[comp.key];
+                    if (!def || !def.ports || def.ports.length < 2) return;
+
+                    const ports = def.ports;
+                    for (let i = 0; i < ports.length; i++) {
+                        for (let j = i + 1; j < ports.length; j++) {
+                            const p1 = ports[i].id;
+                            const p2 = ports[j].id;
+
+                            const node1Id = graph.portToNodeMap.get(`${comp.id}:${p1}`);
+                            const node2Id = graph.portToNodeMap.get(`${comp.id}:${p2}`);
+
+                            if (node1Id && node2Id) {
+                                const edgeId = `edge_${comp.id}_${p1}_${p2}`;
+                                const edge = new Edge(
+                                    edgeId,
+                                    comp.id,
+                                    comp.key,
+                                    p1,
+                                    p2,
+                                    node1Id,
+                                    node2Id,
+                                    comp.state
+                                );
+                                graph.edges.push(edge);
+                            }
+                        }
+                    }
+                });
+
+                return graph;
+            }
+
+            toJSON() {
+                const nodesArray = Array.from(this.nodes.values()).map(n => ({
+                    id: n.id,
+                    pressure: n.pressure,
+                    isTankRef: n.isTankRef,
+                    connectedPorts: n.ports,
+                    wireIds: n.wireIds
+                }));
+
+                const edgesArray = this.edges.map(e => ({
+                    id: e.id,
+                    componentId: e.compId,
+                    componentKey: e.compKey,
+                    fromPort: e.fromPort,
+                    toPort: e.toPort,
+                    fromNodeId: e.fromNodeId,
+                    toNodeId: e.toNodeId,
+                    flow: e.flow,
+                    componentState: e.state
+                }));
+
+                return {
+                    nodesCount: nodesArray.length,
+                    edgesCount: edgesArray.length,
+                    nodes: nodesArray,
+                    edges: edgesArray
+                };
+            }
+        }
+
+        function exportSystemGraph() {
+            const graph = SystemGraph.buildGraph(placedComponents, placedWires, LIBRARY);
+            const graphJSON = graph.toJSON();
+            console.log('=== EXTRACTED SYSTEM GRAPH TOPOLOGY ===');
+            console.log(JSON.stringify(graphJSON, null, 2));
+
+            const blob = new Blob([JSON.stringify(graphJSON, null, 2)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.download = 'system_graph_topology.json';
+            link.href = URL.createObjectURL(blob);
+            link.click();
+        }
+
+
+
+// ════════ STAGE 3 — HYDRAULIC SOLVER ════════
+// ══════════════════════════════════════════════════════════════════════════
+// STAGE 3 — HYDRAULIC SOLVER  (append AFTER the SystemGraph / Registry classes)
+//
+// Quasi-static nodal solver.  Units: pressure = bar (gauge), flow = L/min,
+// force = N, area = cm² (cylinders) / mm² (orifices), velocity = mm/s.
+//
+//   Unknowns : free node pressures  P_i   (tank nodes are fixed boundary values)
+//              one rod velocity v_k per cylinder
+//   Equations: Σ Q_leaving(node i) = 0           (continuity at every junction)
+//              P_cap·A_cap − P_rod·A_rod = F_load + damping·v   (per cylinder)
+//   Method   : damped Newton–Raphson, local finite-difference element Jacobians,
+//              dense Gaussian elimination, source-continuation fallback.
+//   Dynamics : optional fluid compressibility (opts.dynamics = { dt, prev }): every node gets a
+//              capacitance C = V/β, adding  (V/β)·60/dt·(P − P_prev)  to the continuity equation
+//              (implicit Euler).  Cylinder chamber volumes follow the stroke, so large chambers
+//              pressurise over tens of ms instead of instantly.
+//
+//   Restrictors:  Q = Cv · A · K · √ΔP      (K = 0.06·√(2e5/ρ) ≈ 0.91 for ρ = 870)
+//                 Q [L/min], A [mm²], ΔP [bar], Cv = discharge coefficient
+//   Relief valve: stiff characteristic  Q = Kr·√(ΔP − P_set)  → clamps pressure
+//
+// Returns { nodePressures, wireFlows, componentStates, diagnostics }
+//   wireFlows[id] is signed: positive = flow from fromCompId:fromPortId → toCompId:toPortId
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── numeric helpers ────────────────────────────────────────────────────────
+const HYD_EPS = 0.02; // bar – smoothing width for sqrt / switching laws
+const HYD_N_PER_BAR_CM2 = 10; // 1 bar × 1 cm² = 10 N
+
+function hydNum(v, d) {
+    if (typeof v === 'number' && isFinite(v)) return v;
+    if (typeof v === 'string') { const f = parseFloat(v); if (isFinite(f)) return f; }
+    return d;
+}
+// smooth max(x, 0)
+function hydPos(x, eps = HYD_EPS) { return 0.5 * (x + Math.sqrt(x * x + eps * eps)); }
+function hydLogistic(x) { return 1 / (1 + Math.exp(-Math.max(-40, Math.min(40, x)))); }
+function hydSmoothMax(a, b, eps = 0.05) { return 0.5 * (a + b + Math.sqrt((a - b) * (a - b) + eps * eps)); }
+// signed square-root law  Q = K·sign(d)·√|d|  (regularised: finite slope at d = 0)
+function hydSqrtLaw(d, K) { return K * d / Math.pow(d * d + HYD_EPS * HYD_EPS, 0.25); }
+function hydInfNorm(v) { let m = 0; for (let i = 0; i < v.length; i++) { const a = Math.abs(v[i]); if (a > m || a !== a) m = a !== a ? Infinity : a; } return m; }
+
+function hydSolveLinear(J, b) {
+    const n = b.length;
+    const A = J.map((row, i) => { const r = Float64Array.from(row); return r; });
+    const x = Float64Array.from(b);
+    for (let c = 0; c < n; c++) {
+        let piv = c, best = Math.abs(A[c][c]);
+        for (let r = c + 1; r < n; r++) { const a = Math.abs(A[r][c]); if (a > best) { best = a; piv = r; } }
+        if (best < 1e-14) { A[c][c] += 1e-9; best = Math.abs(A[c][c]); }
+        if (piv !== c) { const t = A[c]; A[c] = A[piv]; A[piv] = t; const tx = x[c]; x[c] = x[piv]; x[piv] = tx; }
+        const d = A[c][c];
+        for (let r = c + 1; r < n; r++) {
+            const f = A[r][c] / d;
+            if (f === 0) continue;
+            for (let k = c; k < n; k++) A[r][k] -= f * A[c][k];
+            x[r] -= f * x[c];
+        }
+    }
+    for (let r = n - 1; r >= 0; r--) {
+        let s = x[r];
+        for (let k = r + 1; k < n; k++) s -= A[r][k] * x[k];
+        x[r] = s / A[r][r];
+    }
+    for (let i = 0; i < n; i++) if (!isFinite(x[i])) return null;
+    return x;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+class HydraulicSolver {
+
+    static get DEFAULTS() {
+        return {
+            fluidDensity: 870,        // kg/m³
+            defaultCv: 0.7,           // orifice discharge coefficient
+            defaultValveAreaMm2: 12,  // full-open spool / seat flow area
+            reliefCapacityK: 30,      // L/min per √bar once above setting
+            checkCrackBar: 0.5,
+            pilotRatio: 3.0,          // counterbalance pilot ratio
+            pilotOpenBar: 8.0,        // PO-check pilot pressure to unseat
+            switchWidthBar: 1.5,      // smoothing width of pressure-switched valves
+            gmin: 1e-5,               // L/min/bar leak to atmosphere (keeps matrix regular)
+            vacuumFloorBar: -0.9,     // air-ingress / cavitation floor
+            maxPressureBar: 350,      // hose-burst limiter (only hit if no relief valve)
+            tankPressureBar: 0.0,
+            pressurisedTankBar: 0.5,
+            maxIterations: 60,
+            tolerance: 5e-4,
+            advanceComponents: true,  // call handler.step(dt, …) with solved values
+            loads: {},                // { [cylinderCompId]: loadForceN } overrides
+            endStops: null,           // { [cylinderCompId]: 'EXTENDED'|'RETRACTED' } – set by SimulationEngine
+            dynamics: null,           // { dt, prev: Map(nodeKey → bar) } – enables compressibility
+            bulkModulusBar: 15000,    // effective bulk modulus incl. hose compliance
+            lineVolumeL: 0.02,        // trapped volume of every node (hoses, valve galleries)
+            chamberDeadVolumeL: 0.03  // dead volume of each cylinder chamber
+        };
+    }
+
+    constructor(graph, options = {}) {
+        this.graph = graph;
+        this.opts = Object.assign({}, HydraulicSolver.DEFAULTS, options);
+        this.registry   = options.registry   || (typeof componentRegistry !== 'undefined' ? componentRegistry : null);
+        this.components = options.components || (typeof placedComponents !== 'undefined' ? placedComponents : []);
+        this.wires      = options.wires      || (typeof placedWires !== 'undefined' ? placedWires : []);
+        this.library    = options.library    || (typeof LIBRARY !== 'undefined' ? LIBRARY : {});
+        this.fault      = options.fault !== undefined ? options.fault : (typeof activeFault !== 'undefined' ? activeFault : 'NONE');
+        this._flowScale = 1;
+        this._locks = new Set();
+        const dy = this.opts.dynamics;
+        this._dyn = (dy && dy.dt > 0 && dy.prev) ? dy : null;
+    }
+
+    // ══ STATE-AWARE EDGE FILTER (the Stage-1 tweak) ══════════════════════
+    // Returns the list of port-to-port paths that actually conduct for a table-driven
+    // valve at its current state, or null if the key is not table-driven.
+    // type ∈ open | check | relief | reducing | sequence | counterbalance | pocheck |
+    //        poclose | unloading | needle | fixed | regulator
+    static getConductingPaths(key, state = {}) {
+        const pos = Math.sign(hydNum(state.spoolPos, 0));
+        const open = Math.max(0, Math.min(1, hydNum(state.openingPercent, 100) / 100));
+        const P = (from, to, type = 'open', scale = 1, sense = null) => ({ from, to, type, scale, sense });
+        const dcv43 = (center) => pos > 0 ? [P('P', 'A'), P('B', 'T')]
+                                : pos < 0 ? [P('P', 'B'), P('A', 'T')] : center;
+        switch (key) {
+            case 'dcv_22':          return pos > 0 ? [P('P', 'A')] : [];
+            case 'dcv_32_nc':       return pos > 0 ? [P('P', 'A')] : [P('A', 'R')];
+            case 'dcv_42':          return pos > 0 ? [P('P', 'A'), P('B', 'T')] : [P('P', 'B'), P('A', 'T')];
+            case 'dcv_43_closed':
+            case 'dcv_pilot_2stage':return dcv43([]);
+            case 'dcv_43_open':     return dcv43([P('P', 'T', 'open', 0.5), P('A', 'T', 'open', 0.5), P('B', 'T', 'open', 0.5)]);
+            case 'dcv_43_tandem':   return dcv43([P('P', 'T', 'open', 0.6)]);
+            case 'dcv_43_float':    return dcv43([P('A', 'T', 'open', 0.6), P('B', 'T', 'open', 0.6)]);
+            case 'logic_cartridge': return [P('A', 'B')];
+            case 'ball_valve_2way': return [P('IN', 'OUT', 'open', open)];
+            case 'isolation_gate':  return [P('A', 'B', 'open', open)];
+            case 'prv_direct': case 'prv_pilot': case 'prv_prop':
+                                    return [P('P', 'T', 'relief')];
+            case 'prv_3way':        return [P('P', 'A'), P('P', 'T', 'relief')];
+            case 'prv_reducing':    return [P('P1', 'P2', 'reducing')];
+            case 'sequence':        return [P('P1', 'P2', 'sequence')];
+            case 'counterbalance':
+            case 'brake':           return [P('A', 'B', 'counterbalance', 1, 'X'), P('B', 'A', 'check')];
+            case 'unloading':       return [P('P', 'T', 'unloading', 1.5, 'X')];
+            case 'auto_cutoff':     return [P('P', 'T', 'unloading', 1.5, 'ACC')];
+            case 'check_valve':     return [P('IN', 'OUT', 'check')];
+            case 'po_check':        return [P('IN', 'OUT', 'check'), P('OUT', 'IN', 'pocheck', 1, 'X')];
+            case 'po_check_close':  return [P('IN', 'OUT', 'poclose', 1, 'X')];
+            case 'po_check_vented': return [P('A', 'B', 'check'), P('B', 'A', 'pocheck', 1, 'X')];
+            case 'fixed_throttle':  return [P('IN', 'OUT', 'fixed')];
+            case 'throttle_needle': return [P('IN', 'OUT', 'needle', open)];
+            case 'flow_control':    return [P('A', 'B', 'needle', open), P('B', 'A', 'check')];
+            case 'flow_regulator':  return [P('IN', 'OUT', 'regulator')];
+            case 'temp_comp_flow':  return [P('A', 'B', 'regulator')];
+            case 'flow_fuse':       return [P('IN', 'OUT')];
+            case 'air_bleed':       return [];
+            default:                return null;
+        }
+    }
+
+    // Filters graph.edges down to the ones that conduct at the current spool / valve state.
+    static getConductingEdges(graph, components) {
+        const byId = new Map(components.map(c => [c.id, c]));
+        return graph.edges.filter(e => {
+            const comp = byId.get(e.compId);
+            if (!comp) return true;
+            const paths = HydraulicSolver.getConductingPaths(comp.key, comp.state || {});
+            if (!paths) return true;
+            return paths.some(p => (p.from === e.fromPort && p.to === e.toPort) || (p.from === e.toPort && p.to === e.fromPort));
+        });
+    }
+
+    // ══ PREPARATION ═══════════════════════════════════════════════════════
+    _par(comp) { return Object.assign({}, comp.handler ? comp.handler.params : {}, comp.params || {}); }
+
+    _prepare() {
+        const g = this.graph, lib = this.library;
+        this.comps = this.components.filter(c => lib[c.key]);
+        this.comps.forEach(c => {
+            if (!c.handler && this.registry) {
+                c.handler = this.registry.createInstance(c.key, { id: c.id, key: c.key, state: c.state, params: c.params });
+            }
+        });
+
+        // Node aliasing: junction_* components short all their ports together.
+        const parent = new Map([...g.nodes.keys()].map(k => [k, k]));
+        const find = (a) => { while (parent.get(a) !== a) { parent.set(a, parent.get(parent.get(a))); a = parent.get(a); } return a; };
+        this.comps.filter(c => /^junction_/.test(c.key)).forEach(c => {
+            const ids = (lib[c.key].ports || []).map(p => g.portToNodeMap.get(`${c.id}:${p.id}`)).filter(Boolean);
+            for (let i = 1; i < ids.length; i++) parent.set(find(ids[i]), find(ids[0]));
+        });
+
+        const compKeyById = new Map(this.comps.map(c => [c.id, c.key]));
+        this.nodes = [];
+        this.nodeIdxById = new Map();
+        const rootToIdx = new Map();
+        for (const [id, node] of g.nodes) {
+            const root = find(id);
+            if (!rootToIdx.has(root)) {
+                rootToIdx.set(root, this.nodes.length);
+                this.nodes.push({ members: [], fixed: false, p: 0, free: -1, key: null });
+            }
+            const idx = rootToIdx.get(root);
+            this.nodeIdxById.set(id, idx);
+            const nd = this.nodes[idx];
+            nd.members.push(id);
+            if (!nd.key && node.ports.length) nd.key = `${node.ports[0].compId}:${node.ports[0].portId}`;
+            if (node.isTankRef) {
+                nd.fixed = true;
+                const pressurised = node.ports.some(p => compKeyById.get(p.compId) === 'res_pressurised');
+                nd.p = pressurised ? this.opts.pressurisedTankBar : this.opts.tankPressureBar;
+            }
+        }
+        let nf = 0;
+        this.nodes.forEach(nd => { if (!nd.fixed) nd.free = nf++; });
+        this.nFree = nf;
+    }
+
+    _nodeOf(compId, portId) {
+        const nid = this.graph.portToNodeMap.get(`${compId}:${portId}`);
+        return nid === undefined ? -1 : this.nodeIdxById.get(nid);
+    }
+    _isWired(compId, portId) {
+        const nid = this.graph.portToNodeMap.get(`${compId}:${portId}`);
+        const node = nid && this.graph.nodes.get(nid);
+        return !!node && node.ports.length > 1;
+    }
+    _row(idx) { return idx < 0 || this.nodes[idx].fixed ? -1 : this.nodes[idx].free; }
+    _p(idx, x) { if (idx < 0) return 0; const nd = this.nodes[idx]; return nd.fixed ? nd.p : x[nd.free]; }
+
+    // ══ ELEMENT CONSTRUCTION ══════════════════════════════════════════════
+    _buildElements() {
+        this.elements = [];
+        this.cylinders = [];
+        this.reliefs = [];
+        this.unmodeled = [];
+        this.nodeVol = new Float64Array(this.nodes.length).fill(this.opts.lineVolumeL);
+        const o = this.opts, fault = this.fault;
+        const K = 0.06 * Math.sqrt(2e5 / o.fluidDensity);   // L/min per (mm²·√bar)
+        this._K = K;
+
+        for (const comp of this.comps) {
+            const h = comp.handler, key = comp.key, par = this._par(comp), st = comp.state || {};
+            const lib = this.library[key], portIds = (lib.ports || []).map(p => p.id);
+            const has = (p) => portIds.includes(p);
+            const N = (p) => has(p) ? this._nodeOf(comp.id, p) : -1;
+            const Cv = hydNum(par.Cv, o.defaultCv);
+            const area = hydNum(par.area, o.defaultValveAreaMm2);
+            const setting = () => (fault === 'PRV_STUCK_OPEN') ? 15 : hydNum(par.setting, hydNum(st.setting, 180));
+            const s = o.switchWidthBar;
+
+            if (/^junction_/.test(key) || /^res_/.test(key)) continue;   // junctions are merged nodes, reservoirs are fixed-pressure nodes
+
+            // ── pumps ───────────────────────────────────────────────────────
+            if (['pump_fixed', 'pump_var', 'manual_pump', 'air_compressor'].includes(key) && has('P') && has('S')) {
+                const Qr = hydNum(par.flowQ, key === 'manual_pump' ? 0 : 15);
+                const Pcomp = hydNum(par.Pcomp, 210);
+                this.elements.push({
+                    comp, kind: 'pump', ports: ['P', 'S'], tn: [N('P'), N('S')], nExt: 0,
+                    fn: (P) => {
+                        let f = 1;
+                        if (key === 'pump_var') f = Math.max(0.02, 1 - hydPos(P[0] - Pcomp, 0.5) / 20);
+                        if (fault === 'PUMP_FAILURE') f = 0;
+                        if (fault === 'AIR_INGRESS') f *= 0.7;
+                        const cav = hydLogistic((P[1] + 0.8) / 0.1);
+                        const Q = Qr * f * cav * this._flowScale;
+                        return { q: [-Q, Q], r: [] };
+                    },
+                    paths: [['S', 'P']]
+                });
+                continue;
+            }
+
+            // ── cylinders / rotary actuators ────────────────────────────────
+            if (typeof CylinderComponent !== 'undefined' && h instanceof CylinderComponent && has('A')) {
+                const hasB = has('B');
+                const pos = h.position;
+                const AA = h.getActiveArea('A', pos);
+                const AB = hasB ? h.getActiveArea('B', pos) : 0;
+                const damping = hydNum(par.damping, 50);        // N·s/mm (matches CylinderComponent.step)
+                const Fc = hydNum(par.frictionForce, 0);
+                const stroke = h.strokeLength;
+                const Fload = (o.loads[comp.id] !== undefined) ? o.loads[comp.id] : hydNum(par.loadForce, 0);
+                const Fspring = key.endsWith('spring')
+                    ? hydNum(par.springPreload, 150) + hydNum(par.springRate, 0.3) * pos * stroke : 0;
+                const info = { comp, h, AA, AB, Fload: Fload + Fspring, Fc, damping, hasB, pos };
+                // chamber volumes (cm² · cm → cm³ → L) follow the stroke → compressibility of trapped oil
+                const lenCm = stroke / 10;
+                if (N('A') >= 0) this.nodeVol[N('A')] += o.chamberDeadVolumeL + AA * pos * lenCm / 1000;
+                if (hasB && N('B') >= 0) this.nodeVol[N('B')] += o.chamberDeadVolumeL + AB * (1 - pos) * lenCm / 1000;
+                const el = {
+                    comp, kind: 'cylinder', ports: hasB ? ['A', 'B'] : ['A'], tn: [N('A'), hasB ? N('B') : -1], nExt: 1, info,
+                    fn: (P, E) => {
+                        const v = E[0];
+                        const net = HYD_N_PER_BAR_CM2 * (P[0] * AA - P[1] * AB) - info.Fload - damping * v - Fc * Math.tanh(v / 1.0);
+                        const r = this._locks.has(comp.id) ? v : net / (HYD_N_PER_BAR_CM2 * AA);   // bar-equivalent imbalance
+                        return { q: [0.006 * AA * v, -0.006 * AB * v], r: [r] };
+                    },
+                    paths: hasB ? [['A', 'B']] : []
+                };
+                this.elements.push(el);
+                this.cylinders.push(el);
+                if (key === 'cyl_gland_drain' && has('L')) {
+                    const kWeep = 0.001;
+                    ['A', 'B'].forEach(pt => this.elements.push({
+                        comp, kind: 'leak', ports: [pt, 'L'], tn: [N(pt), N('L')], nExt: 0,
+                        fn: (P) => { const Q = kWeep * (P[0] - P[1]); return { q: [Q, -Q], r: [] }; },
+                        paths: [[pt, 'L']]
+                    }));
+                }
+                continue;
+            }
+
+            // ── accumulators ────────────────────────────────────────────────
+            if (typeof AccumulatorComponent !== 'undefined' && h instanceof AccumulatorComponent && has('P')) {
+                const gas = h.getGasPressure(), R = h.getResistance();
+                const V = h.currentFluidV, V0 = h.V0;
+                const gCh = Math.max(0, Math.min(1, (0.95 * V0 - V) / (0.02 * V0)));
+                const gDis = Math.max(0, Math.min(1, V / (0.02 * V0)));
+                this.elements.push({
+                    comp, kind: 'accumulator', ports: ['P'], tn: [N('P')], nExt: 0, meta: { gas },
+                    fn: (P) => {
+                        const d = P[0] - gas;
+                        const Q = hydSqrtLaw(d, 1 / Math.sqrt(R)) * (d > 0 ? gCh : gDis);
+                        return { q: [Q], r: [] };
+                    },
+                    paths: []
+                });
+                continue;
+            }
+
+            // ── flow divider / combiner: forces equal branch flows ─────────
+            if (key === 'flow_divider' && has('IN') && has('A') && has('B')) {
+                const kA = Cv * area * this._K;
+                this.elements.push({
+                    comp, kind: 'divider', ports: ['IN', 'A', 'B'], tn: [N('IN'), N('A'), N('B')], nExt: 1,
+                    fn: (P, E) => {
+                        const q = E[0];                                   // flow into EACH branch
+                        const r = P[0] - hydSmoothMax(P[1], P[2]) - q * Math.abs(q) / (kA * kA);
+                        return { q: [2 * q, -q, -q], r: [r] };
+                    },
+                    paths: [['IN', 'A'], ['IN', 'B']]
+                });
+                continue;
+            }
+
+            // ── table-driven valves (state-aware conducting paths) ──────────
+            let paths = HydraulicSolver.getConductingPaths(key, st);
+            let generic = false;
+            if (paths === null) {
+                const flowPorts = portIds.filter(p => !['pilot', 'drain'].includes(lib.ports.find(q => q.id === p).type));
+                if (portIds.length === 2 && flowPorts.length === 2 ||
+                    (key.startsWith('motor_') && has('A') && has('B'))) {
+                    const a = key.startsWith('motor_') ? 'A' : portIds[0], b = key.startsWith('motor_') ? 'B' : portIds[1];
+                    paths = [{ from: a, to: b, type: 'resist', scale: 1, sense: null }];
+                    generic = true;
+                } else { paths = []; if (portIds.length > 1) this.unmodeled.push(comp.id + ' (' + key + ')'); }
+            }
+
+            for (const pth of paths) {
+                if (!has(pth.from) || !has(pth.to)) continue;
+                const sensePorts = pth.sense && has(pth.sense) ? [pth.sense] : [];
+                const sensed = sensePorts.length && this._isWired(comp.id, pth.sense);
+                const tn = [N(pth.from), N(pth.to)].concat(sensePorts.map(N));
+                const CvA = Cv * area * pth.scale;
+                const orif = (d, CvAx) => hydSqrtLaw(d, CvAx * K);
+                let qfn;
+                switch (pth.type) {
+                    case 'open':    qfn = (P) => orif(P[0] - P[1], CvA); break;
+                    case 'check': { const crack = hydNum(par.crackPressure, o.checkCrackBar);
+                                    qfn = (P) => orif(hydPos(P[0] - P[1] - crack), CvA); break; }
+                    case 'relief': { const Pset = setting(), Kr = hydNum(par.reliefK, o.reliefCapacityK);
+                                    qfn = (P) => hydSqrtLaw(hydPos(P[0] - P[1] - Pset), Kr);
+                                    this.reliefs.push({ comp, Pset, from: pth.from, to: pth.to }); break; }
+                    case 'reducing': { const Pset = setting();
+                                    qfn = (P) => orif(P[0] - P[1], CvA) * hydLogistic((Pset - P[1]) / s); break; }
+                    case 'sequence': { const Pset = setting();
+                                    qfn = (P) => orif(P[0] - P[1], CvA) * hydLogistic((P[0] - Pset) / s); break; }
+                    case 'counterbalance': { const Pset = setting(), ratio = hydNum(par.pilotRatio, o.pilotRatio);
+                                    qfn = (P) => orif(hydPos(P[0] - P[1]), CvA) *
+                                         hydLogistic((P[0] + ratio * (P.length > 2 ? P[2] : 0) - Pset) / s); break; }
+                    case 'pocheck': { const Pp = hydNum(par.pilotOpen, o.pilotOpenBar);
+                                    qfn = (P) => orif(hydPos(P[0] - P[1]), CvA) * hydLogistic(((P.length > 2 ? P[2] : 0) - Pp) / s); break; }
+                    case 'poclose': { const Pp = hydNum(par.pilotOpen, o.pilotOpenBar), crack = o.checkCrackBar;
+                                    qfn = (P) => orif(hydPos(P[0] - P[1] - crack), CvA) * (1 - hydLogistic(((P.length > 2 ? P[2] : 0) - Pp) / s)); break; }
+                    case 'unloading': { const Pset = setting();
+                                    qfn = (P) => orif(hydPos(P[0] - P[1]), CvA) *
+                                         hydLogistic(((sensed ? P[2] : P[0]) - Pset) / s); break; }
+                    case 'needle': { const Amax = hydNum(par.maxArea, 8) * pth.scale;
+                                    qfn = (P) => orif(P[0] - P[1], Cv * Amax); break; }
+                    case 'fixed': { const dia = hydNum(par.orificeDiam, 1.5);
+                                    qfn = (P) => orif(P[0] - P[1], Cv * Math.PI / 4 * dia * dia); break; }
+                    case 'regulator': { const Qs = hydNum(par.flowSet, 10);
+                                    qfn = (P) => Qs * Math.tanh(hydPos(P[0] - P[1]) / 3.0); break; }
+                    case 'resist': { let R = (key === 'flowmeter') ? hydNum(par.resistance, 0.001) : h.getResistance();
+                                    if (fault === 'FILTER_CLOG' && typeof FilterComponent !== 'undefined' && h instanceof FilterComponent) R *= 30;
+                                    qfn = (P) => { const d = P[0] - P[1]; return d / Math.sqrt(R * Math.sqrt(d * d + HYD_EPS * HYD_EPS)); }; break; }
+                    default: qfn = (P) => orif(P[0] - P[1], CvA);
+                }
+                this.elements.push({
+                    comp, kind: 'path:' + pth.type, ports: [pth.from, pth.to].concat(sensePorts), tn, nExt: 0, qfn,
+                    fn: (P) => { const Q = qfn(P); const q = new Array(P.length).fill(0); q[0] = Q; q[1] = -Q; return { q, r: [] }; },
+                    paths: [[pth.from, pth.to]]
+                });
+            }
+        }
+
+        // assign unknown indices: [free nodes … | cylinder velocities …]
+        let next = this.nFree;
+        this.elements.forEach(el => { el.ext0 = el.nExt ? next : -1; next += el.nExt; });
+        this.N = next;
+    }
+
+    // ══ RESIDUAL & JACOBIAN ═══════════════════════════════════════════════
+    _nodeLeak(p) {
+        const o = this.opts;
+        return o.gmin * p - 50 * hydPos(o.vacuumFloorBar - p) + 50 * hydPos(p - o.maxPressureBar);
+    }
+
+    _assemble(x, wantJ) {
+        const N = this.N, R = new Float64Array(N);
+        const J = wantJ ? Array.from({ length: N }, () => new Float64Array(N)) : null;
+        const dyn = this._dyn;
+        for (let i = 0; i < this.nodes.length; i++) {
+            const nd = this.nodes[i];
+            if (nd.fixed) continue;
+            const r = nd.free, p = x[r], f = this._nodeLeak(p);
+            R[r] += f;
+            if (J) J[r][r] += (this._nodeLeak(p + 1e-4) - f) / 1e-4;
+            if (dyn) {                                   // fluid compressibility: Q_cap = (V/β)·dP/dt  [L/min]
+                const pv = dyn.prev.get(nd.key);
+                if (pv !== undefined) {
+                    const cap = this.nodeVol[i] / this.opts.bulkModulusBar * 60 / dyn.dt;
+                    R[r] += cap * (p - pv);
+                    if (J) J[r][r] += cap;
+                }
+            }
+        }
+        for (const el of this.elements) this._stamp(el, x, R, J);
+        return { R, J };
+    }
+
+    _stamp(el, x, R, J) {
+        const P = el.tn.map(i => this._p(i, x));
+        const E = []; for (let k = 0; k < el.nExt; k++) E.push(x[el.ext0 + k]);
+        const base = el.fn(P, E);
+        el.tn.forEach((idx, k) => { const row = this._row(idx); if (row >= 0) R[row] += base.q[k]; });
+        for (let k = 0; k < el.nExt; k++) R[el.ext0 + k] += base.r[k];
+        if (!J) return;
+
+        const byRow = new Map();
+        el.tn.forEach((idx, k) => { const row = this._row(idx); if (row >= 0) { if (!byRow.has(row)) byRow.set(row, []); byRow.get(row).push(k); } });
+        const cols = [];
+        byRow.forEach((ks, row) => cols.push({ col: row, h: 1e-4, apply: (P2, E2, hh) => ks.forEach(k => { P2[k] += hh; }) }));
+        for (let k = 0; k < el.nExt; k++) cols.push({ col: el.ext0 + k, h: 1e-3, apply: (P2, E2, hh) => { E2[k] += hh; } });
+
+        for (const c of cols) {
+            const P2 = P.slice(), E2 = E.slice();
+            c.apply(P2, E2, c.h);
+            const b2 = el.fn(P2, E2);
+            el.tn.forEach((idx, k) => { const row = this._row(idx); if (row >= 0) J[row][c.col] += (b2.q[k] - base.q[k]) / c.h; });
+            for (let k = 0; k < el.nExt; k++) J[el.ext0 + k][c.col] += (b2.r[k] - base.r[k]) / c.h;
+        }
+    }
+
+    // ══ NEWTON–RAPHSON ════════════════════════════════════════════════════
+    _newton(x0) {
+        const o = this.opts;
+        let x = Float64Array.from(x0);
+        let { R, J } = this._assemble(x, true);
+        let nr = hydInfNorm(R), iter = 0;
+        for (; iter < o.maxIterations; iter++) {
+            if (nr < o.tolerance) break;
+            const dx = hydSolveLinear(J, R.map(v => -v));
+            if (!dx) break;
+            let lam = 1;
+            for (let i = 0; i < this.N; i++) {
+                const lim = i < this.nFree ? 60 : 400;
+                if (Math.abs(dx[i]) * lam > lim) lam = lim / Math.abs(dx[i]);
+            }
+            let accepted = false;
+            for (let ls = 0; ls < 12; ls++) {
+                const xt = x.map((v, i) => v + lam * dx[i]);
+                const nt = hydInfNorm(this._assemble(xt, false).R);
+                if (nt < nr * (1 - 1e-4 * lam) || nt < o.tolerance) { x = xt; accepted = true; break; }
+                lam *= 0.5;
+            }
+            if (!accepted) x = x.map((v, i) => v + lam * dx[i]);
+            ({ R, J } = this._assemble(x, true));
+            nr = hydInfNorm(R);
+        }
+        return { x, converged: nr < o.tolerance, iterations: iter, residual: nr };
+    }
+
+    _solveNetwork(x0) {
+        this._flowScale = 1;
+        let res = this._newton(x0);
+        if (res.converged) return res;
+        // Source-continuation fallback: ramp pump flow 5 % → 100 %
+        let x = new Float64Array(this.N);
+        let total = 0;
+        for (const sc of [0.05, 0.2, 0.5, 0.8, 1.0]) {
+            this._flowScale = sc;
+            res = this._newton(x);
+            x = res.x; total += res.iterations;
+        }
+        res.iterations = total;
+        this._flowScale = 1;
+        return res;
+    }
+
+    // Cylinder hard stops: lock v = 0 when the rod would drive past a stroke end.
+    _solveWithStops(x0) {
+        this._locks = new Set();
+        // opts.endStops = { [cylinderCompId]: 'EXTENDED' | 'RETRACTED' } (set by SimulationEngine).
+        // Seeding the lock means the pressure spike to relief appears in the SAME solve; the
+        // release test below frees the cylinder again as soon as the load/pressure reverses.
+        const seed = this.opts.endStops || {};
+        for (const el of this.cylinders) {
+            if (seed[el.comp.id] && (el.info.pos >= 1 - 1e-6 || el.info.pos <= 1e-6)) this._locks.add(el.comp.id);
+        }
+        let res = this._solveNetwork(x0);
+        for (let pass = 0; pass < 4; pass++) {
+            let changed = false;
+            for (const el of this.cylinders) {
+                const id = el.comp.id, { pos, AA, AB } = el.info, v = res.x[el.ext0];
+                if (!this._locks.has(id)) {
+                    if ((v > 1e-3 && pos >= 1 - 1e-6) || (v < -1e-3 && pos <= 1e-6)) { this._locks.add(id); changed = true; }
+                } else {
+                    const PA = this._p(el.tn[0], res.x), PB = this._p(el.tn[1], res.x);
+                    const net = HYD_N_PER_BAR_CM2 * (PA * AA - PB * AB) - el.info.Fload;
+                    if ((pos >= 1 - 1e-6 && net < 0) || (pos <= 1e-6 && net > 0)) { this._locks.delete(id); changed = true; }
+                }
+            }
+            if (!changed) break;
+            res = this._solveNetwork(res.x);
+        }
+        return res;
+    }
+
+    // ══ MAIN ENTRY ════════════════════════════════════════════════════════
+    solve(dt = 0.033) {
+        this._prepare();
+        this._buildElements();
+
+        const warm = HydraulicSolver._warm;
+        const x0 = new Float64Array(this.N);
+        this.nodes.forEach(nd => { if (!nd.fixed && warm.has(nd.key)) x0[nd.free] = warm.get(nd.key); });
+        this.elements.forEach(el => { if (el.nExt && warm.has('v:' + el.comp.id)) x0[el.ext0] = warm.get('v:' + el.comp.id); });
+
+        const res = this._solveWithStops(x0);
+        const x = res.x;
+
+        this.nodes.forEach(nd => { if (!nd.fixed) warm.set(nd.key, x[nd.free]); });
+        this.elements.forEach(el => { if (el.nExt) warm.set('v:' + el.comp.id, x[el.ext0]); });
+
+        return this._compose(x, res, dt);
+    }
+
+    // ══ POST-PROCESSING ═══════════════════════════════════════════════════
+    _compose(x, res, dt) {
+        const g = this.graph, o = this.opts;
+
+        // 1. node pressures
+        const nodePressures = {};
+        for (const [id, node] of g.nodes) {
+            const p = this._p(this.nodeIdxById.get(id), x);
+            nodePressures[id] = p;
+            node.pressure = p;
+        }
+
+        const nodeKeyPressures = new Map();
+        this.nodes.forEach((nd, i) => nodeKeyPressures.set(nd.key, this._p(i, x)));
+
+        // 2. element flows → port flows, path flows
+        const portFlow = new Map(), pathFlow = new Map(), perComp = new Map();
+        const add = (m, k, v) => m.set(k, (m.get(k) || 0) + v);
+        const solved = (id) => { if (!perComp.has(id)) perComp.set(id, {}); return perComp.get(id); };
+        for (const el of this.elements) {
+            const P = el.tn.map(i => this._p(i, x));
+            const E = []; for (let k = 0; k < el.nExt; k++) E.push(x[el.ext0 + k]);
+            const out = el.fn(P, E);
+            el.ports.forEach((pt, k) => { if (k < out.q.length) add(portFlow, `${el.comp.id}:${pt}`, out.q[k]); });
+            if (el.kind === 'pump') {
+                add(pathFlow, `${el.comp.id}|S|P`, out.q[1]);
+                Object.assign(solved(el.comp.id), { deliveredFlowLmin: out.q[1], outletPressureBar: P[0], suctionPressureBar: P[1], cavitating: P[1] < -0.7 });
+            } else if (el.kind === 'cylinder') {
+                if (el.info.hasB) add(pathFlow, `${el.comp.id}|A|B`, out.q[0]);
+            } else if (el.kind === 'divider') {
+                add(pathFlow, `${el.comp.id}|IN|A`, -out.q[1]);
+                add(pathFlow, `${el.comp.id}|IN|B`, -out.q[2]);
+            } else if (el.kind === 'leak' || el.kind.startsWith('path:')) {
+                add(pathFlow, `${el.comp.id}|${el.ports[0]}|${el.ports[1]}`, out.q[0]);
+            }
+        }
+
+        // 3. relief valves
+        let relieving = [];
+        for (const rv of this.reliefs) {
+            const Q = pathFlow.get(`${rv.comp.id}|${rv.from}|${rv.to}`) || 0;
+            const Pin = nodePressures[g.portToNodeMap.get(`${rv.comp.id}:${rv.from}`)];
+            const open = Q > 0.05;
+            Object.assign(solved(rv.comp.id), { reliefSettingBar: rv.Pset, reliefOpen: open, reliefFlowLmin: Q, reliefClamped: open && Pin >= rv.Pset - 0.25, clampedPressureBar: Pin });
+            if (open) relieving.push(rv.comp.id);
+        }
+
+        // 4. cylinders – load-driven pressure requirement
+        for (const el of this.cylinders) {
+            const { AA, AB, Fload, pos, damping } = el.info, id = el.comp.id;
+            const PA = this._p(el.tn[0], x), PB = el.info.hasB ? this._p(el.tn[1], x) : 0;
+            const v = x[el.ext0], locked = this._locks.has(id);
+            const fCap = HYD_N_PER_BAR_CM2 * PA * AA, fRod = HYD_N_PER_BAR_CM2 * PB * AB;
+            const atLimit = pos >= 1 - 1e-6 ? 'EXTENDED' : pos <= 1e-6 ? 'RETRACTED' : null;
+            const reqBack = (Fload + fRod) / (HYD_N_PER_BAR_CM2 * AA);
+            Object.assign(solved(id), {
+                velocityMmS: locked ? 0 : v, capPressureBar: PA, rodPressureBar: PB, areaCapCm2: AA, areaRodCm2: AB,
+                forceCapN: fCap, forceRodN: fRod, loadForceN: Fload,
+                netForceN: fCap - fRod - Fload,
+                requiredCapPressureBar: reqBack,                       // incl. current rod back-pressure
+                requiredCapPressureNoBackpressureBar: Fload / (HYD_N_PER_BAR_CM2 * AA),
+                flowCapLmin: 0.006 * AA * (locked ? 0 : v), flowRodLmin: -0.006 * AB * (locked ? 0 : v),
+                strokeLimit: atLimit, locked,
+                stalled: !atLimit && Math.abs(v) < 0.5 && PA + 0.5 < reqBack
+            });
+        }
+
+        // 5. accumulators
+        this.elements.filter(e => e.kind === 'accumulator').forEach(e => {
+            Object.assign(solved(e.comp.id), { gasPressureBar: e.meta.gas, chargeFlowLmin: portFlow.get(`${e.comp.id}:P`) || 0 });
+        });
+
+        // 6. wire flows – spanning-forest leaf peeling over the wire/port graph
+        const wireFlows = this._wireFlows(portFlow);
+
+        // 7. edge flows (signed fromPort → toPort)
+        for (const e of g.edges) {
+            const f = (pathFlow.get(`${e.compId}|${e.fromPort}|${e.toPort}`) || 0) - (pathFlow.get(`${e.compId}|${e.toPort}|${e.fromPort}`) || 0);
+            e.flow = f;
+        }
+
+        // 8. component states (+ drive handlers with solved boundary conditions)
+        const componentStates = {};
+        for (const comp of this.comps) {
+            const lib = this.library[comp.key];
+            const portPressures = {}, portFlows = {};
+            (lib.ports || []).forEach(p => {
+                const nid = g.portToNodeMap.get(`${comp.id}:${p.id}`);
+                portPressures[p.id] = nid !== undefined ? nodePressures[nid] : 0;
+                portFlows[p.id] = portFlow.get(`${comp.id}:${p.id}`) || 0;
+            });
+            if (o.advanceComponents && comp.handler) {
+                // UI owns spoolPos / openingPercent on comp.state – push them into the handler's private copy
+                ['spoolPos', 'openingPercent'].forEach(k => { if (comp.state && comp.state[k] !== undefined) comp.handler.state[k] = comp.state[k]; });
+                const h = comp.handler, cylSolved = perComp.get(comp.id);
+                const pos0 = h.position;
+                h.step(dt, portPressures, portFlows);
+                if (cylSolved && cylSolved.velocityMmS !== undefined && pos0 !== undefined) {
+                    // integrate with the solved (flow-consistent) velocity, not the handler's own estimate
+                    h.position = Math.min(1, Math.max(0, pos0 + cylSolved.velocityMmS * dt / h.strokeLength));
+                    h.state.position = (h.position * 100).toFixed(1) + '%';
+                }
+            }
+
+            const st = Object.assign({}, comp.handler ? comp.handler.state : {}, solved(comp.id));
+            st.portPressures = portPressures;
+            st.portFlows = portFlows;
+            const pf = {};
+            pathFlow.forEach((v, k) => { const [cid, a, b] = k.split('|'); if (cid === comp.id) pf[`${a}>${b}`] = v; });
+            if (Object.keys(pf).length) {
+                st.pathFlowsLmin = pf;
+                const vals = Object.values(pf);
+                st.throughFlowLmin = vals.reduce((m, v) => Math.abs(v) > Math.abs(m) ? v : m, 0);
+                st.conducting = Math.abs(st.throughFlowLmin) > 0.05;
+            }
+            componentStates[comp.id] = st;
+        }
+
+        // 9. diagnostics
+        const faults = [];
+        const maxP = Math.max(0, ...Object.values(nodePressures));
+        if (!res.converged) faults.push('SOLVER_NOT_CONVERGED');
+        if (maxP > o.maxPressureBar - 1) faults.push('OVERPRESSURE_NO_RELIEF');
+        if (Object.values(componentStates).some(s => s.cavitating)) faults.push('PUMP_CAVITATION');
+        if (Object.values(componentStates).some(s => s.stalled)) faults.push('ACTUATOR_STALLED');
+
+        return {
+            nodePressures, wireFlows, componentStates, nodeKeyPressures,
+            diagnostics: {
+                compressibility: !!this._dyn,
+                converged: res.converged, iterations: res.iterations, residual: res.residual,
+                maxPressureBar: maxP, relievingValves: relieving, faults,
+                lockedCylinders: [...this._locks], unmodeledComponents: this.unmodeled
+            }
+        };
+    }
+
+    _wireFlows(portFlow) {
+        const adj = new Map();
+        const link = (u, v, wire) => {
+            if (!adj.has(u)) adj.set(u, []); if (!adj.has(v)) adj.set(v, []);
+            adj.get(u).push({ to: v, wire }); adj.get(v).push({ to: u, wire });
+        };
+        this.wires.forEach(w => link(`${w.fromCompId}:${w.fromPortId}`, `${w.toCompId}:${w.toPortId}`, w));
+        // junction components pass flow between their ports
+        this.comps.filter(c => /^junction_/.test(c.key)).forEach(c => {
+            const ps = (this.library[c.key].ports || []).map(p => `${c.id}:${p.id}`);
+            for (let i = 1; i < ps.length; i++) link(ps[0], ps[i], null);
+        });
+
+        const demand = new Map();
+        adj.forEach((_, k) => demand.set(k, portFlow.get(k) || 0));
+        const wireFlows = {};
+        this.wires.forEach(w => { wireFlows[w.id] = 0; });
+        const seen = new Set();
+        for (const root of adj.keys()) {
+            if (seen.has(root)) continue;
+            const order = [], parentEdge = new Map();
+            seen.add(root); const queue = [root];
+            while (queue.length) {
+                const u = queue.shift(); order.push(u);
+                for (const e of adj.get(u)) {
+                    if (seen.has(e.to)) continue;
+                    seen.add(e.to); parentEdge.set(e.to, { from: u, wire: e.wire }); queue.push(e.to);
+                }
+            }
+            for (let i = order.length - 1; i > 0; i--) {
+                const v = order[i], pe = parentEdge.get(v), d = demand.get(v);
+                if (pe.wire) {
+                    const wFrom = `${pe.wire.fromCompId}:${pe.wire.fromPortId}`;
+                    wireFlows[pe.wire.id] += (wFrom === pe.from ? d : -d);
+                }
+                demand.set(pe.from, demand.get(pe.from) + d);
+            }
+        }
+        return wireFlows;
+    }
+}
+HydraulicSolver._warm = new Map();   // warm-start cache: node/cylinder key → last solution
+
+
+// ══ OPTIONAL CONVENIENCE: filtered edges on the graph object ═════════════
+if (typeof SystemGraph !== 'undefined') {
+    SystemGraph.prototype.getConductingEdges = function (components) {
+        return HydraulicSolver.getConductingEdges(this, components);
+    };
+}
+
+// ════════ STAGE 4 — SIMULATION ENGINE ════════
+// ══════════════════════════════════════════════════════════════════════════
+// STAGE 4 — SIMULATION ENGINE  (append AFTER hydraulic_solver_stage3.js)
+//
+// Owns the requestAnimationFrame loop and the time integration.
+//
+//   every frame:  Δt (s) = (now − last)/1000, clamped, × timeScale, split into sub-steps
+//   every sub-step:
+//     1. HydraulicSolver.solve()          → pressures, flows (quasi-static)
+//     2. v [mm/s] = Q_cap [L/min] / A_cap [cm²] × 10000/60
+//        position += v·dt/stroke, clamped to [0, 1]
+//     3. stroke end reached → solver is signalled (opts.endStops), re-solved in the SAME
+//        sub-step: flow into the cylinder is 0 so upstream pressure rises to the relief setting
+//     4. component handlers are stepped with the solved port values (accumulator volume,
+//        filter clogging, switches, sensors …)
+//     5. comp.state / wire.flowLmin / wire.pressureBar are updated with live values
+//
+// Public API:  start() · stop() · reset() · step(dt) · setTimeScale(x) · setLoad(id, N)
+//              on(event, fn) → unsubscribe     events: frame | endstop | error | reset | start | stop
+//              .telemetry  .lastResult  .simTime  .running
+//
+// Integration (two edits to your existing script):
+//   1.  in window 'load' handler:   requestAnimationFrame(renderLoop);   →   initSimulationEngine();
+//   2.  (optional) first line of updateTelemetry():
+//          if (simEngine && simEngine.running) return;   // engine drives the HUD with real values
+// ══════════════════════════════════════════════════════════════════════════
+
+// Keys the USER/UI owns on comp.state – the engine never overwrites these with handler output.
+const SIM_UI_INPUT_KEYS = ['spoolPos', 'openingPercent', 'setting'];
+const SIM_LPM_PER_CM2_TO_MM_S = 10000 / 60;     // (L/min) / cm²  →  mm/s
+const SIM_STATE_DEFAULTS = { spoolPos: 0, setting: 180, openingPercent: 100, position: 0, flowQ: 15, pressureP: 0 };
+
+class SimulationEngine {
+
+    constructor(options = {}) {
+        this.opts = Object.assign({
+            maxFrameDt: 0.1,          // s – longest wall-clock frame we simulate (tab-switch protection)
+            maxStepDt: 0.02,          // s – target sub-step size
+            maxSubsteps: 8,           // per frame
+            maxRodSpeedMmS: 2000,     // sanity clamp on cylinder speed
+            motorEfficiency: 0.92,    // mechanical efficiency for torque readout
+            compressibility: true,    // fluid compressibility in the solver (pressure builds over time)
+            ambientC: 25, initialOilTempC: 40,
+            thermalCapacityKJperK: 150,   // oil + steel
+            coolingKWperK: 0.12,          // heat rejection per K above ambient
+            thermalSpeedup: 10,           // makes the oil temperature move on a demo timescale
+            defaultMotorDispCc: 16,   // cc/rev if params.displacement is not set
+            render: true,             // call global render() every frame
+            updateHUD: true,          // drive #hudPressure / #hudFlow / #hudPower
+            hudIntervalS: 0.1,
+            maxConsecutiveErrors: 3,
+            solverOptions: {},        // forwarded to HydraulicSolver
+            components: null,         // override placedComponents
+            wires: null               // override placedWires
+        }, options);
+
+        this.timeScale = 1;
+        this.paused = false;          // in addition to the global simRunning toggle
+        this.running = false;
+        this.simTime = 0;
+        this.tickCount = 0;
+        this.frameId = 0;             // increments every animation frame (used by the flow-particle integrator)
+        this.frameSimDt = 0;          // simulated seconds advanced in the current frame (0 while paused)
+        this.oilTempC = this.opts.initialOilTempC;
+        this.lastResult = null;
+        this.telemetry = this._emptyTelemetry();
+
+        this._raf = null;
+        this._last = null;
+        this._listeners = {};
+        this._graph = null; this._topoSig = '';
+        this._inputSig = '';
+        this._endStops = {};
+        this._pPrev = new Map();      // node pressures of the previous sub-step (for compressibility)
+        this._rt = new WeakMap();     // per-component runtime values (motor shaft angle …)
+        this._errors = 0;
+        this._hudAcc = 0;
+
+        this._tick = (now) => {
+            if (!this.running) return;
+            try { this._frame(now); this._errors = 0; }
+            catch (err) {
+                this._errors++;
+                console.error('[SimulationEngine]', err);
+                this.emit('error', err);
+                if (this._errors >= this.opts.maxConsecutiveErrors) { this.stop(); return; }
+            }
+            if (this.running) this._raf = requestAnimationFrame(this._tick);
+        };
+        this._onVisibility = () => { this._last = null; };   // no giant Δt after tab switch
+    }
+
+    // ── environment access (re-read every call: clearCanvas() reassigns the arrays) ──
+    get components() { return this.opts.components || (typeof placedComponents !== 'undefined' ? placedComponents : []); }
+    get wires()      { return this.opts.wires      || (typeof placedWires !== 'undefined' ? placedWires : []); }
+
+    isPhysicsEnabled() {
+        const ext = (typeof simRunning === 'undefined') ? true : simRunning;   // existing "Run/Pause" button
+        return !this.paused && ext;
+    }
+
+    // ══ LIFECYCLE ═════════════════════════════════════════════════════════
+    start() {
+        if (this.running) return this;
+        this.running = true;
+        this._last = null;
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this._onVisibility);
+        this._raf = requestAnimationFrame(this._tick);
+        this.emit('start');
+        return this;
+    }
+
+    stop() {
+        if (!this.running) return this;
+        this.running = false;
+        if (this._raf !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this._raf);
+        this._raf = null;
+        if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this._onVisibility);
+        this.emit('stop');
+        return this;
+    }
+
+    // Back to t = 0: strokes retracted, accumulators empty, filters clean, motors at 0°.
+    // UI inputs (spool positions, openings, settings) and the wiring are preserved.
+    reset() {
+        this.components.forEach(comp => {
+            const keep = {};
+            SIM_UI_INPUT_KEYS.forEach(k => {
+                if (comp.state && comp.state[k] !== undefined) keep[k] = (k === 'setting') ? hydNum(comp.state[k], 180) : comp.state[k];
+            });
+            comp.state = Object.assign({}, SIM_STATE_DEFAULTS, keep);
+            delete comp.handler;      // handlers are rebuilt from params by the solver
+            delete comp.solved;
+        });
+        this.wires.forEach(w => { w.flowLmin = 0; w.pressureBar = 0; });
+        HydraulicSolver._warm.clear();
+        this._rt = new WeakMap();
+        this._endStops = {};
+        this._pPrev = new Map();
+        this._inputSig = '';
+        this.simTime = 0; this.tickCount = 0; this.frameId = 0; this.frameSimDt = 0;
+        this.oilTempC = this.opts.initialOilTempC;
+        this.lastResult = null; this._last = null;
+        this.telemetry = this._emptyTelemetry();
+        this._substep(0);             // publish the t = 0 hydraulic state
+        this._renderFrame(0);
+        this.emit('reset');
+        return this;
+    }
+
+    // Manual stepping (works while stopped – handy for debugging / unit tests)
+    step(dt = 1 / 60) {
+        this.frameId++; this.frameSimDt = 0;
+        this._advance(dt);
+        this._renderFrame(0);
+        return this.lastResult;
+    }
+
+    setTimeScale(x) { this.timeScale = Math.max(0, Math.min(20, +x || 0)); return this; }
+
+    setLoad(compId, newtons) {
+        const c = this.components.find(k => k.id === compId);
+        if (!c) return false;
+        c.params = Object.assign({}, c.params, { loadForce: newtons });
+        return true;
+    }
+
+    // ══ EVENTS ════════════════════════════════════════════════════════════
+    on(evt, fn) {
+        (this._listeners[evt] = this._listeners[evt] || []).push(fn);
+        return () => { this._listeners[evt] = (this._listeners[evt] || []).filter(f => f !== fn); };
+    }
+    emit(evt, payload) {
+        (this._listeners[evt] || []).slice().forEach(fn => { try { fn(payload); } catch (e) { console.error(e); } });
+    }
+
+    // ══ FRAME / SUB-STEP ══════════════════════════════════════════════════
+    _frame(now) {
+        const raw = this._last === null ? 0 : Math.max(0, (now - this._last) / 1000);   // Δt in seconds
+        this._last = now;
+        const wallDt = Math.min(raw, this.opts.maxFrameDt);
+        this.frameId++; this.frameSimDt = 0;
+
+        if (this.isPhysicsEnabled()) {
+            const simDt = wallDt * this.timeScale;
+            if (simDt > 0) this._advance(simDt);
+        } else {
+            // Paused: nothing moves, but pressures must still react to spool / load / fault edits.
+            if (this._inputSignature() !== this._inputSig) this._substep(0);
+        }
+        this._renderFrame(wallDt);
+        this.emit('frame', this.telemetry);
+    }
+
+    _advance(simDt) {
+        this.frameSimDt += simDt;
+        const n = Math.min(this.opts.maxSubsteps, Math.max(1, Math.ceil(simDt / this.opts.maxStepDt)));
+        const h = simDt / n;
+        for (let i = 0; i < n; i++) this._substep(h);
+    }
+
+    _substep(h) {
+        const comps = this.components;
+        if (!comps.length) { this.lastResult = null; this.telemetry = this._emptyTelemetry(); return null; }
+
+        let result = this._solve(comps, h);
+
+        if (h > 0 && result.diagnostics.converged) {
+            const hits = this._integrateActuators(comps, result, h);
+            if (hits.length) {
+                result = this._solve(comps, h);       // end stops now seeded → pressure builds towards relief
+                hits.forEach(ev => {
+                    const st = result.componentStates[ev.compId] || {};
+                    this.emit('endstop', Object.assign(ev, { capPressureBar: st.capPressureBar, rodPressureBar: st.rodPressureBar, simTime: this.simTime }));
+                });
+            }
+        }
+
+        this._advanceHandlers(comps, result, h);
+        this._publish(comps, result, h);
+        this._pPrev = result.nodeKeyPressures;
+
+        this.simTime += h;
+        this.tickCount++;
+        this._inputSig = this._inputSignature();
+        this.lastResult = result;
+        this._updateTelemetry(result, h);
+        return result;
+    }
+
+    // ── 1. hydraulics ──────────────────────────────────────────────────────
+    _topologySignature() {
+        const comps = this.components, wires = this.wires;
+        return comps.map(c => c.id + c.key).join(',') + '|' +
+               wires.map(w => `${w.id}:${w.fromCompId}.${w.fromPortId}-${w.toCompId}.${w.toPortId}`).join(',');
+    }
+
+    _getGraph() {
+        const sig = this._topologySignature();
+        if (sig !== this._topoSig || !this._graph) {
+            this._graph = SystemGraph.buildGraph(this.components, this.wires, typeof LIBRARY !== 'undefined' ? LIBRARY : {});
+            this._topoSig = sig;
+        }
+        return this._graph;
+    }
+
+    _solve(comps, h = 0) {
+        const solver = new HydraulicSolver(this._getGraph(), Object.assign({}, this.opts.solverOptions, {
+            components: comps, wires: this.wires,
+            dynamics: (this.opts.compressibility && h > 0) ? { dt: h, prev: this._pPrev } : null,
+            advanceComponents: false,           // the engine steps the handlers itself (needs the stroke result first)
+            endStops: this._endStops
+        }));
+        return solver.solve(0);
+    }
+
+    _inputSignature() {
+        let s = (typeof activeFault !== 'undefined' ? activeFault : '') + '|' + this._topologySignature() + '|';
+        for (const c of this.components) {
+            s += `${c.id}:${c.state ? c.state.spoolPos : ''}:${c.state ? c.state.openingPercent : ''}:${c.params ? JSON.stringify(c.params) : ''};`;
+        }
+        return s;
+    }
+
+    // ── 2./3. time integration of actuators ───────────────────────────────
+    _rtOf(comp) { let r = this._rt.get(comp); if (!r) { r = {}; this._rt.set(comp, r); } return r; }
+
+    _integrateActuators(comps, result, h) {
+        const hits = [];
+        for (const comp of comps) {
+            const hd = comp.handler, st = result.componentStates[comp.id];
+            if (!hd || !st) continue;
+
+            // ── cylinders / rotary actuators ───────────────────────────────
+            if (typeof CylinderComponent !== 'undefined' && hd instanceof CylinderComponent) {
+                const A = st.areaCapCm2 > 0 ? st.areaCapCm2 : hd.getActiveArea('A', hd.position);   // cm²
+                const Q = st.flowCapLmin || 0;                                                         // L/min into the cap side
+                let v = A > 0 ? Q * SIM_LPM_PER_CM2_TO_MM_S / A : 0;                                   // mm/s
+                const vmax = this.opts.maxRodSpeedMmS;
+                v = Math.max(-vmax, Math.min(vmax, v));
+                if (!isFinite(v)) v = 0;
+
+                const pos0 = hd.position;
+                let pos1 = pos0 + v * h / hd.strokeLength;
+                let stop = null;
+                if (pos1 >= 1) { pos1 = 1; stop = 'EXTENDED'; }
+                else if (pos1 <= 0) { pos1 = 0; stop = 'RETRACTED'; }
+                hd.position = pos1;
+                this._rtOf(comp).velocityMmS = v;
+
+                const wasAtStop = (stop === 'EXTENDED' && pos0 >= 1 - 1e-9) || (stop === 'RETRACTED' && pos0 <= 1e-9);
+                if (stop && !wasAtStop) {
+                    hits.push({ compId: comp.id, tag: comp.tag, stop, impactVelocityMmS: Math.abs(v) });
+                }
+                // keep the solver informed: a cylinder sitting on a stop is seeded as locked
+                if (pos1 >= 1) this._endStops[comp.id] = 'EXTENDED';
+                else if (pos1 <= 0) this._endStops[comp.id] = 'RETRACTED';
+                else delete this._endStops[comp.id];
+                continue;
+            }
+
+            // ── hydraulic motors: shaft speed follows the flow through the motor ──
+            if (comp.key === 'motor_fixed' || comp.key === 'motor_var') {
+                const par = Object.assign({}, hd.params, comp.params || {});
+                const disp = Math.max(0.1, hydNum(par.displacement, this.opts.defaultMotorDispCc) * (comp.key === 'motor_var' ? hydNum(par.swash, 1) : 1));
+                const Q = (st.pathFlowsLmin && st.pathFlowsLmin['A>B']) || 0;      // L/min, + = A → B
+                const rpm = Q * 1000 / disp;                                         // cc/min ÷ cc/rev
+                const rt = this._rtOf(comp);
+                rt.rpm = rpm;
+                rt.angleDeg = (((rt.angleDeg || 0) + rpm * 6 * h) % 360 + 360) % 360;   // 1 rpm = 6 °/s
+                const dP = (st.portPressures.A || 0) - (st.portPressures.B || 0);
+                rt.torqueNm = dP * disp / (20 * Math.PI) * this.opts.motorEfficiency;
+                rt.dispCc = disp;
+            }
+        }
+        return hits;
+    }
+
+    // ── 4. handler stepping with the solved boundary conditions ───────────
+    _advanceHandlers(comps, result, h) {
+        for (const comp of comps) {
+            const hd = comp.handler, st = result.componentStates[comp.id];
+            if (!hd || !st) continue;
+            // UI-owned inputs live on comp.state; the handler works on a private copy
+            ['spoolPos', 'openingPercent'].forEach(k => { if (comp.state && comp.state[k] !== undefined) hd.state[k] = comp.state[k]; });
+
+            if (comp.key === 'temp_switch' && !(comp.params && comp.params.fluidTemp !== undefined)) hd.params.fluidTemp = this.oilTempC;
+
+            const isCyl = typeof CylinderComponent !== 'undefined' && hd instanceof CylinderComponent;
+            const pos = isCyl ? hd.position : null;
+            hd.step(h, st.portPressures, st.portFlows);
+            if (isCyl) {                         // the engine owns stroke integration, not CylinderComponent.step
+                hd.position = pos;
+                hd.state.position = (pos * 100).toFixed(1) + '%';
+            }
+        }
+    }
+
+    // ── 5. live values into comp.state / wires ─────────────────────────────
+    _publish(comps, result, h = 0) {
+        const graph = this._graph;
+        for (const comp of comps) {
+            const hd = comp.handler, st = result.componentStates[comp.id];
+            if (!st) continue;
+            const next = Object.assign({}, comp.state);
+
+            // (a) numeric / boolean solver outputs
+            for (const [k, v] of Object.entries(st)) {
+                if ((typeof v === 'number' || typeof v === 'boolean') && !SIM_UI_INPUT_KEYS.includes(k)) next[k] = v;
+            }
+            // (b) fresh handler display state
+            if (hd) for (const [k, v] of Object.entries(hd.state)) { if (!SIM_UI_INPUT_KEYS.includes(k)) next[k] = v; }
+
+            // (c) live overlay
+            const pp = Object.values(st.portPressures || {});
+            next.pressureP = st.outletPressureBar !== undefined ? st.outletPressureBar : (pp.length ? Math.max(...pp) : 0);   // bar
+            next.flowQ = st.deliveredFlowLmin !== undefined ? st.deliveredFlowLmin
+                       : st.throughFlowLmin !== undefined ? st.throughFlowLmin : 0;                                             // L/min
+            if (pp.length === 2) next.deltaPBar = Math.abs(pp[0] - pp[1]);
+
+            if (hd && typeof CylinderComponent !== 'undefined' && hd instanceof CylinderComponent) {
+                const rt = this._rtOf(comp);
+                next.position = hd.position * 100;          // live stroke in % (0–100) – read by the symbol drawers
+                next.strokePct = hd.position * 100;
+                next.strokeMm = hd.position * hd.strokeLength;
+                next.velocityMmS = st.locked ? 0 : (rt.velocityMmS || 0);
+                next.endStop = this._endStops[comp.id] || null;
+            }
+            if (comp.key === 'motor_fixed' || comp.key === 'motor_var') {
+                const rt = this._rtOf(comp);
+                next.speedRpm = rt.rpm || 0; next.shaftAngleDeg = rt.angleDeg || 0; next.torqueNm = rt.torqueNm || 0;
+            }
+            comp.state = next;
+        }
+
+        for (const w of this.wires) {
+            w.flowLmin = result.wireFlows[w.id] || 0;
+            const nid = graph && graph.portToNodeMap.get(`${w.fromCompId}:${w.fromPortId}`);
+            w.pressureBar = nid !== undefined && result.nodePressures[nid] !== undefined ? result.nodePressures[nid] : 0;
+        }
+    }
+
+    // ══ TELEMETRY / HUD / RENDER ══════════════════════════════════════════
+    _emptyTelemetry() {
+        return { simTime: 0, tick: 0, systemPressureBar: 0, pumpFlowLmin: 0, hydraulicPowerKW: 0, reliefFlowLmin: 0,
+                 reliefSettingBar: 0, mechPowerKW: 0, lossPowerKW: 0, oilTempC: this.opts.initialOilTempC,
+                 converged: true, iterations: 0, faults: [], endStops: {}, timeScale: 1, running: false };
+    }
+
+    _updateTelemetry(result, h = 0) {
+        let P = 0, Q = 0, relief = 0, reliefSet = 0, mech = 0;
+        for (const st of Object.values(result.componentStates)) {
+            if (st.deliveredFlowLmin !== undefined) { Q += st.deliveredFlowLmin; P = Math.max(P, st.outletPressureBar); }
+            if (st.reliefFlowLmin) relief += st.reliefFlowLmin;
+            if (st.reliefSettingBar !== undefined) reliefSet = Math.max(reliefSet, st.reliefSettingBar);
+            if (st.loadForceN !== undefined && st.velocityMmS !== undefined) mech += Math.abs(st.loadForceN * st.velocityMmS) / 1e6;   // N·mm/s → kW
+        }
+        for (const comp of this.components) {                                                                                          // motors: T·ω
+            const rt = this._rt.get(comp);
+            if (rt && rt.torqueNm !== undefined) mech += Math.abs(rt.torqueNm * rt.rpm) * 2 * Math.PI / 60 / 1000;
+        }
+        const pIn = P * Q / 600;                                   // kW  (bar · L/min / 600)
+        const loss = Math.max(0, pIn - mech);                      // everything not turned into useful work heats the oil
+
+        if (h > 0) {                                               // lumped thermal model
+            const o = this.opts;
+            const dT = (loss - o.coolingKWperK * (this.oilTempC - o.ambientC)) / o.thermalCapacityKJperK * h * o.thermalSpeedup;
+            this.oilTempC = Math.min(150, Math.max(o.ambientC, this.oilTempC + dT));
+        }
+        this.telemetry = {
+            simTime: this.simTime, tick: this.tickCount, systemPressureBar: P, pumpFlowLmin: Q,
+            hydraulicPowerKW: pIn, reliefFlowLmin: relief, reliefSettingBar: reliefSet,
+            mechPowerKW: mech, lossPowerKW: loss, oilTempC: this.oilTempC,
+            converged: result.diagnostics.converged, iterations: result.diagnostics.iterations,
+            faults: result.diagnostics.faults, endStops: Object.assign({}, this._endStops),
+            timeScale: this.timeScale, running: this.running
+        };
+    }
+
+    // Pressure (bar) of the node a given port belongs to – null before the first solve
+    getPortPressure(compId, portId) {
+        const g = this._graph, r = this.lastResult;
+        if (!g || !r) return null;
+        const nid = g.portToNodeMap.get(`${compId}:${portId}`);
+        return nid !== undefined && r.nodePressures[nid] !== undefined ? r.nodePressures[nid] : null;
+    }
+
+    _renderFrame(wallDt) {
+        if (wallDt > 0 && this.isPhysicsEnabled() && typeof animOffset !== 'undefined') animOffset += 1.5 * wallDt * 60;   // Falstad dot drift
+        if (this.opts.updateHUD) {                                  // HUD is drawn by the app's updateTelemetry()
+            this._hudAcc += wallDt;
+            if (this._hudAcc >= this.opts.hudIntervalS || wallDt === 0) {
+                this._hudAcc = 0;
+                if (typeof updateTelemetry === 'function') updateTelemetry();
+            }
+        }
+        if (this.opts.render && typeof render === 'function') render();
+    }
+}
+
+// ── global instance helpers ────────────────────────────────────────────────
+let simEngine = null;
+function initSimulationEngine(options = {}) {
+    if (simEngine) simEngine.stop();
+    simEngine = new SimulationEngine(options);
+    simEngine.reset();      // publish a consistent t = 0 state, then run
+    simEngine.start();
+    return simEngine;
+}
+
+// ════════ LIVE VISUALS & CONTROLS ════════
+// ══════════════════════════════════════════════════════════════════════════
+// LIVE VISUALS & CONTROLS (v12) – connects SimulationEngine output to the canvas / DOM
+// ══════════════════════════════════════════════════════════════════════════
+let showLiveData = true;
+
+const LIVE_DCV_BOXES = {
+    dcv_43_closed: [[-50, 33], [-17, 34], [17, 33]], dcv_43_open: [[-50, 33], [-17, 34], [17, 33]],
+    dcv_43_tandem: [[-50, 33], [-17, 34], [17, 33]], dcv_43_float: [[-50, 33], [-17, 34], [17, 33]],
+    dcv_22: [[-40, 35], [-5, 35]], dcv_32_nc: [[-40, 35], [-5, 35]], dcv_42: [[-35, 35], [0, 35]]
+};
+
+// Local-coordinate overlay, drawn right after def.draw() inside the component transform.
+function drawLiveOverlay(ctx, comp, def) {
+    const st = comp.state || {};
+    if (!simEngine || !simEngine.lastResult) return;
+    const key = comp.key;
+    ctx.save();
+
+    // ── directional valves: highlight the active envelope ──
+    if (LIVE_DCV_BOXES[key]) {
+        const boxes = LIVE_DCV_BOXES[key], pos = Math.sign(st.spoolPos || 0);
+        const idx = boxes.length === 3 ? (pos > 0 ? 0 : pos < 0 ? 2 : 1) : (pos > 0 ? 0 : 1);
+        const [x, w] = boxes[idx];
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
+        ctx.fillRect(x, -20, w, 40);
+        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2; ctx.strokeRect(x, -20, w, 40);
+    }
+
+    // ── relief / pressure valves: open indicator ──
+    if (st.reliefSettingBar !== undefined) {
+        ctx.beginPath(); ctx.arc(0, -38, 5, 0, Math.PI * 2);
+        ctx.fillStyle = st.reliefOpen ? '#f97316' : '#334155'; ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    // ── motors: rotating spoke ──
+    if ((key === 'motor_fixed' || key === 'motor_var') && st.shaftAngleDeg !== undefined) {
+        ctx.rotate((st.shaftAngleDeg || 0) * Math.PI / 180);
+        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(24, 0); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fillStyle = '#facc15'; ctx.fill();
+    }
+
+    // ── rotary actuators / rack & pinion: pointer follows the stroke ──
+    if (key === 'rotary_double' || key === 'rotary_spring' || key === 'rack_pinion') {
+        const ang = (liveStroke(st, 0) * 270 - 135) * Math.PI / 180;
+        const cy = key === 'rack_pinion' ? -25 : 0, r = key === 'rack_pinion' ? 18 : 30;
+        ctx.translate(0, cy); ctx.rotate(ang);
+        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -r); ctx.stroke();
+    }
+
+    // ── accumulators: fluid level gauge ──
+    if (comp.handler && typeof AccumulatorComponent !== 'undefined' && comp.handler instanceof AccumulatorComponent) {
+        const fill = Math.max(0, Math.min(1, comp.handler.currentFluidV / comp.handler.V0));
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.strokeRect(42, -30, 8, 60);
+        ctx.fillStyle = '#3b82f6'; ctx.fillRect(43, 30 - 60 * fill, 6, 60 * fill);
+    }
+
+    // ── filters: clogged badge ──
+    if (st.clogged === true) {
+        ctx.fillStyle = '#ef4444'; ctx.fillRect(-20, -48, 40, 12);
+        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('CLOGGED', 0, -39);
+    }
+
+    // ── cylinders on a hard stop ──
+    if (st.endStop) {
+        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.setLineDash([3, 3]);
+        const w = def.w || 120, h = def.h || 80;
+        ctx.strokeRect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8); ctx.setLineDash([]);
+    }
+    ctx.restore();
+}
+
+// World-coordinate numeric readout under the symbol.
+function drawLiveReadout(ctx, comp, def) {
+    if (!showLiveData || !simEngine || !simEngine.lastResult) return;
+    const st = comp.state || {}, key = comp.key, lines = [];
+    const f = (v, d = 1) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '–';
+
+    if (st.deliveredFlowLmin !== undefined) lines.push(`${f(st.outletPressureBar, 0)} bar · ${f(st.deliveredFlowLmin)} L/min`);
+    else if (st.strokePct !== undefined) {
+        lines.push(`${f(st.strokePct, 0)}% · ${f(st.velocityMmS, 0)} mm/s${st.endStop ? ' · END' : ''}`);
+        lines.push(`A ${f(st.capPressureBar, 0)} / B ${f(st.rodPressureBar, 0)} bar`);
+    }
+    else if (st.speedRpm !== undefined) lines.push(`${f(st.speedRpm, 0)} rpm · ${f(st.torqueNm)} Nm`);
+    else if (st.reliefSettingBar !== undefined) lines.push(`${st.reliefOpen ? 'OPEN' : 'closed'} · ${f(st.reliefFlowLmin)} L/min`);
+    else if (st.gasPressureBar !== undefined) {
+        const fill = comp.handler ? 100 * comp.handler.currentFluidV / comp.handler.V0 : NaN;
+        lines.push(`${f(st.gasPressureBar, 0)} bar · ${f(fill, 0)}% full`);
+    }
+    else if (key === 'press_transducer' || key === 'press_switch') lines.push(`${f(st.pressureP, 1)} bar`);
+    else if (key === 'flowmeter') lines.push(`${f(Math.abs(st.flowQ || 0))} L/min`);
+    else if (st.deltaPBar !== undefined && Math.abs(st.flowQ || 0) > 0.05) lines.push(`ΔP ${f(st.deltaPBar)} bar · ${f(Math.abs(st.flowQ))} L/min`);
+
+    if (!lines.length) return;
+    const h = def.h || 80, y0 = comp.y + h / 2 + 24;
+    ctx.save();
+    ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
+    lines.forEach((ln, i) => {
+        const w = ctx.measureText(ln).width + 10, y = y0 + i * 14;
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.82)'; ctx.fillRect(comp.x - w / 2, y - 10, w, 13);
+        ctx.fillStyle = (st.reliefOpen || st.endStop) ? '#fb923c' : '#e2e8f0'; ctx.fillText(ln, comp.x, y);
+    });
+    ctx.restore();
+}
+
+// Inspector "live" block (selected component or hose)
+function refreshInspectorLive() {
+    const el = document.getElementById('inspectorLive');
+    if (!el) return;
+    const f = (v, d = 1) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '–';
+    const row = (k, v) => `<div class="prop-row"><span class="prop-label">${k}:</span><span class="prop-val">${v}</span></div>`;
+    let html = '';
+    if (selectedCompId) {
+        const c = placedComponents.find(k => k.id === selectedCompId), st = c && c.state;
+        if (st && simEngine && simEngine.lastResult) {
+            html += row('Pressure', f(st.pressureP) + ' bar') + row('Flow', f(st.flowQ) + ' L/min');
+            if (st.strokePct !== undefined) {
+                html += row('Stroke', f(st.strokePct) + ' % (' + f(st.strokeMm, 0) + ' mm)') + row('Velocity', f(st.velocityMmS) + ' mm/s');
+                html += row('Cap / Rod P', f(st.capPressureBar) + ' / ' + f(st.rodPressureBar) + ' bar');
+                html += row('Load / Req. P', f(st.loadForceN, 0) + ' N / ' + f(st.requiredCapPressureBar) + ' bar');
+                html += row('End stop', st.endStop || 'none');
+            }
+            if (st.speedRpm !== undefined) html += row('Speed', f(st.speedRpm, 0) + ' rpm') + row('Torque', f(st.torqueNm) + ' Nm');
+            if (st.reliefSettingBar !== undefined) html += row('Relief', (st.reliefOpen ? 'OPEN' : 'closed') + ' @ ' + f(st.reliefSettingBar, 0) + ' bar') + row('Relief flow', f(st.reliefFlowLmin) + ' L/min');
+            if (st.cavitating !== undefined) html += row('Suction', f(st.suctionPressureBar) + ' bar' + (st.cavitating ? ' ⚠ CAVITATION' : ''));
+            if (st.gasPressureBar !== undefined) html += row('Gas pressure', f(st.gasPressureBar) + ' bar');
+            if (st.deltaPBar !== undefined) html += row('ΔP', f(st.deltaPBar) + ' bar');
+        }
+    } else if (selectedWireId) {
+        const w = placedWires.find(k => k.id === selectedWireId);
+        if (w && w.flowLmin !== undefined) html += row('Flow', f(w.flowLmin) + ' L/min (' + (w.flowLmin >= 0 ? 'from → to' : 'to → from') + ')') + row('Pressure', f(w.pressureBar) + ' bar');
+    }
+    el.innerHTML = html ? `<div style="margin-top:0.4rem; padding-top:0.3rem; border-top:1px solid #334155; font-size:0.72rem;">${html}</div>` : '';
+}
+
+// ── toolbar actions ──
+function toggleLiveData() {
+    showLiveData = !showLiveData;
+    const b = document.getElementById('btnLive');
+    if (b) { b.innerText = '📊 Live Data: ' + (showLiveData ? 'ON' : 'OFF'); b.classList.toggle('active', showLiveData); }
+    render();
+}
+function setSimSpeed(v) { if (simEngine) simEngine.setTimeScale(parseFloat(v)); }
+
+
+// ════════ STAGE 5 — LIVE BINDING HELPERS ════════
+// ── colour scale: #3b82f6 (0 bar) → #ef4444 (relief pressure) ─────────────
+const HYD_COLOR_LOW  = [0x3b, 0x82, 0xf6];
+const HYD_COLOR_HIGH = [0xef, 0x44, 0x44];
+const HYD_DOT = { spacing: 18, minQ: 0.05, baseSpeed: 8, gain: 4, maxQ: 50 };   // px, L/min, px/s, px/s per L/min, L/min
+
+function simIsLive() { return !!(typeof simEngine !== 'undefined' && simEngine && simEngine.lastResult); }
+
+// Relief pressure of the circuit (highest relief setting found by the solver), 210 bar if there is none.
+function hydReliefReference() {
+    const t = (typeof simEngine !== 'undefined' && simEngine) ? simEngine.telemetry : null;
+    return (t && t.reliefSettingBar > 1) ? t.reliefSettingBar : 210;
+}
+
+function blendPressureColor(p, pRef = hydReliefReference()) {
+    const t = Math.max(0, Math.min(1, (p || 0) / pRef));
+    const c = HYD_COLOR_LOW.map((lo, i) => Math.round(lo + (HYD_COLOR_HIGH[i] - lo) * t));
+    return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+function pressureColor(p) { return blendPressureColor(p); }      // name used by the overlay code
+
+// 0..1 piston stroke for the symbol drawers.  comp.state.position is the live stroke in % (0–100);
+// before the engine has produced a result the neutral pose (dflt) is drawn.
+function liveStroke(st, dflt = 0.365) {
+    if (!simIsLive() || !st) return dflt;
+    const p = (typeof st.position === 'number') ? st.position : parseFloat(st.position);
+    return isFinite(p) ? Math.max(0, Math.min(1, p / 100)) : dflt;
+}
+
+function drawPressureLegend(ctx, cssW, cssH, pRef) {
+    const x = 18, y = cssH - 34, w = 170, h = 8;
+    ctx.save();
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.82)'; ctx.fillRect(x - 8, y - 20, w + 16, 50);
+    const g = ctx.createLinearGradient ? ctx.createLinearGradient(x, 0, x + w, 0) : null;
+    if (g && g.addColorStop) { g.addColorStop(0, '#3b82f6'); g.addColorStop(1, '#ef4444'); ctx.fillStyle = g; } else ctx.fillStyle = '#3b82f6';
+    ctx.fillRect(x, y, w, h);
+    ctx.font = 'bold 10px sans-serif'; ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'left';  ctx.fillText('Hose pressure', x, y - 6); ctx.fillText('0 bar', x, y + 22);
+    ctx.textAlign = 'right'; ctx.fillText(pRef.toFixed(0) + ' bar (relief)', x + w, y + 22);
+    ctx.restore();
+}
+
+// ── engine lifecycle bound to the "Run Physics Engine" button ─────────────
+function syncSimButton() {
+    const btn = document.getElementById('btnSim');
+    if (!btn) return;
+    const active = !!(simEngine && simEngine.running && simRunning);
+    btn.innerText = !simEngine ? '▶ Run Physics Engine' : active ? '⏸ Pause Physics Engine' : '▶ Resume Physics Engine';
+    btn.classList.toggle('active', active);
+}
+
+function startSimulation() {
+    if (!simEngine) {
+        initSimulationEngine();                       // build engine, publish the t = 0 state, start the rAF loop
+        const sel = document.getElementById('simSpeedSelect');
+        if (sel) simEngine.setTimeScale(parseFloat(sel.value) || 1);
+        let last = 0;
+        simEngine.on('frame', () => {                 // throttle inspector DOM work to ~5 Hz
+            const now = performance.now();
+            if (now - last > 200) { last = now; refreshInspectorLive(); }
+        });
+        simEngine.on('start', syncSimButton);
+        simEngine.on('stop', syncSimButton);
+        simEngine.on('error', () => { simRunning = false; syncSimButton(); });
+        simEngine.on('endstop', (e) => console.log(`[sim] ${e.tag || e.compId} hit ${e.stop} end stop at ${e.simTime.toFixed(2)} s, ${e.impactVelocityMmS.toFixed(0)} mm/s`));
+    } else if (!simEngine.running) {
+        simEngine.start();
+    }
+    syncSimButton();
+}
+
+function resetSimulation() { if (simEngine) simEngine.reset(); updateTelemetry(); updateUI(); }
+
+// ── APPLICATION STATE & GLOBALS ──
 
         // ── APPLICATION STATE & GLOBAL VARIABLES ──
         let canvas, ctx;
@@ -1429,7 +3420,7 @@ res_vented: {
         
         let snapToGrid = true;
         let showIsoTags = true;
-        let simRunning = true;
+        let simRunning = false; // set by the Run / Pause button
         let activeFault = 'NONE';
         let wireStyle = 'solid-red';
         let animOffset = 0;
@@ -1461,7 +3452,7 @@ res_vented: {
             setupCanvasEvents();
             setupPreloadedCircuit();
 
-            requestAnimationFrame(renderLoop);
+            render(); // physics engine is created by the 'Run Physics Engine' button (toggleSim)
         });
 
         function resizeCanvas() {
@@ -1492,9 +3483,10 @@ res_vented: {
             placedWires.push({ id: 'w1', fromCompId: res.id, fromPortId: 'S', toCompId: pump.id, toPortId: 'S', style: 'solid-blue' });
             placedWires.push({ id: 'w2', fromCompId: pump.id, fromPortId: 'P', toCompId: dcv.id, toPortId: 'P', style: 'solid-red' });
             placedWires.push({ id: 'w3', fromCompId: pump.id, fromPortId: 'P', toCompId: prv.id, toPortId: 'P', style: 'solid-red' });
-            placedWires.push({ id: 'w4', fromCompId: prv.id, fromPortId: 'T', toCompId: res.id, toPortId: 'R', style: 'solid-blue' });
+            placedWires.push({ id: 'w4', fromCompId: prv.id, fromPortId: 'T', toCompId: res.id, toPortId: 'T', style: 'solid-blue' });
             placedWires.push({ id: 'w5', fromCompId: dcv.id, fromPortId: 'A', toCompId: cyl.id, toPortId: 'A', style: 'solid-red' });
             placedWires.push({ id: 'w6', fromCompId: dcv.id, fromPortId: 'B', toCompId: cyl.id, toPortId: 'B', style: 'solid-blue' });
+            placedWires.push({ id: 'w7', fromCompId: dcv.id, fromPortId: 'T', toCompId: res.id, toPortId: 'T', style: 'solid-blue' }); // DCV tank return (rod side must be able to drain)
 
             updateUI();
         }
@@ -1706,8 +3698,8 @@ res_vented: {
                     if (c1 && c2) {
                         const p1 = getPortWorldPos(c1, w.fromPortId);
                         const p2 = getPortWorldPos(c2, w.toPortId);
-                        const dist = pointToSeqDist(pos.wx, pos.wy, p1.x, p1.y, p2.x, p2.y);
-                        if (dist < 10) {
+                        const pathPoints = calculateManhattanPath(p1, p2);
+                        if (isPointNearPath(pos.wx, pos.wy, pathPoints, 10)) {
                             selectedWireId = w.id;
                             selectedCompId = null;
                             updateUI();
@@ -1798,7 +3790,49 @@ res_vented: {
                 draggingCompId = null;
             });
 
-            canvas.addEventListener('wheel', (e) => {
+            
+            canvas.addEventListener('dblclick', (e) => {
+                const pos = getEventWorldPos(e);
+                for (let w of placedWires) {
+                    const c1 = placedComponents.find(c => c.id === w.fromCompId);
+                    const c2 = placedComponents.find(c => c.id === w.toCompId);
+                    if (c1 && c2) {
+                        const p1 = getPortWorldPos(c1, w.fromPortId);
+                        const p2 = getPortWorldPos(c2, w.toPortId);
+                        const pathPoints = calculateManhattanPath(p1, p2);
+                        if (isPointNearPath(pos.wx, pos.wy, pathPoints, 12)) {
+                            const jx = snapToGrid ? Math.round(pos.wx / 20) * 20 : pos.wx;
+                            const jy = snapToGrid ? Math.round(pos.wy / 20) * 20 : pos.wy;
+                            const jComp = spawnComponent('junction_tee', jx, jy);
+                            if (jComp) {
+                                placedWires = placedWires.filter(wi => wi.id !== w.id);
+                                placedWires.push({
+                                    id: 'wire_' + Date.now() + '_1',
+                                    fromCompId: w.fromCompId,
+                                    fromPortId: w.fromPortId,
+                                    toCompId: jComp.id,
+                                    toPortId: '1',
+                                    style: w.style
+                                });
+                                placedWires.push({
+                                    id: 'wire_' + Date.now() + '_2',
+                                    fromCompId: jComp.id,
+                                    fromPortId: '2',
+                                    toCompId: w.toCompId,
+                                    toPortId: w.toPortId,
+                                    style: w.style
+                                });
+                                selectedCompId = jComp.id;
+                                updateUI();
+                                render();
+                                return;
+                            }
+                        }
+                    }
+                }
+            });
+
+canvas.addEventListener('wheel', (e) => {
                 e.preventDefault();
                 const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
                 const pos = getEventWorldPos(e);
@@ -1830,8 +3864,9 @@ res_vented: {
             });
         }
 
-        function pointToSeqDist(x, y, x1, y1, x2, y2) {
-            const A = x - x1, B = y - y1, C = x2 - x1, D = y2 - y1;
+        function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+            const A = px - x1, B = py - y1;
+            const C = x2 - x1, D = y2 - y1;
             const dot = A * C + B * D;
             const len_sq = C * C + D * D;
             let param = -1;
@@ -1840,15 +3875,23 @@ res_vented: {
             if (param < 0) { xx = x1; yy = y1; }
             else if (param > 1) { xx = x2; yy = y2; }
             else { xx = x1 + param * C; yy = y1 + param * D; }
-            return Math.hypot(x - xx, y - yy);
+            return Math.hypot(px - xx, py - yy);
+        }
+
+        function isPointNearPath(wx, wy, pathPoints, threshold = 10) {
+            if (!pathPoints || pathPoints.length < 2) return false;
+            for (let i = 0; i < pathPoints.length - 1; i++) {
+                const p1 = pathPoints[i];
+                const p2 = pathPoints[i + 1];
+                const dist = pointToSegmentDistance(wx, wy, p1.x, p1.y, p2.x, p2.y);
+                if (dist <= threshold) return true;
+            }
+            return false;
         }
 
         // ── RENDER ENGINE ──
-        function renderLoop() {
-            animOffset += 1.5;
-            render();
-            requestAnimationFrame(renderLoop);
-        }
+        // (v12) The mock stepPhysicsRegistry()/renderLoop() pair was replaced by SimulationEngine
+        // (Stage 4): solver + time integration + render are driven from simEngine's rAF loop.
 
         function render() {
             if (!ctx || !canvas) return;
@@ -1856,6 +3899,8 @@ res_vented: {
             const dpr = window.devicePixelRatio || 1;
             const cssW = canvas.width / dpr;
             const cssH = canvas.height / dpr;
+            const live = simIsLive();                         // solver results available?
+            const pRef = hydReliefReference();                // pressure that maps to #ef4444
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -1868,7 +3913,7 @@ res_vented: {
 
             drawGrid(cssW, cssH);
 
-            // 1. Draw Wires with Animated Falstad Particles
+            // 1. Draw Wires: colour = node pressure, particles = flow
             for (let w of placedWires) {
                 const c1 = placedComponents.find(c => c.id === w.fromCompId);
                 const c2 = placedComponents.find(c => c.id === w.toCompId);
@@ -1876,14 +3921,17 @@ res_vented: {
                     const p1 = getPortWorldPos(c1, w.fromPortId);
                     const p2 = getPortWorldPos(c2, w.toPortId);
                     const isSelected = (w.id === selectedWireId);
+                    const flowQ = (live && typeof w.flowLmin === 'number') ? w.flowLmin : null;
+                    const nodeP = (live && typeof w.pressureBar === 'number') ? w.pressureBar : null;
 
-                    ctx.lineWidth = isSelected ? 4 : 3;
+                    // hose gets thicker with flow (1.5 px extra at ≥ 37 L/min)
+                    ctx.lineWidth = (isSelected ? 4 : 3) + (flowQ === null ? 0 : Math.min(Math.abs(flowQ) / 25, 1.5));
                     let particleColor = '#facc15';
 
+                    // Line style (dash pattern + fallback colour when no solver data yet)
                     if (w.style === 'solid-red') {
                         ctx.strokeStyle = activeFault === 'AIR_INGRESS' ? '#f97316' : '#ef4444';
-                        ctx.setLineDash([]);
-                        particleColor = '#facc15';
+                        ctx.setLineDash([]); particleColor = '#facc15';
                     } else if (w.style === 'solid-blue') {
                         ctx.strokeStyle = '#3b82f6'; ctx.setLineDash([]); particleColor = '#93c5fd';
                     } else if (w.style === 'dashed-cyan') {
@@ -1891,6 +3939,8 @@ res_vented: {
                     } else if (w.style === 'dotted-gray') {
                         ctx.strokeStyle = '#94a3b8'; ctx.setLineDash([3, 3]); particleColor = '#e2e8f0';
                     }
+                    // Live pressure colour overrides the style colour, the dash pattern (pilot / drain) is kept
+                    if (nodeP !== null) { ctx.strokeStyle = blendPressureColor(nodeP, pRef); particleColor = '#f8fafc'; }
 
                     // Manhattan Orthogonal Routing
                     const pathPoints = calculateManhattanPath(p1, p2);
@@ -1902,10 +3952,9 @@ res_vented: {
                     ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Draw Falstad Animated Dots
-                    if (simRunning && activeFault !== 'PUMP_FAILURE') {
-                        drawFalstadDotsOnPath(pathPoints, particleColor);
-                    }
+                    // Flow particles: speed/direction from this hose's solved Q (frozen & dimmed at Q = 0)
+                    if (live) drawFalstadDotsOnPath(pathPoints, particleColor, w);
+                    else if (simRunning && activeFault !== 'PUMP_FAILURE') drawFalstadDotsOnPath(pathPoints, particleColor);
 
                     if (isSelected) {
                         ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.stroke();
@@ -1972,7 +4021,9 @@ res_vented: {
                 ctx.translate(comp.x, comp.y);
                 ctx.rotate(comp.rotation * Math.PI / 180);
 
-                def.draw(ctx);
+                // Symbol drawers get the live state: cylinders offset piston/rod from comp.state.position (0–100 %)
+                def.draw(ctx, comp.state || {}, comp);
+                drawLiveOverlay(ctx, comp, def);              // active spool envelope, relief LED, motor spoke, accumulator level …
 
                 if (isSelected) {
                     ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
@@ -1983,7 +4034,7 @@ res_vented: {
 
                 ctx.restore();
 
-                // Draw Ports & Labels
+                // Draw Ports & Labels (+ pressure ring of the port's node while the engine is live)
                 if (def.ports) {
                     for (let p of def.ports) {
                         const pw = getPortWorldPos(comp, p.id);
@@ -1992,10 +4043,20 @@ res_vented: {
                         ctx.fillStyle = (p.type === 'pressure') ? '#ef4444' : (p.type === 'tank') ? '#3b82f6' : (p.type === 'pilot') ? '#06b6d4' : '#22c55e';
                         ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
 
+                        if (live) {
+                            const pp = simEngine.getPortPressure(comp.id, p.id);
+                            if (pp !== null) {
+                                ctx.beginPath(); ctx.arc(pw.x, pw.y, 8, 0, Math.PI * 2);
+                                ctx.strokeStyle = blendPressureColor(pp, pRef); ctx.lineWidth = 2; ctx.stroke();
+                            }
+                        }
+
                         ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
                         ctx.fillText(p.id, pw.x + 8, pw.y + 3);
                     }
                 }
+
+                drawLiveReadout(ctx, comp, def);
 
                 // Render ISO 1219-2 Designation Tag
                 if (showIsoTags) {
@@ -2008,50 +4069,80 @@ res_vented: {
             }
 
             ctx.restore(); // World camera restore
+
+            if (live) drawPressureLegend(ctx, cssW, cssH, pRef);   // screen-space colour key
+
             ctx.restore(); // DPR scale restore
+        }
+
+        function snapVal(val) {
+            return Math.round(val / 20) * 20;
         }
 
         function calculateManhattanPath(p1, p2) {
             const dx = Math.abs(p2.x - p1.x);
             const dy = Math.abs(p2.y - p1.y);
             if (dx > dy) {
-                const midX = (p1.x + p2.x) / 2;
+                const midX = snapVal((p1.x + p2.x) / 2);
                 return [{x: p1.x, y: p1.y}, {x: midX, y: p1.y}, {x: midX, y: p2.y}, {x: p2.x, y: p2.y}];
             } else {
-                const midY = (p1.y + p2.y) / 2;
+                const midY = snapVal((p1.y + p2.y) / 2);
                 return [{x: p1.x, y: p1.y}, {x: p1.x, y: midY}, {x: p2.x, y: midY}, {x: p2.x, y: p2.y}];
             }
         }
 
-        function drawFalstadDotsOnPath(path, color) {
-            let spacing = 18;
-            let segs = [];
+        // Particles travel along the hose at a speed set by its solved flow:
+        //     v [px/s] = sign(Q) · (baseSpeed + gain · min(|Q|, maxQ))      for |Q| ≥ 0.05 L/min
+        //     v = 0 (dots frozen and dimmed)                                  for Q ≈ 0
+        // Q > 0 moves from → to along the hose, Q < 0 reverses.  `wire` carries flowLmin and the running phase;
+        // without it (engine not live) the old free-running animation is used.
+        function drawFalstadDotsOnPath(path, color, wire) {
+            const spacing = HYD_DOT.spacing;
+            const segs = [];
             let totalLen = 0;
 
             for (let i = 0; i < path.length - 1; i++) {
-                let dx = path[i+1].x - path[i].x;
-                let dy = path[i+1].y - path[i].y;
-                let len = Math.hypot(dx, dy);
+                const dx = path[i+1].x - path[i].x;
+                const dy = path[i+1].y - path[i].y;
+                const len = Math.hypot(dx, dy);
                 segs.push({ p1: path[i], p2: path[i+1], len: len });
                 totalLen += len;
             }
 
-            let startDist = (animOffset * 2) % spacing;
+            let phase, alpha = 1, radius = 3.5;
+            const eng = (typeof simEngine !== 'undefined') ? simEngine : null;
+            if (wire && eng && eng.lastResult && typeof wire.flowLmin === 'number') {
+                const Q = wire.flowLmin, moving = Math.abs(Q) >= HYD_DOT.minQ;
+                if (wire._phaseFrame !== eng.frameId) {            // integrate once per physics frame, never per repaint
+                    wire._phaseFrame = eng.frameId;
+                    const speed = moving ? Math.sign(Q) * (HYD_DOT.baseSpeed + HYD_DOT.gain * Math.min(Math.abs(Q), HYD_DOT.maxQ)) : 0;
+                    wire.phase = ((wire.phase || 0) + speed * eng.frameSimDt) % (spacing * 1000);
+                }
+                phase = wire.phase || 0;
+                alpha = moving ? 1 : 0.28;
+                radius = 2.8 + Math.min(Math.abs(Q) / 30, 1.2);
+            } else {
+                phase = animOffset * 2;
+            }
+
+            const startDist = ((phase % spacing) + spacing) % spacing;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = color;
             for (let d = startDist; d < totalLen; d += spacing) {
                 let accum = 0;
                 for (let seg of segs) {
                     if (accum + seg.len >= d) {
-                        let ratio = (d - accum) / seg.len;
-                        let px = seg.p1.x + ratio * (seg.p2.x - seg.p1.x);
-                        let py = seg.p1.y + ratio * (seg.p2.y - seg.p1.y);
-
-                        ctx.fillStyle = color;
-                        ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI * 2); ctx.fill();
+                        const ratio = seg.len > 0 ? (d - accum) / seg.len : 0;
+                        const px = seg.p1.x + ratio * (seg.p2.x - seg.p1.x);
+                        const py = seg.p1.y + ratio * (seg.p2.y - seg.p1.y);
+                        ctx.beginPath(); ctx.arc(px, py, radius, 0, Math.PI * 2); ctx.fill();
                         break;
                     }
                     accum += seg.len;
                 }
             }
+            ctx.restore();
         }
 
         function drawGrid(cssW, cssH) {
@@ -2069,11 +4160,20 @@ res_vented: {
         }
 
         // ── TOOL ACTIONS & UI UPDATES ──
+        // "Run Physics Engine" button: first click creates and starts the SimulationEngine,
+        // later clicks pause / resume the physics (the loop keeps rendering and re-solving edits).
         function toggleSim() {
-            simRunning = !simRunning;
-            const btn = document.getElementById('btnSim');
-            btn.innerText = simRunning ? '▶ Run Physics Engine' : '⏸ Pause Simulation';
-            btn.classList.toggle('active', simRunning);
+            if (!simEngine) {
+                simRunning = true;
+                startSimulation();
+            } else if (!simEngine.running) {
+                simRunning = true;
+                simEngine.start();
+            } else {
+                simRunning = !simRunning;
+            }
+            syncSimButton();
+            render();
         }
 
         function toggleSnap() {
@@ -2171,19 +4271,28 @@ res_vented: {
         function zoomOut() { scale = Math.max(scale / 1.15, 0.3); render(); }
         function resetZoom() { scale = 1.0; panX = 0; panY = 0; render(); }
 
+        // HUD driven by the solver: system pressure, total pump flow, hydraulic power (P·Q/600) and oil temperature.
         function updateTelemetry() {
-            let press = 210;
-            let flow = 15.0;
+            const set = (id, txt, color, tip) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.innerText = txt; el.style.color = color || ''; if (tip !== undefined) el.title = tip;
+            };
+            if (!simIsLive()) {                               // engine not started yet
+                set('hudPressure', '– Bar', '', 'Press “Run Physics Engine”');
+                set('hudFlow', '– L/min'); set('hudPower', '– kW'); set('hudTemp', '– °C');
+                return;
+            }
+            const t = simEngine.telemetry, pRef = hydReliefReference();
+            const bad = !t.converged || t.faults.includes('SOLVER_NOT_CONVERGED');
+            const atRelief = t.systemPressureBar >= 0.97 * pRef && t.reliefFlowLmin > 0.05;
 
-            if (activeFault === 'PUMP_FAILURE') { press = 0; flow = 0.0; }
-            else if (activeFault === 'FILTER_CLOG') { press = 225; flow = 12.0; }
-            else if (activeFault === 'PRV_STUCK_OPEN') { press = 15; flow = 15.0; }
-            else if (activeFault === 'AIR_INGRESS') { press = 160; flow = 10.5; }
-
-            const power = (press * flow / 600).toFixed(2);
-            document.getElementById('hudPressure').innerText = press + ' Bar';
-            document.getElementById('hudFlow').innerText = flow + ' L/min';
-            document.getElementById('hudPower').innerText = power + ' kW';
+            set('hudPressure', t.systemPressureBar.toFixed(1) + ' Bar', bad ? '#ef4444' : atRelief ? '#fb923c' : '',
+                atRelief ? `At relief setting (${pRef.toFixed(0)} bar) – ${t.reliefFlowLmin.toFixed(1)} L/min is being dumped to tank` : 'Highest pump outlet pressure');
+            set('hudFlow', t.pumpFlowLmin.toFixed(1) + ' L/min', t.pumpFlowLmin < 0.1 ? '#ef4444' : '', 'Total pump delivery');
+            set('hudPower', t.hydraulicPowerKW.toFixed(2) + ' kW', '',
+                `Hydraulic power P·Q/600 – useful ${t.mechPowerKW.toFixed(2)} kW, lost as heat ${t.lossPowerKW.toFixed(2)} kW`);
+            set('hudTemp', t.oilTempC.toFixed(0) + ' °C', t.oilTempC >= 60 ? '#ef4444' : t.oilTempC >= 50 ? '#fb923c' : '', 'Lumped oil temperature (heat = pump power − useful work)');
         }
 
         function updateUI() {
@@ -2202,6 +4311,7 @@ res_vented: {
                         <div class="prop-row"><span class="prop-label">Position:</span><span class="prop-val">X: ${comp.x}, Y: ${comp.y}</span></div>
                         <div class="prop-row"><span class="prop-label">Rotation:</span><span class="prop-val">${comp.rotation}°</span></div>
                         <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.3rem;">${def.spec}</div>
+                        <div id="inspectorLive"></div>
 
                         <div class="ctrl-btn-group">
                             <button class="action-btn" onclick="rotateSelected()">🔄 Rotate 90°</button>
@@ -2219,6 +4329,7 @@ res_vented: {
                         <div class="prop-row"><span class="prop-label">From:</span><span class="prop-val">${c1 ? c1.tag : '?'} : ${w.fromPortId}</span></div>
                         <div class="prop-row"><span class="prop-label">To:</span><span class="prop-val">${c2 ? c2.tag : '?'} : ${w.toPortId}</span></div>
                         <div class="prop-row"><span class="prop-label">Style:</span><span class="prop-val">${w.style}</span></div>
+                        <div id="inspectorLive"></div>
 
                         <div class="ctrl-btn-group">
                             <button class="action-btn" style="background: var(--accent-red);" onclick="deleteSelected()">🗑️ Delete Line</button>
@@ -2226,8 +4337,24 @@ res_vented: {
                     `;
                 }
             } else {
-                card.innerHTML = `<div style="color: var(--text-muted); text-align: center; padding: 0.8rem;">👈 Click any component on canvas or drag from sidebar to inspect properties and connections.</div>`;
+                
+                const graph = SystemGraph.buildGraph(placedComponents, placedWires, LIBRARY);
+                const gData = graph.toJSON();
+                card.innerHTML = `
+                    <div style="font-weight: bold; color: var(--accent-cyan); margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">🌐 System Graph Topology</div>
+                    <div class="prop-row"><span class="prop-label">Nodal Volumes:</span><span class="prop-val">${gData.nodesCount} Nodes</span></div>
+                    <div class="prop-row"><span class="prop-label">Internal Flow Paths:</span><span class="prop-val">${gData.edgesCount} Edges</span></div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.4rem; line-height: 1.4;">
+                        Automated DSU topology extraction resolves connected wires and T-junctions into unified fluid nodes.
+                    </div>
+                    <div class="ctrl-btn-group" style="margin-top: 0.6rem;">
+                        <button class="action-btn" style="background: #0284c7;" onclick="exportSystemGraph()">🌐 Export Graph JSON</button>
+                    </div>
+                `;
+
             }
+
+            refreshInspectorLive();
 
             // Active Connections List
             const wireContainer = document.getElementById('wireListContainer');
@@ -2266,7 +4393,7 @@ res_vented: {
 
         function exportJSON() {
             const data = {
-                components: placedComponents,
+                components: placedComponents.map(({ handler, solved, ...rest }) => rest), // no runtime handler objects
                 wires: placedWires,
                 fault: activeFault
             };
