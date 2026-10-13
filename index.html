@@ -229,6 +229,8 @@
             <button class="tool-btn btn-danger" onclick="clearCanvas()">🗑️ Clear All</button>
             <button class="tool-btn btn-success" onclick="exportPNG()">📷 Export Image</button>
             <button class="tool-btn" onclick="exportJSON()">💾 Save Blueprint</button>
+            <button class="tool-btn" onclick="document.getElementById('importFile').click()">📂 Load Blueprint</button>
+            <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importJSONFile(this)">
             <button class="tool-btn" style="border-color: var(--accent-yellow); color: var(--accent-yellow);" onclick="exportSystemGraph()">🌐 System Graph</button>
         </div>
     </div>
@@ -1743,12 +1745,12 @@ class SensorComponent extends HydraulicComponent {
             this.state.readoutLmin = Q.toFixed(1) + ' L/min';
         } else if (this.key === 'level_switch') {
             const level = this.params.fluidLevel !== undefined ? this.params.fluidLevel : 85.0;
-            this.contactClosed = level >= 20.0;
+            this.contactClosed = level >= (this.params.threshold !== undefined ? this.params.threshold : 20.0);
             this.state.contactClosed = this.contactClosed;
             this.state.levelPercent = level.toFixed(0) + '%';
         } else if (this.key === 'temp_switch') {
             const temp = this.params.fluidTemp !== undefined ? this.params.fluidTemp : 55.0;
-            this.contactClosed = temp >= 60.0;
+            this.contactClosed = temp >= (this.params.threshold !== undefined ? this.params.threshold : 60.0);
             this.state.contactClosed = this.contactClosed;
             this.state.tempC = temp.toFixed(1) + ' °C';
         }
@@ -1852,6 +1854,7 @@ class SystemGraph {
                 this.nodes = new Map();
                 this.edges = [];
                 this.portToNodeMap = new Map();
+                this.hoseLinks = [];            // hoses with modelLosses: kept as links between separate nodes
             }
 
             static buildGraph(placedComponents = [], placedWires = [], library = {}) {
@@ -1872,7 +1875,8 @@ class SystemGraph {
                     const v = `${wire.toCompId}:${wire.toPortId}`;
                     dsu.makeSet(u);
                     dsu.makeSet(v);
-                    dsu.union(u, v);
+                    if (wire.params && wire.params.modelLosses) graph.hoseLinks.push({ wireId: wire.id, fromKey: u, toKey: v });
+                    else dsu.union(u, v);
                 });
 
                 const rootToNodeMap = new Map();
@@ -2090,6 +2094,7 @@ class HydraulicSolver {
             loads: {},                // { [cylinderCompId]: loadForceN } overrides
             endStops: null,           // { [cylinderCompId]: 'EXTENDED'|'RETRACTED' } – set by SimulationEngine
             dynamics: null,           // { dt, prev: Map(nodeKey → bar) } – enables compressibility
+            viscosityCst: 46,         // kinematic viscosity [cSt] (ISO VG 46 @ 40 °C) – used by the hose loss model
             bulkModulusBar: 15000,    // effective bulk modulus incl. hose compliance
             lineVolumeL: 0.02,        // trapped volume of every node (hoses, valve galleries)
             chamberDeadVolumeL: 0.03  // dead volume of each cylinder chamber
@@ -2199,6 +2204,7 @@ class HydraulicSolver {
         });
 
         const compKeyById = new Map(this.comps.map(c => [c.id, c.key]));
+        const compById = new Map(this.comps.map(c => [c.id, c]));
         this.nodes = [];
         this.nodeIdxById = new Map();
         const rootToIdx = new Map();
@@ -2216,7 +2222,8 @@ class HydraulicSolver {
             if (node.isTankRef) {
                 nd.fixed = true;
                 const pressurised = node.ports.some(p => compKeyById.get(p.compId) === 'res_pressurised');
-                nd.p = pressurised ? this.opts.pressurisedTankBar : this.opts.tankPressureBar;
+                const rp = pressurised && node.ports.find(p => compKeyById.get(p.compId) === 'res_pressurised');
+                nd.p = pressurised ? hydNum((compById.get(rp.compId).params || {}).tankPressure, this.opts.pressurisedTankBar) : this.opts.tankPressureBar;
             }
         }
         let nf = 0;
@@ -2261,17 +2268,21 @@ class HydraulicSolver {
 
             // ── pumps ───────────────────────────────────────────────────────
             if (['pump_fixed', 'pump_var', 'manual_pump', 'air_compressor'].includes(key) && has('P') && has('S')) {
-                const Qr = hydNum(par.flowQ, key === 'manual_pump' ? 0 : 15);
-                const Pcomp = hydNum(par.Pcomp, 210);
+                const Qr = hydNum(par.flowQ, key === 'manual_pump' ? 3 : 15);
+                const Pcomp = hydNum(par.Pcomp, 210), band = Math.max(1, hydNum(par.compBand, 20)), slip = hydNum(par.slip, 0);   // slip: L/min lost per 100 bar
                 this.elements.push({
                     comp, kind: 'pump', ports: ['P', 'S'], tn: [N('P'), N('S')], nExt: 0,
                     fn: (P) => {
                         let f = 1;
-                        if (key === 'pump_var') f = Math.max(0.02, 1 - hydPos(P[0] - Pcomp, 0.5) / 20);
+                        if (key === 'pump_var') {                       // pressure compensator: full flow below Pcomp, cut-off at Pcomp + band
+                            const lin = Math.max(0, 1 - hydPos(P[0] - Pcomp, 0.5) / band);
+                            const tail = 2e-4 * Math.exp(-hydPos(P[0] - Pcomp - band, 0.5) / (band / 3));   // keeps the curve strictly decreasing (Newton-friendly)
+                            f = (lin + tail) / 1.0002;
+                        }
                         if (fault === 'PUMP_FAILURE') f = 0;
                         if (fault === 'AIR_INGRESS') f *= 0.7;
                         const cav = hydLogistic((P[1] + 0.8) / 0.1);
-                        const Q = Qr * f * cav * this._flowScale;
+                        const Q = Math.max(0, Qr * f - slip * Math.max(P[0], 0) / 100) * cav * this._flowScale;
                         return { q: [-Q, Q], r: [] };
                     },
                     paths: [['S', 'P']]
@@ -2287,6 +2298,9 @@ class HydraulicSolver {
                 const AB = hasB ? h.getActiveArea('B', pos) : 0;
                 const damping = hydNum(par.damping, 50);        // N·s/mm (matches CylinderComponent.step)
                 const Fc = hydNum(par.frictionForce, 0);
+                // end-of-stroke cushioning: the handler's exponential resistance factor multiplies the damping near the ends
+                const cush = key === 'cyl_cushion' ? h.getResistance() / hydNum(par.resistance, 0.02) : 1;
+                const dampEff = damping * cush;
                 const stroke = h.strokeLength;
                 const Fload = (o.loads[comp.id] !== undefined) ? o.loads[comp.id] : hydNum(par.loadForce, 0);
                 const Fspring = key.endsWith('spring')
@@ -2300,7 +2314,7 @@ class HydraulicSolver {
                     comp, kind: 'cylinder', ports: hasB ? ['A', 'B'] : ['A'], tn: [N('A'), hasB ? N('B') : -1], nExt: 1, info,
                     fn: (P, E) => {
                         const v = E[0];
-                        const net = HYD_N_PER_BAR_CM2 * (P[0] * AA - P[1] * AB) - info.Fload - damping * v - Fc * Math.tanh(v / 1.0);
+                        const net = HYD_N_PER_BAR_CM2 * (P[0] * AA - P[1] * AB) - info.Fload - dampEff * v - Fc * Math.tanh(v / 1.0);
                         const r = this._locks.has(comp.id) ? v : net / (HYD_N_PER_BAR_CM2 * AA);   // bar-equivalent imbalance
                         return { q: [0.006 * AA * v, -0.006 * AB * v], r: [r] };
                     },
@@ -2309,7 +2323,7 @@ class HydraulicSolver {
                 this.elements.push(el);
                 this.cylinders.push(el);
                 if (key === 'cyl_gland_drain' && has('L')) {
-                    const kWeep = 0.001;
+                    const kWeep = hydNum(par.weepK, 0.001);
                     ['A', 'B'].forEach(pt => this.elements.push({
                         comp, kind: 'leak', ports: [pt, 'L'], tn: [N(pt), N('L')], nExt: 0,
                         fn: (P) => { const Q = kWeep * (P[0] - P[1]); return { q: [Q, -Q], r: [] }; },
@@ -2389,7 +2403,7 @@ class HydraulicSolver {
                                          hydLogistic((P[0] + ratio * (P.length > 2 ? P[2] : 0) - Pset) / s); break; }
                     case 'pocheck': { const Pp = hydNum(par.pilotOpen, o.pilotOpenBar);
                                     qfn = (P) => orif(hydPos(P[0] - P[1]), CvA) * hydLogistic(((P.length > 2 ? P[2] : 0) - Pp) / s); break; }
-                    case 'poclose': { const Pp = hydNum(par.pilotOpen, o.pilotOpenBar), crack = o.checkCrackBar;
+                    case 'poclose': { const Pp = hydNum(par.pilotOpen, o.pilotOpenBar), crack = hydNum(par.crackPressure, o.checkCrackBar);
                                     qfn = (P) => orif(hydPos(P[0] - P[1] - crack), CvA) * (1 - hydLogistic(((P.length > 2 ? P[2] : 0) - Pp) / s)); break; }
                     case 'unloading': { const Pset = setting();
                                     qfn = (P) => orif(hydPos(P[0] - P[1]), CvA) *
@@ -2413,6 +2427,28 @@ class HydraulicSolver {
             }
         }
 
+        // ── hoses: trapped oil volume (compressibility) and, when enabled, line losses ──────────
+        // wire.params = { diameter [mm], length [m], modelLosses, ratingBar }.  A hose with modelLosses is NOT merged into
+        // one node by SystemGraph (graph.hoseLinks); it becomes a resistive element  P_from − P_to = ΔP(Q)  (Darcy–Weisbach).
+        this.lossy = new Map();
+        const linked = new Set((this.graph.hoseLinks || []).map(l => l.wireId));
+        const nodeOfKey = (key) => { const nid = this.graph.portToNodeMap.get(key); return nid === undefined ? -1 : this.nodeIdxById.get(nid); };
+        for (const w of this.wires) {
+            const hp = w.params; if (!hp) continue;
+            const d = Math.max(1, hydNum(hp.diameter, 16)), L = Math.max(0, hydNum(hp.length, 2));
+            const V = Math.PI / 4 * d * d * L * 1e-3;                              // mm² · m → litres
+            const na = nodeOfKey(`${w.fromCompId}:${w.fromPortId}`), nb = nodeOfKey(`${w.toCompId}:${w.toPortId}`);
+            if (hp.modelLosses && linked.has(w.id) && na >= 0 && nb >= 0 && na !== nb) {
+                this.nodeVol[na] += V / 2; this.nodeVol[nb] += V / 2;
+                const hose = { wire: w, d, L };
+                this.lossy.set(w.id, hose);
+                this.elements.push({
+                    comp: { id: 'hose:' + w.id, key: 'hose' }, kind: 'hose', ports: ['a', 'b'], tn: [na, nb], nExt: 1, hose,
+                    fn: (P, E) => ({ q: [E[0], -E[0]], r: [P[0] - P[1] - this._hoseDrop(E[0], d, L)] }), paths: []
+                });
+            } else if (na >= 0) this.nodeVol[na] += V;
+        }
+
         // assign unknown indices: [free nodes … | cylinder velocities …]
         let next = this.nFree;
         this.elements.forEach(el => { el.ext0 = el.nExt ? next : -1; next += el.nExt; });
@@ -2420,6 +2456,18 @@ class HydraulicSolver {
     }
 
     // ══ RESIDUAL & JACOBIAN ═══════════════════════════════════════════════
+    // Darcy–Weisbach line loss [bar] for flow Q [L/min] through a hose of inner diameter d [mm], length L [m]
+    _hoseKin(Q, d) {
+        const A = Math.PI / 4 * d * d, v = Math.abs(Q) / (0.06 * A), D = d * 1e-3;     // m/s, m
+        return { v, Re: v * D / (this.opts.viscosityCst * 1e-6) };
+    }
+    _hoseDrop(Q, d, L) {
+        const k = this._hoseKin(Q, d), D = d * 1e-3, Re = Math.max(k.Re, 1e-3);
+        const fl = 64 / Re, ft = 0.3164 / Math.pow(Math.max(Re, 1), 0.25);
+        const f = Re < 2000 ? fl : Re > 4000 ? ft : fl + (ft - fl) * (Re - 2000) / 2000;     // laminar → Blasius
+        return Math.sign(Q) * f * (L / D) * this.opts.fluidDensity * k.v * k.v / 2 / 1e5;
+    }
+
     _nodeLeak(p) {
         const o = this.opts;
         return o.gmin * p - 50 * hydPos(o.vacuumFloorBar - p) + 50 * hydPos(p - o.maxPressureBar);
@@ -2581,7 +2629,7 @@ class HydraulicSolver {
         this.nodes.forEach((nd, i) => nodeKeyPressures.set(nd.key, this._p(i, x)));
 
         // 2. element flows → port flows, path flows
-        const portFlow = new Map(), pathFlow = new Map(), perComp = new Map();
+        const portFlow = new Map(), pathFlow = new Map(), perComp = new Map(), hoseStates = {};
         const add = (m, k, v) => m.set(k, (m.get(k) || 0) + v);
         const solved = (id) => { if (!perComp.has(id)) perComp.set(id, {}); return perComp.get(id); };
         for (const el of this.elements) {
@@ -2594,6 +2642,9 @@ class HydraulicSolver {
                 Object.assign(solved(el.comp.id), { deliveredFlowLmin: out.q[1], outletPressureBar: P[0], suctionPressureBar: P[1], cavitating: P[1] < -0.7 });
             } else if (el.kind === 'cylinder') {
                 if (el.info.hasB) add(pathFlow, `${el.comp.id}|A|B`, out.q[0]);
+            } else if (el.kind === 'hose') {
+                const Q = E[0], k = this._hoseKin(Q, el.hose.d);
+                hoseStates[el.hose.wire.id] = { Q, dropBar: P[0] - P[1], velocityMs: k.v, Re: k.Re, pFrom: P[0], pTo: P[1] };
             } else if (el.kind === 'divider') {
                 add(pathFlow, `${el.comp.id}|IN|A`, -out.q[1]);
                 add(pathFlow, `${el.comp.id}|IN|B`, -out.q[2]);
@@ -2652,7 +2703,7 @@ class HydraulicSolver {
         });
 
         // 6. wire flows – spanning-forest leaf peeling over the wire/port graph
-        const wireFlows = this._wireFlows(portFlow);
+        const wireFlows = this._wireFlows(portFlow, hoseStates);
 
         // 7. edge flows (signed fromPort → toPort)
         for (const e of g.edges) {
@@ -2706,7 +2757,7 @@ class HydraulicSolver {
         if (Object.values(componentStates).some(s => s.stalled)) faults.push('ACTUATOR_STALLED');
 
         return {
-            nodePressures, wireFlows, componentStates, nodeKeyPressures,
+            nodePressures, wireFlows, componentStates, nodeKeyPressures, hoseStates,
             diagnostics: {
                 compressibility: !!this._dyn,
                 converged: res.converged, iterations: res.iterations, residual: res.residual,
@@ -2716,13 +2767,13 @@ class HydraulicSolver {
         };
     }
 
-    _wireFlows(portFlow) {
+    _wireFlows(portFlow, hoseStates = {}) {
         const adj = new Map();
         const link = (u, v, wire) => {
             if (!adj.has(u)) adj.set(u, []); if (!adj.has(v)) adj.set(v, []);
             adj.get(u).push({ to: v, wire }); adj.get(v).push({ to: u, wire });
         };
-        this.wires.forEach(w => link(`${w.fromCompId}:${w.fromPortId}`, `${w.toCompId}:${w.toPortId}`, w));
+        this.wires.forEach(w => { if (!(this.lossy && this.lossy.has(w.id))) link(`${w.fromCompId}:${w.fromPortId}`, `${w.toCompId}:${w.toPortId}`, w); });
         // junction components pass flow between their ports
         this.comps.filter(c => /^junction_/.test(c.key)).forEach(c => {
             const ps = (this.library[c.key].ports || []).map(p => `${c.id}:${p.id}`);
@@ -2733,6 +2784,13 @@ class HydraulicSolver {
         adj.forEach((_, k) => demand.set(k, portFlow.get(k) || 0));
         const wireFlows = {};
         this.wires.forEach(w => { wireFlows[w.id] = 0; });
+        for (const id in hoseStates) {                                    // lossy hoses carry their own solved flow and load their end ports
+            const w = this.wires.find(x => x.id === id); if (!w) continue;
+            wireFlows[id] = hoseStates[id].Q;
+            const kf = `${w.fromCompId}:${w.fromPortId}`, kt = `${w.toCompId}:${w.toPortId}`;
+            if (demand.has(kf)) demand.set(kf, demand.get(kf) + hoseStates[id].Q);
+            if (demand.has(kt)) demand.set(kt, demand.get(kt) - hoseStates[id].Q);
+        }
         const seen = new Set();
         for (const root of adj.keys()) {
             if (seen.has(root)) continue;
@@ -2976,7 +3034,10 @@ class SimulationEngine {
         for (const c of this.components) {
             if (c.key !== 'dcv_43_pilot') continue;
             const pr = (r.componentStates[c.id] || {}).portPressures || {}, X = pr.X || 0, Y = pr.Y || 0;
-            const pilot = (X >= 8 && X >= Y) ? 1 : (Y >= 8 ? -1 : 0), manual = c.state.manualPos || 0;
+            const sh = hydNum(c.params && c.params.pilotShift, 8), prev = c.state._pilotPos || 0, hold = 0.4 * sh;      // shifts at `sh`, drops back below 40 % of it (no chatter)
+            const pilot = (X >= sh && X >= Y) ? 1 : (Y >= sh ? -1 : (prev === 1 && X >= hold ? 1 : (prev === -1 && Y >= hold ? -1 : 0)));
+            c.state._pilotPos = pilot;
+            const manual = c.state.manualPos || 0;
             c.state.spoolPos = manual !== 0 ? manual : pilot;
         }
     }
@@ -3015,7 +3076,7 @@ class SimulationEngine {
     _topologySignature() {
         const comps = this.components, wires = this.wires;
         return comps.map(c => c.id + c.key).join(',') + '|' +
-               wires.map(w => `${w.id}:${w.fromCompId}.${w.fromPortId}-${w.toCompId}.${w.toPortId}`).join(',');
+               wires.map(w => `${w.id}:${w.fromCompId}.${w.fromPortId}-${w.toCompId}.${w.toPortId}${w.params && w.params.modelLosses ? 'L' : ''}`).join(',');
     }
 
     _getGraph() {
@@ -3038,7 +3099,7 @@ class SimulationEngine {
     }
 
     _inputSignature() {
-        let s = (typeof activeFault !== 'undefined' ? activeFault : '') + '|' + this._topologySignature() + '|';
+        let s = (typeof activeFault !== 'undefined' ? activeFault : '') + '|' + this._topologySignature() + '|' + JSON.stringify(this.opts.solverOptions) + '|' + this.wires.map(w => JSON.stringify(w.params || 0)).join('') + '|';
         for (const c of this.components) {
             s += `${c.id}:${c.state ? c.state.spoolPos : ''}:${c.state ? c.state.openingPercent : ''}:${c.params ? JSON.stringify(c.params) : ''};`;
         }
@@ -3158,8 +3219,13 @@ class SimulationEngine {
 
         for (const w of this.wires) {
             w.flowLmin = result.wireFlows[w.id] || 0;
+            const hp = w.params || {}, hs = result.hoseStates && result.hoseStates[w.id];
+            const dia = Math.max(1, hydNum(hp.diameter, 16));
+            w.velocityMs = hs ? hs.velocityMs : Math.abs(w.flowLmin) / (0.06 * Math.PI / 4 * dia * dia);   // m/s
+            w.dropBar = hs ? hs.dropBar : 0;                                                              // line loss (only when modelled)
             const nid = graph && graph.portToNodeMap.get(`${w.fromCompId}:${w.fromPortId}`);
-            w.pressureBar = nid !== undefined && result.nodePressures[nid] !== undefined ? result.nodePressures[nid] : 0;
+            w.pressureBar = hs ? Math.max(hs.pFrom, hs.pTo) : (nid !== undefined && result.nodePressures[nid] !== undefined ? result.nodePressures[nid] : 0);
+            w.overRating = w.pressureBar > hydNum(hp.ratingBar, 400);                                       // above the hose's working-pressure rating
         }
     }
 
@@ -3187,7 +3253,16 @@ class SimulationEngine {
 
         if (h > 0) {                                               // lumped thermal model
             const o = this.opts;
-            const dT = (loss - o.coolingKWperK * (this.oilTempC - o.ambientC)) / o.thermalCapacityKJperK * h * o.thermalSpeedup;
+            let vol = 0, extraCool = 0, heat = 0;
+            for (const comp of this.components) {
+                const st = result.componentStates[comp.id], cp = comp.params || {};
+                if (/^res_/.test(comp.key)) vol += hydNum(cp.volumeL, 60);
+                const flowing = st && Object.values(st.portFlows || {}).some(v => Math.abs(v) > 0.05);
+                if (comp.key === 'cooler' && flowing) extraCool += hydNum(cp.coolingKWperK, 0.3);
+                if (comp.key === 'heater' && flowing) heat += hydNum(cp.heatKW, 1);
+            }
+            const capKJ = vol > 0 ? 0.87 * 1.9 * vol + 50 : o.thermalCapacityKJperK;               // oil (ρ·cp·V) + steel
+            const dT = (loss + heat - (o.coolingKWperK + extraCool) * (this.oilTempC - o.ambientC)) / capKJ * h * o.thermalSpeedup;
             this.oilTempC = Math.min(150, Math.max(o.ambientC, this.oilTempC + dT));
         }
         this.telemetry = {
@@ -3351,7 +3426,7 @@ function refreshInspectorLive() {
         }
     } else if (selectedWireId) {
         const w = placedWires.find(k => k.id === selectedWireId);
-        if (w && w.flowLmin !== undefined) html += row('Flow', f(w.flowLmin) + ' L/min (' + (w.flowLmin >= 0 ? 'from → to' : 'to → from') + ')') + row('Pressure', f(w.pressureBar) + ' bar');
+        if (w && w.flowLmin !== undefined) html += row('Flow', f(w.flowLmin) + ' L/min (' + (w.flowLmin >= 0 ? 'from → to' : 'to → from') + ')') + row('Pressure', f(w.pressureBar) + ' bar') + hoseLiveRows(w, row);
     }
     el.innerHTML = html ? `<div style="margin-top:0.4rem; padding-top:0.3rem; border-top:1px solid #334155; font-size:0.72rem;">${html}</div>` : '';
 }
@@ -3419,7 +3494,7 @@ function syncSimButton() {
 
 function startSimulation() {
     if (!simEngine) {
-        initSimulationEngine();                       // build engine, publish the t = 0 state, start the rAF loop
+        initSimulationEngine(Object.assign({ solverOptions: Object.assign({}, SYS.solver) }, SYS.engine, { compressibility: !!SYS.engine.compressibility }));   // build engine with the System & Fluid settings
         const sel = document.getElementById('simSpeedSelect');
         if (sel) simEngine.setTimeScale(parseFloat(sel.value) || 1);
         let last = 0;
@@ -4252,6 +4327,404 @@ function toggleActivityFx() {
     render();
 }
 
+
+// ════════ STAGE 8 — LIVE PARAMETER EDITOR ════════
+// ── schema helpers ─────────────────────────────────────────────────────────
+const PD = (id, label, unit, min, max, step, def, o = {}) => Object.assign({ id, label, unit, min, max, step, def, group: 'Setting' }, o);
+
+const PARAM_FAMILIES = (() => {
+    const area = PD('area', 'Flow area (fully open)', 'mm²', 1, 80, 0.5, 12, { group: 'Geometry', tip: 'Spool / seat flow area. Larger area = lower pressure drop at a given flow.' });
+    const Cv = PD('Cv', 'Discharge coefficient', '–', 0.4, 1, 0.01, 0.7, { group: 'Advanced', tip: 'Orifice discharge coefficient in Q = Cv·A·√ΔP.' });
+    const crack = (def = 0.5) => PD('crackPressure', 'Cracking pressure', 'bar', 0, 25, 0.1, def, { tip: 'Pressure difference needed to open the check valve.', presets: [0.2, 0.5, 1, 3, 5] });
+    const open = PD('openingPercent', 'Opening', '%', 0, 100, 1, 100, { store: 'state', presets: [0, 25, 50, 75, 100], tip: 'Valve opening. 0 % = closed.' });
+    const setting = (label, tip) => PD('setting', label, 'bar', 5, 420, 1, 180, { presets: [100, 150, 180, 210, 250, 315], tip });
+    const F = {};
+    F.relief = [setting('Relief pressure', 'Pressure at which the valve opens and dumps oil to tank.'), PD('reliefK', 'Valve capacity', 'L/min per √bar', 5, 150, 1, 30, { group: 'Advanced', tip: 'Flow the open valve passes per √bar above its setting. Larger = flatter pressure override.' })];
+    F.prv3 = [setting('Relief pressure', 'Pressure at which P is relieved to T.'), F.relief[1], area];
+    F.reducing = [setting('Outlet pressure', 'Pressure the valve holds on its outlet.'), area, Cv];
+    F.sequence = [setting('Opening pressure', 'Inlet pressure at which the valve opens.'), area, Cv];
+    F.counterbalance = [setting('Counterbalance setting', 'Pressure that must be exceeded (plus pilot assist) to let the load move.'), PD('pilotRatio', 'Pilot ratio', ':1', 1, 10, 0.5, 3, { tip: 'Pilot pressure multiplier that opens the valve.' }), area, Cv];
+    F.unloading = [setting('Unloading pressure', 'Pilot / system pressure above which the pump is unloaded to tank.'), area];
+    F.check = [crack(0.5), area];
+    F.po = [crack(0.5), PD('pilotOpen', 'Pilot pressure to open', 'bar', 1, 60, 0.5, 8, { tip: 'Pilot pressure at X that unseats the check valve.' }), area];
+    F.fixedThrottle = [PD('orificeDiam', 'Orifice diameter', 'mm', 0.3, 12, 0.1, 1.5, { group: 'Geometry', presets: [0.8, 1, 1.5, 2, 3, 5], tip: 'Orifice bore. Q = Cv·A·√ΔP.' }), Cv];
+    F.needle = [open, PD('maxArea', 'Maximum flow area', 'mm²', 0.5, 40, 0.5, 8, { group: 'Geometry', tip: 'Flow area at 100 % opening.' }), Cv];
+    F.flowControl = [open, F.needle[1], crack(0.5)];
+    F.regulator = [PD('flowSet', 'Regulated flow', 'L/min', 0.5, 100, 0.5, 10, { presets: [2, 5, 10, 20, 40], tip: 'Flow held constant once the minimum pressure drop is available.' })];
+    F.area = [area, Cv];
+    F.ball = [open, area];
+    F.dcvPilot = [PD('pilotShift', 'Pilot pressure to shift', 'bar', 1, 60, 0.5, 8, { tip: 'Pressure at X (→E) or Y (→R) that shifts the spool.' }), area, Cv];
+    // pumps & motors
+    const flowQ = (def, max = 120) => PD('flowQ', 'Pump flow', 'L/min', 0, max, 0.5, def, { presets: [5, 10, 15, 20, 30, 50], tip: 'Delivered flow at zero pressure (displacement × speed).' });
+    const slip = PD('slip', 'Internal leakage', 'L/min per 100 bar', 0, 10, 0.1, 0, { group: 'Advanced', tip: 'Volumetric loss growing with pressure.' });
+    F.pumpFixed = [flowQ(15), slip];
+    F.pumpVar = [flowQ(15), PD('Pcomp', 'Compensator pressure', 'bar', 20, 350, 1, 210, { presets: [100, 150, 180, 210, 250, 315], tip: 'Pressure at which the swash plate starts to de-stroke.' }), PD('compBand', 'Compensator band', 'bar', 2, 60, 1, 20, { group: 'Advanced', tip: 'Pressure rise that takes the pump from full flow to cut-off.' }), slip];
+    F.pumpManual = [flowQ(3, 30)];
+    const resist = PD('resistance', 'Flow resistance', 'bar/(L/min)²', 0.0005, 0.1, 0.0001, 0.01, { group: 'Advanced', scale: 'log', tip: 'ΔP = R·Q². Smaller = freer flow.' });
+    F.motorFixed = [PD('displacement', 'Displacement', 'cc/rev', 1, 250, 1, 16, { group: 'Geometry', presets: [8, 16, 32, 63, 100], tip: 'Shaft speed = flow / displacement.' }), resist];
+    F.motorVar = [F.motorFixed[0], PD('swash', 'Swash-plate setting', '–', 0.1, 1, 0.01, 1, { tip: 'Fraction of maximum displacement.' }), resist];
+    // cylinders and rotary actuators
+    const bore = PD('boreDiam', 'Bore diameter', 'mm', 20, 250, 1, 80, { group: 'Geometry', presets: [40, 50, 63, 80, 100, 125], tip: 'Piston diameter – sets the cap-side area.' });
+    const rod = PD('rodDiam', 'Rod diameter', 'mm', 0, 200, 1, 45, { group: 'Geometry', tip: 'Rod diameter – sets the annulus area (always smaller than the bore).' });
+    const stroke = PD('strokeLength', 'Stroke length', 'mm', 50, 3000, 10, 500, { group: 'Geometry', tip: 'Travel from fully retracted to fully extended.' });
+    const pos = PD('position', 'Stroke position', '%', 0, 100, 1, 0, { unitScale: 100, group: 'Operating', tip: 'Jog the piston to a position (live). Also the start position after Reset.' });
+    const load = PD('loadForce', 'Load force', 'N', -50000, 150000, 100, 0, { group: 'Operating', presets: [0, 5000, 20000, 50000, 100000], tip: 'Force opposing extension (negative = overrunning / assisting load).' });
+    const damping = PD('damping', 'Viscous damping', 'N·s/mm', 5, 500, 1, 50, { group: 'Advanced', tip: 'Speed-dependent friction. Lower = faster response to pressure.' });
+    const fric = PD('frictionForce', 'Coulomb friction', 'N', 0, 5000, 10, 0, { group: 'Advanced', tip: 'Breakaway / sliding friction of the seals.' });
+    F.cyl = [load, pos, bore, rod, stroke, damping, fric];
+    F.cylCushion = F.cyl.concat([PD('cushionCd', 'Cushion strength', '–', 0, 8, 0.1, 5, { group: 'Advanced', tip: 'Exponential damping in the last 10 % of stroke at each end.' })]);
+    F.cylSpring = F.cyl.concat([PD('springPreload', 'Spring preload', 'N', 0, 5000, 10, 150, { group: 'Advanced', tip: 'Return-spring force at zero stroke.' }), PD('springRate', 'Spring rate', 'N/mm', 0, 20, 0.1, 0.3, { group: 'Advanced', tip: 'Extra spring force per mm of stroke.' })]);
+    F.cylGland = F.cyl.concat([PD('weepK', 'Gland leakage', 'L/min per bar', 0, 0.05, 0.0005, 0.001, { group: 'Advanced', tip: 'Seal weep from each chamber to the L port.' })]);
+    // accumulators
+    const V0 = PD('V0', 'Total volume', 'L', 0.1, 100, 0.1, 5, { group: 'Geometry', presets: [1, 2.5, 5, 10, 20, 50], tip: 'Nominal size of the accumulator.' });
+    const P0 = PD('P0', 'Pre-charge pressure', 'bar', 1, 350, 1, 100, { presets: [20, 50, 100, 150, 200], tip: 'Gas pre-charge with the accumulator empty.' });
+    const fluidV = PD('initialFluidV', 'Oil volume', 'L', 0, 100, 0.1, 0, { group: 'Operating', tip: 'Live oil content (also the start value after Reset).' });
+    const accRes = PD('resistance', 'Port resistance', 'bar/(L/min)²', 0.0005, 0.1, 0.0001, 0.01, { group: 'Advanced', scale: 'log', tip: 'Restriction between line and accumulator.' });
+    F.accGas = [V0, P0, fluidV, PD('gamma', 'Gas exponent γ', '–', 1, 1.67, 0.01, 1.4, { group: 'Advanced', tip: '1.0 isothermal … 1.4 adiabatic.' }), accRes];
+    F.accSpring = [V0, P0, fluidV, PD('kSpring', 'Spring rate', 'bar/L', 1, 100, 0.5, 15, { tip: 'Pressure rise per litre of oil.' }), accRes];
+    F.accWeight = [V0, PD('Pweight', 'Weight pressure', 'bar', 5, 350, 1, 150, { tip: 'Constant pressure produced by the weight.' }), fluidV, accRes];
+    // reservoirs & conditioning
+    const vol = PD('volumeL', 'Oil volume', 'L', 5, 1000, 5, 60, { group: 'Geometry', presets: [20, 60, 120, 250, 500], tip: 'Reservoir size – a larger tank heats up more slowly.' });
+    F.resVented = [vol];
+    F.resPressurised = [vol, PD('tankPressure', 'Tank pressure', 'bar', 0, 10, 0.1, 0.5, { tip: 'Gas blanket pressure on the oil.' })];
+    const rclean = PD('Rclean', 'Element resistance', 'bar/(L/min)²', 0.0005, 0.05, 0.0001, 0.005, { scale: 'log', group: 'Advanced', tip: 'ΔP = R·Q². Clean filter ≈ 0.005 (≈1 bar at 15 L/min).' });
+    F.filter = [rclean];
+    F.cooler = [rclean, PD('coolingKWperK', 'Heat rejection', 'kW/K', 0, 2, 0.01, 0.3, { group: 'Operating', tip: 'Heat removed per K of oil above ambient while oil flows through.' })];
+    F.heater = [rclean, PD('heatKW', 'Heater power', 'kW', 0, 10, 0.1, 1, { group: 'Operating', tip: 'Heat added to the oil while it flows through.' })];
+    // instrumentation
+    F.pressSwitch = [PD('setting', 'Switching pressure', 'bar', 0, 420, 1, 150, { presets: [50, 100, 150, 200], tip: 'Contact closes at this pressure.' }), PD('hysteresis', 'Hysteresis', 'bar', 0, 100, 1, 10, { tip: 'Contact reopens this far below the switching pressure.' })];
+    F.transducer = [PD('maxPressure', 'Full-scale pressure', 'bar', 50, 1000, 10, 250, { tip: '20 mA output at this pressure.' })];
+    F.flowmeter = [PD('resistance', 'Meter resistance', 'bar/(L/min)²', 0.0001, 0.05, 0.0001, 0.001, { group: 'Advanced', scale: 'log', tip: 'Pressure drop of the turbine.' })];
+    F.levelSwitch = [PD('fluidLevel', 'Fluid level', '%', 0, 100, 1, 85, { group: 'Operating', tip: 'Simulated oil level.' }), PD('threshold', 'Switching level', '%', 0, 100, 1, 20, { tip: 'Contact closes at or above this level.' })];
+    F.tempSwitch = [PD('fluidTemp', 'Override oil temperature', '°C', 0, 150, 1, 55, { group: 'Operating', tip: 'Reset the value to follow the simulated oil temperature (HUD).' }), PD('threshold', 'Switching temperature', '°C', 20, 120, 1, 60, { tip: 'Contact closes at or above this temperature.' })];
+    return F;
+})();
+
+// which family each library key uses
+const PARAM_KEYS = (() => {
+    const F = PARAM_FAMILIES, M = {};
+    const put = (family, keys) => keys.forEach(k => { M[k] = family; });
+    put(F.relief, ['prv_direct', 'prv_pilot', 'prv_prop']);
+    put(F.prv3, ['prv_3way']); put(F.reducing, ['prv_reducing']); put(F.sequence, ['sequence']);
+    put(F.counterbalance, ['counterbalance', 'brake']); put(F.unloading, ['unloading', 'auto_cutoff']);
+    put(F.check, ['check_valve']); put(F.po, ['po_check', 'po_check_close', 'po_check_vented']);
+    put(F.fixedThrottle, ['fixed_throttle']); put(F.needle, ['throttle_needle']); put(F.flowControl, ['flow_control']);
+    put(F.regulator, ['flow_regulator', 'temp_comp_flow']); put(F.area, ['flow_divider', 'flow_fuse', 'logic_cartridge', 'dcv_pilot_2stage']);
+    put(F.ball, ['ball_valve_2way', 'isolation_gate']); put(F.dcvPilot, ['dcv_43_pilot']);
+    put(F.area, ['dcv_22', 'dcv_22_no', 'dcv_32_nc', 'dcv_32_no', 'dcv_42', 'dcv_43_closed', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float', 'dcv_43_prop', 'dcv_53']);
+    put(F.pumpFixed, ['pump_fixed']); put(F.pumpVar, ['pump_var']); put(F.pumpManual, ['manual_pump']);
+    put(F.motorFixed, ['motor_fixed']); put(F.motorVar, ['motor_var']);
+    put(F.cyl, ['cyl_double', 'cyl_double_rod', 'cyl_telescopic', 'cyl_rodless', 'rack_pinion', 'rotary_double']);
+    put(F.cylCushion, ['cyl_cushion']); put(F.cylSpring, ['cyl_single_spring', 'rotary_spring']); put(F.cylGland, ['cyl_gland_drain']);
+    put(F.accGas, ['acc_bladder', 'acc_piston', 'acc_diaphragm']); put(F.accSpring, ['acc_spring']); put(F.accWeight, ['acc_weighted']);
+    put(F.resVented, ['res_vented']); put(F.resPressurised, ['res_pressurised']);
+    put(F.filter, ['strainer', 'filter_clogging', 'quick_disconnect', 'frl_trio']); put(F.cooler, ['cooler']); put(F.heater, ['heater']);
+    put(F.pressSwitch, ['press_switch']); put(F.transducer, ['press_transducer']); put(F.flowmeter, ['flowmeter']);
+    put(F.levelSwitch, ['level_switch']); put(F.tempSwitch, ['temp_switch']);
+    return M;
+})();
+
+const PARAM_NONE = {
+    junction_tee: 'Ideal junction node – nothing to adjust. Set the line size on the hoses connected to it.',
+    junction_cross: 'Ideal junction node – nothing to adjust. Set the line size on the hoses connected to it.',
+    air_bleed: 'Normally closed bleed valve – no flow path is modelled.',
+    muffler: 'Single exhaust port – not part of the hydraulic circuit.',
+    electric_motor: 'Prime-mover symbol – shaft speed is not modelled; set the flow on the pump it drives.'
+};
+
+function paramDefsFor(key) { return PARAM_KEYS[key] || []; }
+
+// optional parameter-specific derived read-outs ---------------------------------------------------
+const PARAM_DERIVED = {
+    cyl: (c, v) => {
+        const Ac = Math.PI / 4 * Math.pow(v('boreDiam') / 10, 2), Ar = Math.PI / 4 * Math.pow(Math.min(v('rodDiam'), v('boreDiam') * 0.95) / 10, 2);
+        return `Cap area ${Ac.toFixed(1)} cm² · annulus ${(Ac - Ar).toFixed(1)} cm² · ${(10 * 166.667 / Ac).toFixed(0)} mm/s per 10 L/min · ${Ac.toFixed(1)} kN at 100 bar`;
+    },
+    orifice: (c, v) => { const A = Math.PI / 4 * v('orificeDiam') ** 2, K = 0.06 * Math.sqrt(2e5 / (simEngine ? simEngine.opts.solverOptions.fluidDensity || 870 : 870)); const dp = Math.pow(10 / (v('Cv') * A * K), 2); return `ΔP ≈ ${dp.toFixed(1)} bar at 10 L/min (A = ${A.toFixed(2)} mm²)`; },
+    filter: (c, v) => `ΔP ≈ ${(v('Rclean') * 225).toFixed(2)} bar at 15 L/min (clean element)`,
+    pump: (c, v) => `Hydraulic power at ${hydReliefReference().toFixed(0)} bar ≈ ${(v('flowQ') * hydReliefReference() / 600).toFixed(2)} kW`,
+    acc: (c, v) => { const pm = hydReliefReference(), g = v('gamma') || 1.4; return `Usable oil ${(v('V0') * (1 - Math.pow(v('P0') / pm, 1 / g))).toFixed(2)} L between ${v('P0').toFixed(0)} and ${pm.toFixed(0)} bar`; },
+    area: (c, v) => `ΔP ≈ ${Math.pow(15 / (v('Cv') * v('area') * 0.9097), 2).toFixed(2)} bar at 15 L/min`
+};
+function paramDerivedText(comp) {
+    const defs = paramDefsFor(comp.key), v = (id) => paramGetValue(comp, defs.find(d => d.id === id));
+    try {
+        if (/^(cyl_|rack_|rotary_)/.test(comp.key)) return PARAM_DERIVED.cyl(comp, v);
+        if (comp.key === 'fixed_throttle') return PARAM_DERIVED.orifice(comp, v);
+        if (/^pump_/.test(comp.key)) return PARAM_DERIVED.pump(comp, v);
+        if (/^acc_(bladder|piston|diaphragm)/.test(comp.key)) return PARAM_DERIVED.acc(comp, v);
+        if (defs.some(d => d.id === 'Rclean')) return PARAM_DERIVED.filter(comp, v);
+        if (defs.some(d => d.id === 'area') && defs.some(d => d.id === 'Cv')) return PARAM_DERIVED.area(comp, v);
+    } catch (e) { /* derived text is optional */ }
+    return '';
+}
+
+// ── get / set / reset ──────────────────────────────────────────────────────
+function paramStore(comp, d) { return d.store === 'state' ? (comp.state = comp.state || {}) : (comp.params = comp.params || {}); }
+function paramGetValue(comp, d) {                       // display units
+    const raw = paramStore(comp, d)[d.id];
+    const v = (raw === undefined || raw === null || raw === '') ? d.def : Number(raw) * (d.unitScale || 1);
+    return isFinite(v) ? v : d.def;
+}
+function paramIsModified(comp, d) { const raw = paramStore(comp, d)[d.id]; return raw !== undefined && raw !== null && Math.abs(Number(raw) * (d.unitScale || 1) - d.def) > 1e-9; }
+
+// bring a live handler in line with comp.params (handlers cache some values at construction)
+function paramSyncHandler(comp, id, storedValue) {
+    const h = comp.handler;
+    if (!h) return;
+    h.params = Object.assign({}, h.params, comp.params || {});
+    if (comp.params && comp.params[id] === undefined) delete h.params[id];
+    if (typeof h.reconfigure === 'function') h.reconfigure(id, storedValue);
+}
+if (typeof HydraulicComponent !== 'undefined') HydraulicComponent.prototype.reconfigure = function () { };
+if (typeof AccumulatorComponent !== 'undefined') AccumulatorComponent.prototype.reconfigure = function (id, v) {
+    const p = this.params;
+    this.V0 = p.V0 || 5.0; this.P0 = p.P0 || 100.0; this.gamma = p.gamma || 1.4;
+    if (id === 'initialFluidV' && v !== undefined) this.currentFluidV = v;
+    this.currentFluidV = Math.min(this.V0 * 0.95, Math.max(0, this.currentFluidV));
+};
+if (typeof CylinderComponent !== 'undefined') CylinderComponent.prototype.reconfigure = function (id, v) {
+    const p = this.params;
+    this.boreDiam = p.boreDiam || 80.0; this.rodDiam = Math.min(p.rodDiam !== undefined ? p.rodDiam : 45.0, this.boreDiam * 0.95);
+    this.strokeLength = p.strokeLength || 500.0; this.cushionCd = p.cushionCd !== undefined ? p.cushionCd : 5.0;
+    this.Acap = (Math.PI / 4) * Math.pow(this.boreDiam / 10, 2); this.Arod = (Math.PI / 4) * Math.pow(this.rodDiam / 10, 2); this.Aann = this.Acap - this.Arod;
+    if (this.key === 'cyl_double_rod') { this.Aleft = this.Aann; this.Aright = this.Aann; } else { this.Aleft = this.Acap; this.Aright = this.Aann; }
+    if (id === 'position' && v !== undefined) this.position = Math.min(1, Math.max(0, v));
+};
+if (typeof FilterComponent !== 'undefined') FilterComponent.prototype.reconfigure = function () { this.Rclean = this.params.Rclean || 0.005; };
+
+function setCompParam(compId, id, storedValue, noUI) {
+    const comp = placedComponents.find(c => c.id === compId); if (!comp) return false;
+    const d = paramDefsFor(comp.key).find(x => x.id === id); if (!d) return false;
+    let v = Math.min(d.max / (d.unitScale || 1), Math.max(d.min / (d.unitScale || 1), Number(storedValue)));
+    if (!isFinite(v)) return false;
+    paramStore(comp, d)[d.id] = v;
+    if (d.store !== 'state') comp.params = Object.assign({}, comp.params);                // new object → engine input signature changes
+    paramSyncHandler(comp, id, v);
+    if (!noUI) updateUI();
+    render();
+    return true;
+}
+function resetCompParam(compId, id) {
+    const comp = placedComponents.find(c => c.id === compId); if (!comp) return;
+    const d = paramDefsFor(comp.key).find(x => x.id === id); if (!d) return;
+    if (d.store === 'state') comp.state[d.id] = d.def / (d.unitScale || 1);
+    else { comp.params = Object.assign({}, comp.params); delete comp.params[d.id]; }
+    paramSyncHandler(comp, id, d.def / (d.unitScale || 1));
+    updateUI(); render();
+}
+function resetAllParams(compId) {
+    const comp = placedComponents.find(c => c.id === compId); if (!comp) return;
+    paramDefsFor(comp.key).forEach(d => {
+        if (d.store === 'state') comp.state[d.id] = d.def / (d.unitScale || 1);
+        else if (comp.params) delete comp.params[d.id];
+    });
+    comp.params = Object.assign({}, comp.params);
+    if (comp.handler) { comp.handler.params = Object.assign({}, comp.params); if (comp.handler.reconfigure) comp.handler.reconfigure(); }
+    updateUI(); render();
+}
+function replaceFilterElement(compId) {
+    const comp = placedComponents.find(c => c.id === compId); if (!comp) return;
+    if (comp.handler) { comp.handler.deltaRclogging = 0; comp.handler.clogged = false; comp.handler.state.clogged = false; }
+    if (comp.state) comp.state.clogged = false;
+    updateUI(); render();
+}
+
+// ── UI ─────────────────────────────────────────────────────────────────────
+function paramInjectStyles() {
+    if (typeof document === 'undefined' || document.getElementById('paramStyles')) return;
+    const st = document.createElement('style'); st.id = 'paramStyles';
+    st.textContent = `
+      #inspectorCard { max-height: calc(100vh - 230px); overflow-y: auto; }
+      .param-block { margin-top: .6rem; padding-top: .45rem; border-top: 1px solid #334155; }
+      .param-title { display:flex; justify-content:space-between; align-items:center; font-weight:700; color:#38bdf8; font-size:.8rem; margin-bottom:.3rem; }
+      .param-group { margin:.45rem 0 .15rem; font-size:.62rem; letter-spacing:.06em; text-transform:uppercase; color:#64748b; }
+      .param-row { margin:.3rem 0 .5rem; }
+      .param-head { display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:.72rem; color:#cbd5e1; }
+      .param-head label { flex:1; cursor:help; }
+      .param-mod { color:#f59e0b; font-size:.7rem; margin-left:3px; visibility:hidden; }
+      .param-row.modified .param-mod { visibility:visible; }
+      .param-head input[type=number] { width:74px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:4px; padding:1px 4px; font-size:.72rem; text-align:right; }
+      .param-unit { color:#94a3b8; font-size:.65rem; min-width:34px; }
+      .param-row input[type=range] { width:100%; margin:.15rem 0 0; accent-color:#0ea5e9; }
+      .param-chips { display:flex; flex-wrap:wrap; gap:3px; margin-top:2px; }
+      .param-chip, .param-mini { background:#1e293b; color:#cbd5e1; border:1px solid #334155; border-radius:10px; font-size:.62rem; padding:0 7px; cursor:pointer; }
+      .param-chip:hover, .param-mini:hover { background:#0369a1; color:#fff; }
+      .param-derived { font-size:.66rem; color:#94a3b8; margin:.2rem 0 .4rem; line-height:1.35; }
+      .param-none { font-size:.7rem; color:#94a3b8; }
+      .param-warn { color:#fb923c; } .param-ok { color:#4ade80; }
+    `;
+    document.head.appendChild(st);
+}
+paramInjectStyles();
+
+function paramFmtDec(d) { return d.step < 0.001 ? 4 : d.step < 0.01 ? 3 : d.step < 0.1 ? 2 : d.step < 1 ? 1 : 0; }
+function paramSliderPos(d, disp) { return d.scale === 'log' ? Math.log10(Math.max(disp, d.min)) : disp; }
+
+// target strings: 'c|<compId>' component · 'h|<wireId>' hose · 's|solver' / 's|engine' system
+function ptParse(target) { const i = target.indexOf('|'); return [target.slice(0, i), target.slice(i + 1)]; }
+function ptDefs(target) {
+    const [k, id] = ptParse(target);
+    if (k === 'c') { const c = placedComponents.find(x => x.id === id); return c ? paramDefsFor(c.key) : []; }
+    if (k === 'h') return HOSE_PARAM_DEFS;
+    return id === 'solver' ? SYS_DEFS.solver : SYS_DEFS.engine;
+}
+function ptGet(target, d) {
+    const [k, id] = ptParse(target);
+    if (k === 'c') return paramGetValue(placedComponents.find(x => x.id === id), d);
+    if (k === 'h') { const w = placedWires.find(x => x.id === id), raw = w && w.params ? w.params[d.id] : undefined; return raw === undefined ? d.def : Number(raw); }
+    const raw = SYS[id][d.id]; return raw === undefined ? d.def : Number(raw);
+}
+function ptModified(target, d) { return Math.abs(ptGet(target, d) - d.def) > 1e-9; }
+function ptSet(target, d, dispValue) {                   // dispValue in display units
+    const [k, id] = ptParse(target);
+    const v = Math.min(d.max, Math.max(d.min, dispValue));
+    if (k === 'c') return setCompParam(id, d.id, v / (d.unitScale || 1), true);
+    if (k === 'h') return setHoseParam(id, d.id, v, true);
+    SYS[id][d.id] = v; applySystemParams(); return true;
+}
+
+function paramRowHtml(target, d, comp) {
+    const val = ptGet(target, d), dec = paramFmtDec(d), mod = ptModified(target, d);
+    if (d.type === 'bool') {
+        return `<div class="param-row${mod ? ' modified' : ''}" id="pr_${d.id}"><div class="param-head"><label title="${d.tip || ''}">${d.label}<span class="param-mod">●</span></label>
+                <input type="checkbox" ${val ? 'checked' : ''} onchange="paramBool('${target}','${d.id}', this.checked)"></div></div>`;
+    }
+    const lo = paramSliderPos(d, d.min), hi = paramSliderPos(d, d.max), step = d.scale === 'log' ? 0.01 : d.step;
+    const chips = (d.presets || []).map(p => `<button class="param-chip" onclick="paramPreset('${target}','${d.id}', ${p})">${p}</button>`).join('');
+    return `<div class="param-row${mod ? ' modified' : ''}" id="pr_${d.id}">
+        <div class="param-head"><label title="${d.tip || ''}">${d.label}<span class="param-mod" title="changed from default">●</span></label>
+          <input type="number" min="${d.min}" max="${d.max}" step="${d.step}" value="${val.toFixed(dec)}" onchange="paramNumber('${target}','${d.id}', this)">
+          <span class="param-unit">${d.unit}</span>
+          <button class="param-mini" title="reset to default (${d.def})" onclick="paramReset('${target}','${d.id}')">↺</button></div>
+        <input type="range" min="${lo}" max="${hi}" step="${step}" value="${paramSliderPos(d, val)}" oninput="paramSlider('${target}','${d.id}', this)">
+        ${chips ? `<div class="param-chips">${chips}</div>` : ''}</div>`;
+}
+function paramGroupsHtml(target, defs) {
+    let html = '', last = null;
+    defs.forEach(d => { if (d.group !== last) { html += `<div class="param-group">${d.group}</div>`; last = d.group; } html += paramRowHtml(target, d); });
+    return html;
+}
+
+function paramPanelHtml(comp) {
+    paramInjectStyles();
+    const defs = paramDefsFor(comp.key), target = 'c|' + comp.id;
+    if (!defs.length) return `<div class="param-block"><div class="param-title">⚙ Parameters</div><div class="param-none">${PARAM_NONE[comp.key] || 'No adjustable parameters.'}</div></div>`;
+    const ordered = ['Operating', 'Setting', 'Geometry', 'Advanced'].flatMap(g => defs.filter(d => d.group === g));
+    const extra = (comp.key === 'filter_clogging' || comp.key === 'strainer') ? `<button class="param-mini" style="margin:.2rem 0" onclick="replaceFilterElement('${comp.id}')">🧽 Replace element (clear clogging)</button>` : '';
+    return `<div class="param-block"><div class="param-title"><span>⚙ Parameters <span style="font-weight:400;color:#64748b;font-size:.65rem">live</span></span>
+              <button class="param-mini" onclick="resetAllParams('${comp.id}')">reset all</button></div>
+            ${paramGroupsHtml(target, ordered)}<div class="param-derived" id="paramDerived">${paramDerivedText(comp)}</div>${extra}</div>`;
+}
+
+function paramRowRefresh(target, d) {
+    const row = document.getElementById('pr_' + d.id); if (!row) return;
+    const val = ptGet(target, d), num = row.querySelector('input[type=number]'), rng = row.querySelector('input[type=range]');
+    if (num && document.activeElement !== num) num.value = val.toFixed(paramFmtDec(d));
+    if (rng && document.activeElement !== rng) rng.value = paramSliderPos(d, val);
+    row.classList.toggle('modified', ptModified(target, d));
+    const [k, id] = ptParse(target), der = document.getElementById('paramDerived');
+    if (k === 'c' && der) { const c = placedComponents.find(x => x.id === id); if (c) der.textContent = paramDerivedText(c); }
+}
+function paramFind(target, pid) { return ptDefs(target).find(x => x.id === pid); }
+function paramSlider(target, pid, el) { const d = paramFind(target, pid); let v = parseFloat(el.value); if (d.scale === 'log') v = Math.pow(10, v); v = d.scale === 'log' ? v : Math.round(v / d.step) * d.step; ptSet(target, d, v); paramRowRefresh(target, d); if (document.activeElement === el) { const num = el.closest('.param-row').querySelector('input[type=number]'); if (num) num.value = ptGet(target, d).toFixed(paramFmtDec(d)); } }
+function paramNumber(target, pid, el) { const d = paramFind(target, pid), v = parseFloat(el.value); if (isFinite(v)) ptSet(target, d, v); paramRowRefresh(target, d); }
+function paramPreset(target, pid, v) { const d = paramFind(target, pid); ptSet(target, d, v); paramRowRefresh(target, d); }
+function paramBool(target, pid, on) { const d = paramFind(target, pid); ptSet(target, d, on ? 1 : 0); paramRowRefresh(target, d); if (ptParse(target)[0] === 'h') updateUI(); }
+function paramReset(target, pid) {
+    const [k, id] = ptParse(target), d = paramFind(target, pid);
+    if (k === 'c') { resetCompParam(id, pid); return; }
+    ptSet(target, d, d.def); if (k === 'h') { const w = placedWires.find(x => x.id === id); if (w && w.params) delete w.params[pid]; updateUI(); } else updateUI();
+    render();
+}
+
+// ── hoses ("pressure lines") ───────────────────────────────────────────────
+const HOSE_PARAM_DEFS = [
+    PD('modelLosses', 'Model line losses', '', 0, 1, 1, 0, { type: 'bool', group: 'Operating', tip: 'Off = ideal hose. On = pressure drop (Darcy–Weisbach) and trapped oil volume are simulated; the hose ends become separate pressure nodes.' }),
+    PD('diameter', 'Inner diameter', 'mm', 4, 50, 1, 16, { group: 'Geometry', presets: [6, 8, 10, 12, 16, 20, 25, 32], tip: 'Hose bore. Sets velocity, pressure drop and volume.' }),
+    PD('length', 'Length', 'm', 0.1, 50, 0.1, 2, { group: 'Geometry', presets: [0.5, 1, 2, 5, 10, 20], tip: 'Hose length – pressure drop and trapped oil volume grow with length.' }),
+    PD('ratingBar', 'Working-pressure rating', 'bar', 50, 700, 10, 400, { group: 'Advanced', presets: [100, 210, 315, 400, 420, 630], tip: 'The hose blinks red when the pressure exceeds this rating.' })
+];
+function setHoseParam(wireId, id, value, noUI) {
+    const w = placedWires.find(x => x.id === wireId); if (!w) return false;
+    w.params = Object.assign({}, w.params, { [id]: Number(value) });
+    if (!noUI) updateUI();
+    render(); return true;
+}
+function hoseSpeedLimit(w) {                              // classic line-velocity guidelines [m/s]
+    const t = (c, p) => { const cc = placedComponents.find(x => x.id === c), dd = cc && LIBRARY[cc.key], pp = dd && dd.ports.find(q => q.id === p); return pp ? pp.type : null; };
+    if (t(w.fromCompId, w.fromPortId) === 'suction' || t(w.toCompId, w.toPortId) === 'suction') return { limit: 1.2, kind: 'suction' };
+    const fx = (typeof fxClassifyWire === 'function') ? fxClassifyWire(w) : null;
+    return fx ? { limit: 4, kind: 'return' } : { limit: 6, kind: 'pressure' };
+}
+function hoseParamHtml(w) {
+    paramInjectStyles();
+    const target = 'h|' + w.id, d = Math.max(1, (w.params && w.params.diameter) || 16), L = (w.params && w.params.length) || 2;
+    const vol = Math.PI / 4 * d * d * L * 1e-3;
+    return `<div class="param-block"><div class="param-title"><span>⚙ Hose / line</span></div>${paramGroupsHtml(target, HOSE_PARAM_DEFS)}
+            <div class="param-derived">Oil volume ${vol.toFixed(2)} L · ${(w.params && w.params.modelLosses) ? 'line losses ON (hose ends are separate pressure nodes)' : 'ideal line – only volume and velocity are evaluated'}</div></div>`;
+}
+function hoseLiveRows(w, row) {
+    const f = (v, n = 1) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(n) : '–', lim = hoseSpeedLimit(w);
+    let h = row('Velocity', `<span class="${w.velocityMs > lim.limit ? 'param-warn' : 'param-ok'}">${f(w.velocityMs, 2)} m/s</span> (${lim.kind} line ≤ ${lim.limit})`);
+    if (w.params && w.params.modelLosses) h += row('Line loss', f(w.dropBar, 2) + ' bar');
+    if (w.overRating) h += row('Rating', '<span class="param-warn">⚠ over ' + ((w.params && w.params.ratingBar) || 400) + ' bar</span>');
+    return h;
+}
+
+// ── system & fluid ─────────────────────────────────────────────────────────
+const SYS_DEFS = {
+    solver: [
+        PD('viscosityCst', 'Oil viscosity', 'cSt', 10, 460, 1, 46, { group: 'Fluid', scale: 'log', presets: [22, 32, 46, 68, 100], tip: 'Kinematic viscosity (ISO VG 46 ≈ 46 cSt at 40 °C). Affects hose line losses.' }),
+        PD('fluidDensity', 'Oil density', 'kg/m³', 800, 950, 5, 870, { group: 'Fluid', tip: 'Affects orifice flow Q = Cv·A·√(2ΔP/ρ) and hose losses.' }),
+        PD('bulkModulusBar', 'Bulk modulus', 'bar', 3000, 25000, 500, 15000, { group: 'Fluid', tip: 'Oil stiffness incl. hose compliance – lower = softer, slower pressure build-up.' }),
+        PD('maxPressureBar', 'Burst / safety limit', 'bar', 100, 700, 10, 350, { group: 'System', tip: 'Pressure limiter of the model (applies when no relief valve protects the line).' })
+    ],
+    engine: [
+        PD('ambientC', 'Ambient temperature', '°C', -10, 45, 1, 25, { group: 'Thermal', tip: 'Oil cools towards this temperature.' }),
+        PD('coolingKWperK', 'Natural cooling', 'kW/K', 0.02, 1, 0.01, 0.12, { group: 'Thermal', scale: 'log', tip: 'Heat rejection of tank and piping per K above ambient.' }),
+        PD('thermalSpeedup', 'Thermal time-lapse', '×', 1, 50, 1, 10, { group: 'Thermal', tip: 'Makes the oil temperature move on a demo time scale.' }),
+        PD('compressibility', 'Fluid compressibility', '', 0, 1, 1, 1, { type: 'bool', group: 'System', tip: 'Off = quasi-static pressures (instant), on = pressures build up over time.' })
+    ]
+};
+const SYS = { solver: {}, engine: {} };
+function sysDefaults() { for (const k of ['solver', 'engine']) for (const d of SYS_DEFS[k]) SYS[k][d.id] = d.def; }
+sysDefaults();
+function applySystemParams() {
+    if (typeof simEngine === 'undefined' || !simEngine) return;
+    Object.assign(simEngine.opts.solverOptions, SYS.solver);
+    simEngine.opts.ambientC = SYS.engine.ambientC; simEngine.opts.coolingKWperK = SYS.engine.coolingKWperK;
+    simEngine.opts.thermalSpeedup = SYS.engine.thermalSpeedup; simEngine.opts.compressibility = !!SYS.engine.compressibility;
+}
+function systemPanelHtml() {
+    paramInjectStyles();
+    return `<div class="param-block"><div class="param-title"><span>🛢 System &amp; Fluid</span><button class="param-mini" onclick="resetSystemParams()">reset</button></div>
+            ${paramGroupsHtml('s|solver', SYS_DEFS.solver)}${paramGroupsHtml('s|engine', SYS_DEFS.engine)}</div>`;
+}
+function resetSystemParams() { sysDefaults(); applySystemParams(); updateUI(); }
+
+// ── save / load (components, hoses, parameters, system) ────────────────────
+function circuitToJSON() {
+    return { components: placedComponents.map(({ handler, solved, ...rest }) => rest), wires: placedWires, fault: activeFault, system: JSON.parse(JSON.stringify(SYS)) };
+}
+function importCircuit(text) {
+    const data = JSON.parse(text);
+    if (!data || !Array.isArray(data.components) || !Array.isArray(data.wires)) throw new Error('Not a circuit file');
+    placedComponents = data.components.map(c => Object.assign({}, c, { handler: undefined }));
+    placedWires = data.wires.map(w => Object.assign({}, w));
+    if (data.system) { for (const k of ['solver', 'engine']) Object.assign(SYS[k], data.system[k] || {}); }
+    if (data.fault && typeof setFault === 'function') { const sel = document.getElementById('faultSelect'); if (sel) sel.value = data.fault; setFault(data.fault); }
+    selectedCompId = null; selectedWireId = null;
+    if (typeof simEngine !== 'undefined' && simEngine) { applySystemParams(); simEngine.reset(); }
+    updateUI(); render();
+}
+function importJSONFile(input) {
+    const f = input.files && input.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { try { importCircuit(String(r.result)); } catch (e) { if (typeof hoseToast === 'function') hoseToast('Import failed: ' + e.message); else alert('Import failed: ' + e.message); } input.value = ''; };
+    r.readAsText(f);
+}
+
 // ── APPLICATION STATE & GLOBALS ──
 
         // ── APPLICATION STATE & GLOBAL VARIABLES ──
@@ -4704,6 +5177,7 @@ canvas.addEventListener('wheel', (e) => {
                     }
                     // Live pressure colour overrides the style colour, the dash pattern (pilot / drain) is kept
                     if (nodeP !== null) { ctx.strokeStyle = blendPressureColor(nodeP, pRef); particleColor = '#f8fafc'; }
+                    if (w.overRating && showActivityFx) ctx.strokeStyle = fxBlinkState('alarm').color;   // above the hose's working-pressure rating
 
                     // Manhattan Orthogonal Routing
                     const pathPoints = getWirePath(w) || calculateManhattanPath(p1, p2);
@@ -5038,6 +5512,7 @@ canvas.addEventListener('wheel', (e) => {
                         <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.3rem;">${def.spec}</div>
                         <div id="inspectorLive"></div>
                         ${dcvInspectorHtml(comp)}
+                        ${paramPanelHtml(comp)}
 
                         <div class="ctrl-btn-group">
                             <button class="action-btn" onclick="rotateSelected()">🔄 Rotate 90°</button>
@@ -5057,6 +5532,7 @@ canvas.addEventListener('wheel', (e) => {
                         <div class="prop-row"><span class="prop-label">Style:</span><span class="prop-val">${w.style}</span></div>
                         <div id="inspectorLive"></div>
                         ${hoseInspectorHtml(w)}
+                        ${hoseParamHtml(w)}
 
                         <div class="ctrl-btn-group">
                             <button class="action-btn" style="background: var(--accent-red);" onclick="deleteSelected()">🗑️ Delete Line</button>
@@ -5077,6 +5553,7 @@ canvas.addEventListener('wheel', (e) => {
                     <div class="ctrl-btn-group" style="margin-top: 0.6rem;">
                         <button class="action-btn" style="background: #0284c7;" onclick="exportSystemGraph()">🌐 Export Graph JSON</button>
                     </div>
+                    ${systemPanelHtml()}
                 `;
 
             }
@@ -5119,11 +5596,7 @@ canvas.addEventListener('wheel', (e) => {
         }
 
         function exportJSON() {
-            const data = {
-                components: placedComponents.map(({ handler, solved, ...rest }) => rest), // no runtime handler objects
-                wires: placedWires,
-                fault: activeFault
-            };
+            const data = circuitToJSON();   // components + parameters, hoses (corners, line data), fault, system & fluid
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
             link.download = 'iso_1219_circuit.json';
