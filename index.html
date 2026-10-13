@@ -186,6 +186,7 @@
             <button class="tool-btn" id="btnSnap" onclick="toggleSnap()">🧲 Snap Grid: ON</button>
             <button class="tool-btn" id="btnIsoTags" onclick="toggleIsoTags()">🏷️ ISO 1219-2 Tags: ON</button>
             <button class="tool-btn active" id="btnLive" onclick="toggleLiveData()">📊 Live Data: ON</button>
+            <button class="tool-btn active" id="btnNames" onclick="toggleNames()">🔤 Names: ON</button>
             <button class="tool-btn" onclick="resetSimulation()">⏮ Reset Sim</button>
             <select class="tool-select" id="simSpeedSelect" onchange="setSimSpeed(this.value)" title="Simulation speed">
                 <option value="0.25">0.25×</option>
@@ -263,7 +264,7 @@
             <h2>Active Hose Connections</h2>
             <div class="inspector-card">
                 <div class="wire-list" id="wireListContainer">
-                    <div style="color: var(--text-muted); font-size: 0.72rem; text-align: center;">No active hose connections. Click port to wire.</div>
+                    <div style="color: var(--text-muted); font-size: 0.72rem; text-align: center;">No hoses yet. Click a port, click grid points to route the hose, then click another port to finish.</div>
                 </div>
             </div>
 
@@ -1832,7 +1833,7 @@ class HydraulicComponentRegistry {
         });
 
         // Valves
-        ['dcv_22', 'dcv_32_nc', 'dcv_42', 'dcv_43_closed', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float', 'dcv_pilot_2stage', 'logic_cartridge', 'ball_valve_2way',
+        ['dcv_22', 'dcv_22_no', 'dcv_32_nc', 'dcv_32_no', 'dcv_42', 'dcv_43_closed', 'dcv_43_pilot', 'dcv_43_prop', 'dcv_53', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float', 'dcv_pilot_2stage', 'logic_cartridge', 'ball_valve_2way',
          'prv_direct', 'prv_pilot', 'prv_prop', 'prv_reducing', 'prv_3way', 'sequence', 'counterbalance', 'unloading', 'brake', 'auto_cutoff',
          'check_valve', 'po_check', 'po_check_close', 'po_check_vented', 'fixed_throttle', 'throttle_needle', 'flow_control', 'flow_regulator', 'temp_comp_flow', 'flow_divider', 'flow_fuse', 'air_bleed', 'isolation_gate'].forEach(k => {
             this.register(k, ValveComponent);
@@ -2026,8 +2027,12 @@ function hydNum(v, d) {
     if (typeof v === 'string') { const f = parseFloat(v); if (isFinite(f)) return f; }
     return d;
 }
-// smooth max(x, 0)
-function hydPos(x, eps = HYD_EPS) { return 0.5 * (x + Math.sqrt(x * x + eps * eps)); }
+// smooth max(x, 0) – C¹, exactly 0 for x ≤ −eps (so limiters / cracking valves inject no phantom flow)
+function hydPos(x, eps = HYD_EPS) {
+    if (x >= eps) return x;
+    if (x <= -eps) return 0;
+    return (x + eps) * (x + eps) / (4 * eps);
+}
 function hydLogistic(x) { return 1 / (1 + Math.exp(-Math.max(-40, Math.min(40, x)))); }
 function hydSmoothMax(a, b, eps = 0.05) { return 0.5 * (a + b + Math.sqrt((a - b) * (a - b) + eps * eps)); }
 // signed square-root law  Q = K·sign(d)·√|d|  (regularised: finite slope at d = 0)
@@ -2110,16 +2115,25 @@ class HydraulicSolver {
     // type ∈ open | check | relief | reducing | sequence | counterbalance | pocheck |
     //        poclose | unloading | needle | fixed | regulator
     static getConductingPaths(key, state = {}) {
-        const pos = Math.sign(hydNum(state.spoolPos, 0));
+        const rawPos = hydNum(state.spoolPos, 0), pos = Math.sign(rawPos);
         const open = Math.max(0, Math.min(1, hydNum(state.openingPercent, 100) / 100));
         const P = (from, to, type = 'open', scale = 1, sense = null) => ({ from, to, type, scale, sense });
         const dcv43 = (center) => pos > 0 ? [P('P', 'A'), P('B', 'T')]
                                 : pos < 0 ? [P('P', 'B'), P('A', 'T')] : center;
         switch (key) {
-            case 'dcv_22':          return pos > 0 ? [P('P', 'A')] : [];
-            case 'dcv_32_nc':       return pos > 0 ? [P('P', 'A')] : [P('A', 'R')];
+            case 'dcv_22':          return rawPos > 0.5 ? [P('P', 'A')] : [];
+            case 'dcv_22_no':       return rawPos > 0.5 ? [] : [P('P', 'A')];
+            case 'dcv_32_nc':       return rawPos > 0.5 ? [P('P', 'A')] : [P('A', 'T')];
+            case 'dcv_32_no':       return rawPos > 0.5 ? [P('A', 'T')] : [P('P', 'A')];
+            case 'dcv_53':          return pos > 0 ? [P('P', 'A'), P('B', 'T2')] : pos < 0 ? [P('P', 'B'), P('A', 'T1')] : [];
+            case 'dcv_43_prop': {                       // opening area follows the command magnitude
+                const m = Math.min(1, Math.abs(rawPos));
+                if (m < 0.03) return [];
+                return pos > 0 ? [P('P', 'A', 'open', m), P('B', 'T', 'open', m)] : [P('P', 'B', 'open', m), P('A', 'T', 'open', m)];
+            }
             case 'dcv_42':          return pos > 0 ? [P('P', 'A'), P('B', 'T')] : [P('P', 'B'), P('A', 'T')];
             case 'dcv_43_closed':
+            case 'dcv_43_pilot':
             case 'dcv_pilot_2stage':return dcv43([]);
             case 'dcv_43_open':     return dcv43([P('P', 'T', 'open', 0.5), P('A', 'T', 'open', 0.5), P('B', 'T', 'open', 0.5)]);
             case 'dcv_43_tandem':   return dcv43([P('P', 'T', 'open', 0.6)]);
@@ -2766,7 +2780,7 @@ if (typeof SystemGraph !== 'undefined') {
 // ══════════════════════════════════════════════════════════════════════════
 
 // Keys the USER/UI owns on comp.state – the engine never overwrites these with handler output.
-const SIM_UI_INPUT_KEYS = ['spoolPos', 'openingPercent', 'setting'];
+const SIM_UI_INPUT_KEYS = ['spoolPos', 'openingPercent', 'setting', 'manualPos'];
 const SIM_LPM_PER_CM2_TO_MM_S = 10000 / 60;     // (L/min) / cm²  →  mm/s
 const SIM_STATE_DEFAULTS = { spoolPos: 0, setting: 180, openingPercent: 100, position: 0, flowQ: 15, pressureP: 0 };
 
@@ -2926,6 +2940,7 @@ class SimulationEngine {
             if (simDt > 0) this._advance(simDt);
         } else {
             // Paused: nothing moves, but pressures must still react to spool / load / fault edits.
+            this._applyPilots();
             if (this._inputSignature() !== this._inputSig) this._substep(0);
         }
         this._renderFrame(wallDt);
@@ -2939,8 +2954,21 @@ class SimulationEngine {
         for (let i = 0; i < n; i++) this._substep(h);
     }
 
+    // Hydraulically piloted valves: X ≥ 8 bar → E, Y ≥ 8 bar → R, otherwise spring-centred; a manual selection
+    // (state.manualPos, set by clicking the valve) overrides the pilot.
+    _applyPilots() {
+        const r = this.lastResult; if (!r) return;
+        for (const c of this.components) {
+            if (c.key !== 'dcv_43_pilot') continue;
+            const pr = (r.componentStates[c.id] || {}).portPressures || {}, X = pr.X || 0, Y = pr.Y || 0;
+            const pilot = (X >= 8 && X >= Y) ? 1 : (Y >= 8 ? -1 : 0), manual = c.state.manualPos || 0;
+            c.state.spoolPos = manual !== 0 ? manual : pilot;
+        }
+    }
+
     _substep(h) {
         const comps = this.components;
+        this._applyPilots();
         if (!comps.length) { this.lastResult = null; this.telemetry = this._emptyTelemetry(); return null; }
 
         let result = this._solve(comps, h);
@@ -3194,28 +3222,12 @@ function initSimulationEngine(options = {}) {
 // ══════════════════════════════════════════════════════════════════════════
 let showLiveData = true;
 
-const LIVE_DCV_BOXES = {
-    dcv_43_closed: [[-50, 33], [-17, 34], [17, 33]], dcv_43_open: [[-50, 33], [-17, 34], [17, 33]],
-    dcv_43_tandem: [[-50, 33], [-17, 34], [17, 33]], dcv_43_float: [[-50, 33], [-17, 34], [17, 33]],
-    dcv_22: [[-40, 35], [-5, 35]], dcv_32_nc: [[-40, 35], [-5, 35]], dcv_42: [[-35, 35], [0, 35]]
-};
-
 // Local-coordinate overlay, drawn right after def.draw() inside the component transform.
 function drawLiveOverlay(ctx, comp, def) {
     const st = comp.state || {};
     if (!simEngine || !simEngine.lastResult) return;
     const key = comp.key;
     ctx.save();
-
-    // ── directional valves: highlight the active envelope ──
-    if (LIVE_DCV_BOXES[key]) {
-        const boxes = LIVE_DCV_BOXES[key], pos = Math.sign(st.spoolPos || 0);
-        const idx = boxes.length === 3 ? (pos > 0 ? 0 : pos < 0 ? 2 : 1) : (pos > 0 ? 0 : 1);
-        const [x, w] = boxes[idx];
-        ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
-        ctx.fillRect(x, -20, w, 40);
-        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2; ctx.strokeRect(x, -20, w, 40);
-    }
 
     // ── relief / pressure valves: open indicator ──
     if (st.reliefSettingBar !== undefined) {
@@ -3285,12 +3297,15 @@ function drawLiveReadout(ctx, comp, def) {
     else if (st.deltaPBar !== undefined && Math.abs(st.flowQ || 0) > 0.05) lines.push(`ΔP ${f(st.deltaPBar)} bar · ${f(Math.abs(st.flowQ))} L/min`);
 
     if (!lines.length) return;
-    const h = def.h || 80, y0 = comp.y + h / 2 + 24;
+    const bb = defBounds(def);
+    // actuators have their hoses leaving at the bottom → show their read-out above the symbol, everything else below the name
+    const above = /^(cyl_|rack_|rotary_)/.test(comp.key);
+    const y0 = above ? comp.y + bb.y0 - 30 - (lines.length - 1) * 14 : comp.y + bb.y1 + 24 + (showNames ? 16 : 0);
     ctx.save();
     ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
     lines.forEach((ln, i) => {
         const w = ctx.measureText(ln).width + 10, y = y0 + i * 14;
-        ctx.fillStyle = 'rgba(2, 6, 23, 0.82)'; ctx.fillRect(comp.x - w / 2, y - 10, w, 13);
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.55)'; ctx.fillRect(comp.x - w / 2, y - 10, w, 13);
         ctx.fillStyle = (st.reliefOpen || st.endStop) ? '#fb923c' : '#e2e8f0'; ctx.fillText(ln, comp.x, y);
     });
     ctx.restore();
@@ -3409,6 +3424,648 @@ function startSimulation() {
 
 function resetSimulation() { if (simEngine) simEngine.reset(); updateTelemetry(); updateUI(); }
 
+
+// ════════ STAGE 6 — DIRECTIONAL VALVE SET (ISO symbols, click-to-select modes) ════════
+const DCV_E = 60;          // envelope width  (ports sit on the 20 px grid: x = ±20, y = ±40)
+const DCV_H = 50;          // envelope height
+let showNames = true;      // component names under the symbols
+
+// ── specification table ────────────────────────────────────────────────────
+//   slots : port id → { x (relative to the rest envelope centre), top }
+//   envs  : envelopes left → right: pos (+1 = energised side, 0 = rest/centre, −1 = other side),
+//           label (indicator letter), glyph { conn:[[from,to]…], block:[port…], bus:[port…] }
+//   rest  : index of the envelope that carries the port stubs (spring-centred / spring-return position)
+//   act   : [left, right] actuator  'sol' | 'spring' | 'solspring' | 'pilot' | 'none'
+const DCV_SPECS = (() => {
+    const env = (pos, label, glyph) => ({ pos, label, glyph });
+    const s4 = { A: { x: -20, top: true }, B: { x: 20, top: true }, P: { x: -20, top: false }, T: { x: 20, top: false } };
+    const E43 = env(1, 'E', { conn: [['P', 'A'], ['B', 'T']] });
+    const R43 = env(-1, 'R', { conn: [['P', 'B'], ['A', 'T']] });
+    const c43 = (glyph) => [E43, env(0, 'C', glyph), R43];
+    const col3 = { '1': '#22d3ee', '0': '#fbbf24', '-1': '#22d3ee' };
+    const colOC = { '1': '#22c55e', '0': '#ef4444' };      // energised = open (green), rest = closed (red)
+    const colNO = { '1': '#ef4444', '0': '#22c55e' };      // energised = shut (red),  rest = open (green)
+    const s3 = { A: { x: 0, top: true }, P: { x: -20, top: false }, T: { x: 20, top: false } };
+    const s2 = { A: { x: 0, top: true }, P: { x: 0, top: false } };
+    return {
+        dcv_43_closed: { title: 'DCV 4/3 – Closed Centre, Solenoid/Spring', short: 'DCV 4/3', iso: 'ISO 1219-1: Sec 6.3', desc: '4-port 3-position valve, all ports blocked in the spring-centred position.', slots: s4, envs: c43({ block: ['A', 'B', 'P', 'T'] }), rest: 1, act: ['solspring', 'solspring'], colors: col3 },
+        dcv_43_pilot: { title: 'DCV 4/3 – Hydraulic Pilot Operated', short: 'DCV 4/3 Pilot', iso: 'ISO 1219-1: Sec 6.4', desc: '4/3 closed-centre valve shifted by pilot pressure at X (→E) or Y (→R); click selects a manual override.', slots: s4, envs: c43({ block: ['A', 'B', 'P', 'T'] }), rest: 1, act: ['pilot', 'pilot'], pilotLen: 90, colors: col3 },
+        dcv_43_prop: { title: 'Proportional DCV 4/3', short: 'Prop. DCV 4/3', iso: 'ISO 1219-1: Sec 6.6', desc: 'Proportional 4/3 valve: spool position and opening area follow the command (−100 … +100 %).', slots: s4, envs: c43({ block: ['A', 'B', 'P', 'T'] }), rest: 1, act: ['solspring', 'solspring'], prop: true, colors: col3 },
+        dcv_42: { title: 'DCV 4/2 – Solenoid/Spring', short: 'DCV 4/2', iso: 'ISO 1219-1: Sec 6.2', desc: '4-port 2-position valve, solenoid actuated with spring return.', slots: s4, envs: [E43, env(0, 'R', { conn: [['P', 'B'], ['A', 'T']] })], rest: 1, act: ['sol', 'spring'], colors: { '1': '#22c55e', '0': '#ef4444' } },
+        dcv_53: { title: 'DCV 5/3 – Closed Centre', short: 'DCV 5/3', iso: 'ISO 1219-1: Sec 6.3', desc: '5-port 3-position valve (P, A, B, T1, T2), closed centre.',
+            slots: { A: { x: -20, top: true }, B: { x: 20, top: true }, T1: { x: -20, top: false }, P: { x: 0, top: false }, T2: { x: 20, top: false } },
+            envs: [env(1, 'E', { conn: [['P', 'A'], ['B', 'T2']] }), env(0, 'C', { block: ['A', 'B', 'T1', 'P', 'T2'] }), env(-1, 'R', { conn: [['P', 'B'], ['A', 'T1']] })], rest: 1, act: ['solspring', 'solspring'], colors: col3 },
+        dcv_32_nc: { title: 'DCV 3/2 – Normally Closed', short: 'DCV 3/2', iso: 'ISO 1219-1: Sec 6.2', desc: '3-port 2-position valve, normally closed (A vented to T at rest).', slots: s3,
+            envs: [env(1, 'O', { conn: [['P', 'A']], block: ['T'] }), env(0, 'C', { conn: [['A', 'T']], block: ['P'] })], rest: 1, act: ['sol', 'spring'], colors: colOC },
+        dcv_32_no: { title: 'DCV 3/2 – Normally Open', short: 'DCV 3/2 NO', iso: 'ISO 1219-1: Sec 6.2', desc: '3-port 2-position valve, normally open (P→A at rest).', slots: s3,
+            envs: [env(1, 'S', { conn: [['A', 'T']], block: ['P'] }), env(0, 'N', { conn: [['P', 'A']], block: ['T'] })], rest: 1, act: ['sol', 'spring'], colors: colNO },
+        dcv_22: { title: '2/2 NC Valve', short: '2/2 NC Valve', iso: 'ISO 1219-1: Sec 6.1', desc: '2-port 2-position valve, normally closed.', slots: s2,
+            envs: [env(1, 'O', { conn: [['P', 'A']] }), env(0, 'C', { block: ['A', 'P'] })], rest: 1, act: ['sol', 'spring'], colors: colOC },
+        dcv_22_no: { title: '2/2 NO Valve', short: '2/2 NO Valve', iso: 'ISO 1219-1: Sec 6.1', desc: '2-port 2-position valve, normally open.', slots: s2,
+            envs: [env(1, 'S', { block: ['A', 'P'] }), env(0, 'N', { conn: [['P', 'A']] })], rest: 1, act: ['sol', 'spring'], colors: colNO },
+        dcv_43_open: { title: 'DCV 4/3 – Open Centre (H)', short: 'DCV 4/3 Open', iso: 'ISO 1219-1: Sec 6.3', desc: '4/3 valve with all ports connected in the centre position.', slots: s4, envs: c43({ bus: ['P', 'A', 'B', 'T'] }), rest: 1, act: ['solspring', 'solspring'], colors: col3 },
+        dcv_43_tandem: { title: 'DCV 4/3 – Tandem Centre', short: 'DCV 4/3 Tandem', iso: 'ISO 1219-1: Sec 6.3', desc: '4/3 valve: P connected to T in the centre, A and B blocked (pump unloads).', slots: s4, envs: c43({ conn: [['P', 'T']], block: ['A', 'B'] }), rest: 1, act: ['solspring', 'solspring'], colors: col3 },
+        dcv_43_float: { title: 'DCV 4/3 – Float Centre', short: 'DCV 4/3 Float', iso: 'ISO 1219-1: Sec 6.3', desc: '4/3 valve: A, B and T connected in the centre, P blocked (cylinder floats).', slots: s4, envs: c43({ bus: ['A', 'B', 'T'], block: ['P'] }), rest: 1, act: ['solspring', 'solspring'], colors: col3 }
+    };
+})();
+const DCV_ORDER = ['dcv_43_closed', 'dcv_43_pilot', 'dcv_32_nc', 'dcv_32_no', 'dcv_22', 'dcv_22_no', 'dcv_43_prop', 'dcv_42', 'dcv_53', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float'];
+
+function dcvLayout(sp) {
+    const n = sp.envs.length, E = DCV_E;
+    const x0 = (0 - sp.rest) * E - E / 2, x1 = x0 + n * E;               // block of envelopes, rest envelope centred on 0
+    const w = { none: 0, sol: 22, spring: 24, solspring: 46 };
+    const ext = (a) => a === 'pilot' ? sp.pilotLen : (w[a] || 0);
+    return { x0, x1, ext0: x0 - ext(sp.act[0]), ext1: x1 + ext(sp.act[1]) };
+}
+
+// envelope position (+1 / 0 / −1) that is active for a given spoolPos
+function dcvPosOf(sp, st) {
+    const raw = Number(st && st.spoolPos) || 0;
+    if (sp.envs.length === 3) return Math.abs(raw) < (sp.prop ? 0.04 : 0.5) ? 0 : Math.sign(raw);
+    return raw > 0.5 ? 1 : 0;
+}
+
+// ── drawing helpers ────────────────────────────────────────────────────────
+function dcvHead(ctx, x, y, dx, dy, color) {
+    const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, s = 6;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x - ux * s - uy * s * 0.5, y - uy * s + ux * s * 0.5);
+    ctx.lineTo(x - ux * s + uy * s * 0.5, y - uy * s - ux * s * 0.5);
+    ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+
+function dcvGlyph(ctx, g, slots, cx, active) {
+    const col = active ? '#e0f2fe' : '#64748b', yT = -DCV_H / 2, yB = DCV_H / 2;
+    const sy = (p) => slots[p].top ? yT : yB, sx = (p) => cx + slots[p].x;
+    ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = active ? 2 : 1.6; ctx.lineJoin = 'round';
+    (g.conn || []).forEach(([a, b]) => {
+        if (!slots[a] || !slots[b]) return;
+        if (slots[a].top === slots[b].top) {                                   // U-turn between two ports on the same side
+            const inner = slots[a].top ? yT + 14 : yB - 14, edge = sy(a), up = slots[a].top;
+            ctx.beginPath(); ctx.moveTo(sx(a), edge); ctx.lineTo(sx(a), inner); ctx.lineTo(sx(b), inner); ctx.lineTo(sx(b), edge); ctx.stroke();
+            dcvHead(ctx, sx(b), edge, 0, up ? -1 : 1, col);
+        } else {
+            ctx.beginPath(); ctx.moveTo(sx(a), sy(a)); ctx.lineTo(sx(b), sy(b)); ctx.stroke();
+            dcvHead(ctx, sx(b), sy(b), sx(b) - sx(a), sy(b) - sy(a), col);
+        }
+    });
+    (g.block || []).forEach((p) => {
+        if (!slots[p]) return;
+        const top = slots[p].top, e = sy(p), inner = top ? e + 11 : e - 11;
+        ctx.beginPath(); ctx.moveTo(sx(p), e); ctx.lineTo(sx(p), inner); ctx.moveTo(sx(p) - 6, inner); ctx.lineTo(sx(p) + 6, inner); ctx.stroke();
+    });
+    if (g.bus) {
+        const xs = g.bus.filter(p => slots[p]).map(sx);
+        ctx.beginPath();
+        g.bus.forEach((p) => { if (slots[p]) { ctx.moveTo(sx(p), sy(p)); ctx.lineTo(sx(p), 0); } });
+        ctx.moveTo(Math.min(...xs), 0); ctx.lineTo(Math.max(...xs), 0); ctx.stroke();
+        ctx.beginPath(); ctx.arc((Math.min(...xs) + Math.max(...xs)) / 2, 0, 2.5, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+    }
+    ctx.restore();
+}
+
+function dcvSpring(ctx, xEdge, dir, lit) {
+    const n = 6, len = 24, amp = 7;
+    ctx.beginPath(); ctx.moveTo(xEdge, 0);
+    for (let i = 1; i <= n; i++) ctx.lineTo(xEdge + dir * len * i / n, i === n ? 0 : (i % 2 ? -amp : amp));
+    ctx.strokeStyle = lit ? '#fde68a' : '#94a3b8'; ctx.lineWidth = 1.8; ctx.stroke();
+}
+function dcvSolenoid(ctx, xInner, dir, lit) {
+    const x = dir < 0 ? xInner - 18 : xInner;
+    ctx.fillStyle = lit ? '#f59e0b' : '#0f172a'; ctx.fillRect(x, -17, 18, 34);
+    ctx.strokeStyle = lit ? '#fde68a' : '#475569'; ctx.lineWidth = 1.8; ctx.strokeRect(x, -17, 18, 34);
+    ctx.beginPath(); ctx.moveTo(x + 3, 12); ctx.lineTo(x + 15, -12); ctx.stroke();
+}
+
+function dcvDraw(key, ctx, st) {
+    const sp = DCV_SPECS[key], L = dcvLayout(sp), E = DCV_E, H = DCV_H, n = sp.envs.length;
+    const pos = dcvPosOf(sp, st), raw = Number(st && st.spoolPos) || 0;
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'butt'; ctx.setLineDash([]);
+
+    // proportional valve: parallel bars above and below the envelopes
+    if (sp.prop) {
+        ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.4;
+        [-1, 1].forEach(s => { ctx.beginPath(); ctx.moveTo(L.ext0 + 10, s * (H / 2 + 7)); ctx.lineTo(L.ext1 - 10, s * (H / 2 + 7)); ctx.stroke(); });
+    }
+
+    // actuators (left, right)
+    const litLeft = pos === sp.envs[0].pos && pos !== 0, litRight = pos === sp.envs[n - 1].pos && pos !== 0 && n === 3;
+    [[-1, sp.act[0], L.x0, litLeft], [1, sp.act[1], L.x1, litRight]].forEach(([dir, a, edge, lit]) => {
+        if (a === 'spring') dcvSpring(ctx, edge, dir, false);
+        else if (a === 'sol') dcvSolenoid(ctx, edge + dir * 4, dir, lit);
+        else if (a === 'solspring') { dcvSpring(ctx, edge, dir, false); dcvSolenoid(ctx, edge + dir * 26, dir, lit); }
+        else if (a === 'pilot') {
+            dcvSpring(ctx, edge, dir, false);
+            const xa = edge + dir * 28, xp = edge + dir * sp.pilotLen;
+            dcvHead(ctx, xa + dir * 0, 0, -dir, 0, lit ? '#fde68a' : '#a78bfa');      // pilot arrow pushes towards the spool
+            ctx.setLineDash([4, 3]); ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.moveTo(xa + dir * 2, 0); ctx.lineTo(xp, 0); ctx.stroke(); ctx.setLineDash([]);
+        }
+    });
+
+    // envelopes
+    sp.envs.forEach((e, i) => {
+        const cx = (i - sp.rest) * E, active = e.pos === pos;
+        ctx.fillStyle = active ? 'rgba(8, 145, 178, 0.32)' : '#1e293b';
+        ctx.fillRect(cx - E / 2, -H / 2, E, H);
+        ctx.strokeStyle = active ? '#22d3ee' : '#475569'; ctx.lineWidth = active ? 2.6 : 2;
+        ctx.strokeRect(cx - E / 2, -H / 2, E, H);
+        dcvGlyph(ctx, e.glyph, sp.slots, cx, active);
+    });
+
+    // port stubs on the rest envelope
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2;
+    Object.keys(sp.slots).forEach(p => {
+        const s = sp.slots[p];
+        ctx.beginPath(); ctx.moveTo(s.x, s.top ? -H / 2 : H / 2); ctx.lineTo(s.x, s.top ? -40 : 40); ctx.stroke();
+    });
+
+    // position indicator bar  (letters above, marker on the active segment)
+    const by = -64, bh = 10;
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(L.x0, by, n * E, bh);
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.2; ctx.strokeRect(L.x0, by, n * E, bh);
+    ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#64748b';
+    sp.envs.forEach((e, i) => ctx.fillText(e.label, L.x0 + (i + 0.5) * E, by - 3));
+    const ai = Math.max(0, sp.envs.findIndex(e => e.pos === pos)), mx = L.x0 + (ai + 0.5) * E;
+    const mcol = (sp.colors || {})[String(pos)] || '#fbbf24';
+    ctx.fillStyle = mcol; ctx.fillRect(mx - 11, by + 1, 22, bh - 2);
+    ctx.fillStyle = '#0f172a';
+    if (pos === 0 && n === 3) { ctx.beginPath(); ctx.arc(mx, by + bh / 2, 2, 0, Math.PI * 2); ctx.fill(); }
+    else { ctx.beginPath(); ctx.moveTo(mx - 3, by + 2.5); ctx.lineTo(mx + 4, by + bh / 2); ctx.lineTo(mx - 3, by + bh - 2.5); ctx.closePath(); ctx.fill(); }
+
+    // proportional command read-out
+    if (sp.prop) {
+        ctx.font = 'bold 10px sans-serif'; ctx.fillStyle = '#fb923c'; ctx.textAlign = 'center';
+        ctx.fillText(Math.round(raw * 100) + '%', 0, 62);
+    }
+    ctx.restore();
+}
+
+// ── library registration (overrides the old DCV entries, adds the new ones) ─
+function dcvPortType(id) { return id === 'P' ? 'pressure' : /^T\d?$|^R$/.test(id) ? 'tank' : id === 'X' ? 'pilot' : id === 'Y' ? 'drain' : 'work'; }
+
+function registerDcvLibrary() {
+    const defs = {};
+    DCV_ORDER.forEach((key) => {
+        const sp = DCV_SPECS[key], L = dcvLayout(sp), ports = [];
+        Object.keys(sp.slots).forEach(id => {
+            const s = sp.slots[id];
+            ports.push({ id, label: 'Port ' + id, relX: s.x, relY: s.top ? -40 : 40, type: dcvPortType(id) });
+        });
+        if (sp.act[0] === 'pilot') ports.push({ id: 'X', label: 'Port X (Pilot Pressure, → E)', relX: L.x0 - sp.pilotLen, relY: 0, type: 'pilot' });
+        if (sp.act[1] === 'pilot') ports.push({ id: 'Y', label: 'Port Y (Pilot Pressure, → R)', relX: L.x1 + sp.pilotLen, relY: 0, type: 'pilot' });
+        const hit = { x0: L.ext0 - 8, x1: L.ext1 + 8, y0: -86, y1: 52 };
+        defs[key] = {
+            title: sp.title, short: sp.short, cat: '2. Directional Valves', iso: sp.iso, tagPrefix: '1V', spec: sp.desc,
+            w: hit.x1 - hit.x0, h: hit.y1 - hit.y0, hit, ports, dcv: sp,
+            draw: function (ctx, st) { dcvDraw(key, ctx, st || {}); }
+        };
+    });
+    // keep every other entry where it was; the DCV block replaces the first old DCV position
+    const entries = Object.entries(LIBRARY), out = [];
+    let placed = false;
+    entries.forEach(([k, v]) => {
+        if (DCV_SPECS[k]) { if (!placed) { DCV_ORDER.forEach(dk => out.push([dk, Object.assign({}, LIBRARY[dk] || {}, defs[dk])])); placed = true; } return; }
+        out.push([k, v]);
+    });
+    if (!placed) DCV_ORDER.forEach(dk => out.push([dk, defs[dk]]));
+    Object.keys(LIBRARY).forEach(k => delete LIBRARY[k]);
+    out.forEach(([k, v]) => { LIBRARY[k] = v; });
+}
+registerDcvLibrary();
+
+// ── geometry helpers (rotation-aware hit boxes for every symbol) ───────────
+function defBounds(def) {
+    if (def.hit) return def.hit;
+    const w = def.w || 100, h = def.h || 80;
+    return { x0: -w / 2, x1: w / 2, y0: -h / 2, y1: h / 2 };
+}
+function worldToLocal(comp, wx, wy) {
+    const rad = -comp.rotation * Math.PI / 180, dx = wx - comp.x, dy = wy - comp.y;
+    return { x: dx * Math.cos(rad) - dy * Math.sin(rad), y: dx * Math.sin(rad) + dy * Math.cos(rad) };
+}
+function compContains(comp, def, wx, wy, pad = 10) {
+    const l = worldToLocal(comp, wx, wy), b = defBounds(def);
+    return l.x >= b.x0 - pad && l.x <= b.x1 + pad && l.y >= b.y0 - pad && l.y <= b.y1 + pad;
+}
+
+// ── click → flow mode ──────────────────────────────────────────────────────
+// returns the spool position (+1 / 0 / −1) under the click, or null
+function dcvClickTarget(comp, def, wx, wy) {
+    const sp = def.dcv; if (!sp) return null;
+    const l = worldToLocal(comp, wx, wy), L = dcvLayout(sp), n = sp.envs.length;
+    const idx = () => Math.min(n - 1, Math.max(0, Math.floor((l.x - L.x0) / DCV_E)));
+    if (l.x >= L.x0 && l.x <= L.x1 && Math.abs(l.y) <= DCV_H / 2 + 2) return sp.envs[idx()].pos;          // envelope
+    if (l.x >= L.x0 && l.x <= L.x1 && l.y >= -76 && l.y <= -48) return sp.envs[idx()].pos;                // indicator bar
+    if (Math.abs(l.y) <= 24) {                                                                              // actuators
+        if (l.x < L.x0 && l.x >= L.ext0) return sp.envs[0].pos;
+        if (l.x > L.x1 && l.x <= L.ext1) return sp.envs[n - 1].pos;
+    }
+    return null;
+}
+
+function setDcvPosition(compId, pos, noUI) {
+    const c = placedComponents.find(k => k.id === compId);
+    if (!c) return;
+    c.state.spoolPos = pos;
+    if (c.key === 'dcv_43_pilot') c.state.manualPos = pos;           // manual override of the pilot-driven spool
+    if (!noUI) updateUI();
+    render();
+}
+
+function dcvInspectorHtml(comp) {
+    const def = LIBRARY[comp.key];
+    if (!def || !def.dcv) return '';
+    const sp = def.dcv, pos = dcvPosOf(sp, comp.state), raw = Number(comp.state.spoolPos) || 0;
+    const btns = sp.envs.map(e => {
+        const on = e.pos === pos;
+        return `<button class="action-btn" style="flex:1; ${on ? 'background:#0891b2;' : 'background:#334155;'}" onclick="setDcvPosition('${comp.id}', ${e.pos})">${e.label}</button>`;
+    }).join('');
+    let html = `<div style="margin-top:0.5rem; font-size:0.72rem; color:#94a3b8;">Flow mode ${simEngine ? '(click to select)' : '(start the physics engine to click on the valve)'}</div>` +
+               `<div class="ctrl-btn-group" style="display:flex; gap:4px; margin-top:0.2rem;">${btns}</div>`;
+    if (sp.prop) {
+        html += `<div style="margin-top:0.4rem; font-size:0.72rem; color:#94a3b8;">Command: <span id="dcvPropVal">${Math.round(raw * 100)}</span> %</div>` +
+                `<input type="range" min="-100" max="100" value="${Math.round(raw * 100)}" style="width:100%" ` +
+                `oninput="setDcvPosition('${comp.id}', this.value/100, true); document.getElementById('dcvPropVal').innerText = this.value;">`;
+    }
+    if (comp.key === 'dcv_43_pilot') html += `<div style="margin-top:0.3rem; font-size:0.68rem; color:#94a3b8;">Pilot pressure ≥ 8 bar at X / Y shifts the spool when no manual override is set.</div>`;
+    return html;
+}
+
+let pendingDcvMode = null;      // { compId, pos } – applied on mouse-up when the click was not a drag
+let dragMoved = false;
+function dcvMouseUp() {
+    if (draggingCompId && !dragMoved && pendingDcvMode) setDcvPosition(pendingDcvMode.compId, pendingDcvMode.pos);
+    pendingDcvMode = null;
+}
+
+// ── component name under the symbol ────────────────────────────────────────
+const COMP_SHORT_NAMES = {
+    pump_fixed: 'Fixed Pump', pump_var: 'Var. Pump', motor_fixed: 'Fixed Motor', motor_var: 'Var. Motor', electric_motor: 'Electric Motor', manual_pump: 'Hand Pump',
+    logic_cartridge: 'Logic Cartridge', ball_valve_2way: 'Ball Valve', prv_direct: 'Relief Valve', prv_pilot: 'Pilot Relief Valve', prv_prop: 'Prop. Relief Valve',
+    prv_reducing: 'Reducing Valve', prv_3way: '3-Way Reducing', sequence: 'Sequence Valve', counterbalance: 'Counterbalance', unloading: 'Unloading Valve',
+    brake: 'Brake Valve', auto_cutoff: 'Auto Cut-Off', check_valve: 'Check Valve', po_check: 'PO Check Valve', po_check_close: 'PC Check Valve',
+    po_check_vented: 'PO Check (4-port)', fixed_throttle: 'Orifice', throttle_needle: 'Needle Valve', flow_control: 'Flow Control', flow_regulator: 'Flow Regulator',
+    temp_comp_flow: 'Temp-Comp Flow', flow_divider: 'Flow Divider', junction_tee: 'T-Connector', junction_cross: 'Cross Connector', flow_fuse: 'Flow Fuse',
+    air_bleed: 'Air Bleed', isolation_gate: 'Isolation Valve', cyl_double: 'Double-Act Cyl', cyl_cushion: 'Cushioned Cyl', cyl_single_spring: 'Single-Act Cyl',
+    cyl_double_rod: 'Double-Rod Cyl', cyl_telescopic: 'Telescopic Cyl', cyl_rodless: 'Rodless Cyl', cyl_gland_drain: 'Cyl + Gland Drain', rack_pinion: 'Rack & Pinion',
+    rotary_double: 'Rotary Actuator', rotary_spring: 'Rotary (Spring)', acc_bladder: 'Bladder Accum.', acc_piston: 'Piston Accum.', acc_diaphragm: 'Diaphragm Accum.',
+    acc_spring: 'Spring Accum.', acc_weighted: 'Weighted Accum.', res_vented: 'Reservoir', res_pressurised: 'Pressurised Tank', strainer: 'Strainer', filter_clogging: 'Filter',
+    cooler: 'Cooler', heater: 'Heater', frl_trio: 'FRL Unit', muffler: 'Muffler', quick_disconnect: 'Quick Coupling', press_switch: 'Pressure Switch',
+    press_transducer: 'Pressure Sensor', flowmeter: 'Flow Meter', level_switch: 'Level Switch', temp_switch: 'Temp. Switch'
+};
+function compDisplayName(comp, def) {
+    if (def.short) return def.short;
+    if (COMP_SHORT_NAMES[comp.key]) return COMP_SHORT_NAMES[comp.key];
+    const t = def.title || comp.key;
+    return t.length > 22 ? t.slice(0, 21).replace(/\s+\S*$/, '') + '…' : t;
+}
+function drawCompName(ctx, comp, def) {
+    if (!showNames) return;
+    const b = defBounds(def);
+    ctx.save();
+    ctx.font = '11px sans-serif'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center';
+    ctx.fillText(compDisplayName(comp, def), comp.x, comp.y + b.y1 + 14);
+    ctx.restore();
+}
+function toggleNames() {
+    showNames = !showNames;
+    const b = document.getElementById('btnNames');
+    if (b) { b.innerText = '🔤 Names: ' + (showNames ? 'ON' : 'OFF'); b.classList.toggle('active', showNames); }
+    render();
+}
+
+// ════════ STAGE 6 — CLICK-ROUTED HOSES ════════
+// ── state of the hose tool ─────────────────────────────────────────────────
+const HOSE_STUB = 20;              // minimum straight run leaving / entering a port
+let wireDraftPts = [];             // corners placed so far while drawing
+let wireDraftCursor = null;        // grid-snapped, orthogonal preview point
+let hoveredJunctionWire = null;    // existing hose under the cursor (click = T-junction)
+let wireDragCandidate = false;     // mouse still held on the start port (drag-to-connect mode)
+let draggingWp = null;             // { wireId, idx } corner being dragged
+let hoseIdSeq = 0;
+function newWireId() { return 'wire_' + Date.now() + '_' + (hoseIdSeq++); }
+
+// ── ports ──────────────────────────────────────────────────────────────────
+// world position and outward direction (unit vector) of a port.  Ports with a vertical offset leave
+// vertically, the others horizontally; rotation is applied.
+function hosePortInfo(compId, portId) {
+    const comp = placedComponents.find(c => c.id === compId); if (!comp) return null;
+    const def = LIBRARY[comp.key], p = def && def.ports && def.ports.find(q => q.id === portId); if (!p) return null;
+    let dx = 0, dy = 0;
+    if (Math.abs(p.relY) > 0.5) dy = Math.sign(p.relY); else dx = Math.sign(p.relX) || 1;
+    const rad = comp.rotation * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+    return { comp, pos: getPortWorldPos(comp, portId), dir: { x: Math.round(dx * c - dy * s), y: Math.round(dx * s + dy * c) } };
+}
+function hosePortAt(wx, wy, radius) {
+    let best = null, bd = radius;
+    for (const comp of placedComponents) {
+        const def = LIBRARY[comp.key]; if (!def || !def.ports) continue;
+        for (const p of def.ports) {
+            const pw = getPortWorldPos(comp, p.id), d = Math.hypot(wx - pw.x, wy - pw.y);
+            if (d < bd) { bd = d; best = { compId: comp.id, portId: p.id, pos: pw, pDef: p, compTag: comp.tag }; }
+        }
+    }
+    return best;
+}
+
+// ── orthogonal path builder ────────────────────────────────────────────────
+function hoseNear(a, b) { return Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01; }
+function hoseAxis(path, fallback) {
+    const n = path.length; if (n < 2 || hoseNear(path[n - 2], path[n - 1])) return fallback;
+    return Math.abs(path[n - 2].x - path[n - 1].x) < 0.01 ? 'v' : 'h';
+}
+function hoseElbow(path, to, axis) {
+    const cur = path[path.length - 1];
+    if (hoseNear(cur, to)) return;
+    if (Math.abs(cur.x - to.x) < 0.01 || Math.abs(cur.y - to.y) < 0.01) { path.push({ x: to.x, y: to.y }); return; }
+    path.push(axis === 'v' ? { x: cur.x, y: to.y } : { x: to.x, y: cur.y });          // keep going the way we were heading, then turn
+    path.push({ x: to.x, y: to.y });
+}
+function hoseOnRay(p, origin, dir) {                       // p lies on the ray leaving `origin` along `dir`
+    const dx = p.x - origin.x, dy = p.y - origin.y;
+    return dir.x !== 0 ? (Math.abs(dy) < 0.01 && dx * dir.x > 0.01) : (Math.abs(dx) < 0.01 && dy * dir.y > 0.01);
+}
+// S/dS: start port + outward dir, pts: corners, T/dT: end port + outward dir (or null), freeEnd: loose end for the draft preview
+function buildHosePath(S, dS, pts, T, dT, freeEnd) {
+    const path = [{ x: S.x, y: S.y }];
+    const stubOf = (P, d) => ({ x: P.x + d.x * HOSE_STUB, y: P.y + d.y * HOSE_STUB });
+    const first = pts.length ? pts[0] : (freeEnd || (T ? stubOf(T, dT) : null));
+    if (first && !hoseOnRay(first, S, dS)) path.push(stubOf(S, dS));                      // leave the port straight out first
+    let axis = dS.x !== 0 ? 'h' : 'v';
+    const go = (P) => { axis = hoseAxis(path, axis); hoseElbow(path, P, axis); };
+    pts.forEach(go);
+    if (freeEnd) go(freeEnd);
+    else if (T) {
+        if (!hoseOnRay(path[path.length - 1], T, dT)) go(stubOf(T, dT));               // arrive straight into the port
+        path.push({ x: T.x, y: T.y });
+    }
+    const out = [];
+    path.forEach(p => { if (!out.length || !hoseNear(out[out.length - 1], p)) out.push(p); });
+    const res = [out[0]];
+    for (let i = 1; i < out.length - 1; i++) {                                              // drop collinear middle points
+        const a = res[res.length - 1], b = out[i], c = out[i + 1];
+        if ((Math.abs(a.x - b.x) < 0.01 && Math.abs(b.x - c.x) < 0.01) || (Math.abs(a.y - b.y) < 0.01 && Math.abs(b.y - c.y) < 0.01)) continue;
+        res.push(b);
+    }
+    if (out.length > 1) res.push(out[out.length - 1]);
+    return res;
+}
+function getWirePath(w) {
+    const a = hosePortInfo(w.fromCompId, w.fromPortId), b = hosePortInfo(w.toCompId, w.toPortId);
+    return (a && b) ? buildHosePath(a.pos, a.dir, w.waypoints || [], b.pos, b.dir) : null;
+}
+function hoseWireAt(wx, wy, thr) {
+    for (let i = placedWires.length - 1; i >= 0; i--) {
+        const path = getWirePath(placedWires[i]);
+        if (path && isPointNearPath(wx, wy, path, thr)) return placedWires[i];
+    }
+    return null;
+}
+
+// ── drawing a hose by clicking ─────────────────────────────────────────────
+function hoseDraftCursor(wx, wy) {
+    const a = hosePortInfo(wireStartPort.compId, wireStartPort.portId); if (!a) return { x: wx, y: wy };
+    const gx = snapToGrid ? Math.round(wx / 20) * 20 : wx, gy = snapToGrid ? Math.round(wy / 20) * 20 : wy;
+    const last = wireDraftPts.length ? wireDraftPts[wireDraftPts.length - 1] : null;
+    if (!last) {                                              // first leg follows the port's exit axis
+        const d = a.dir, m = HOSE_STUB / 2;
+        if (d.x !== 0) { const x = d.x > 0 ? Math.max(gx, Math.ceil((a.pos.x + m) / 20) * 20) : Math.min(gx, Math.floor((a.pos.x - m) / 20) * 20); return { x, y: a.pos.y }; }
+        const y = d.y > 0 ? Math.max(gy, Math.ceil((a.pos.y + m) / 20) * 20) : Math.min(gy, Math.floor((a.pos.y - m) / 20) * 20);
+        return { x: a.pos.x, y };
+    }
+    return Math.abs(gx - last.x) >= Math.abs(gy - last.y) ? { x: gx, y: last.y } : { x: last.x, y: gy };
+}
+function cancelHoseDraft() {
+    isWiring = false; wireStartPort = null; hoveredTargetPort = null; wireDraftPts = []; wireDraftCursor = null;
+    hoveredJunctionWire = null; wireDragCandidate = false; render();
+}
+function undoHoseCorner() { if (wireDraftPts.length) { wireDraftPts.pop(); wireDraftCursor = null; render(); } else cancelHoseDraft(); }
+
+function commitHose(toCompId, toPortId) {
+    const w = { id: newWireId(), fromCompId: wireStartPort.compId, fromPortId: wireStartPort.portId, toCompId, toPortId, style: wireStyle, waypoints: wireDraftPts.map(p => ({ x: p.x, y: p.y })) };
+    placedWires.push(w);
+    selectedWireId = w.id; selectedCompId = null;
+    isWiring = false; wireStartPort = null; hoveredTargetPort = null; wireDraftPts = []; wireDraftCursor = null; hoveredJunctionWire = null; wireDragCandidate = false;
+    updateUI(); render();
+}
+
+// ── T-junction on an existing hose ─────────────────────────────────────────
+// Splits hose `w` at the grid point nearest `pt` and returns { comp } (the junction), or null when no straight
+// run of ≥ 80 px is available.  `toward` = where the branch comes from (decides which side port 3 faces).
+function insertJunctionOnWire(w, pt, toward) {
+    const path = getWirePath(w); if (!path || path.length < 2) return null;
+    const segs = [];
+    for (let i = 0; i < path.length - 1; i++) segs.push({ i, d: pointToSegmentDistance(pt.x, pt.y, path[i].x, path[i].y, path[i + 1].x, path[i + 1].y) });
+    segs.sort((p, q) => p.d - q.d);
+    for (const sg of segs) {
+        if (sg.d > 14) break;
+        const a = path[sg.i], b = path[sg.i + 1];
+        if (Math.hypot(b.x - a.x, b.y - a.y) < 80) continue;
+        const d = { x: Math.sign(b.x - a.x), y: Math.sign(b.y - a.y) };
+        const horiz = d.x !== 0, lo = (horiz ? Math.min(a.x, b.x) : Math.min(a.y, b.y)) + 40, hi = (horiz ? Math.max(a.x, b.x) : Math.max(a.y, b.y)) - 40;
+        let v = horiz ? pt.x : pt.y;
+        if (snapToGrid) { v = Math.round(v / 20) * 20; const l2 = Math.ceil(lo / 20) * 20, h2 = Math.floor(hi / 20) * 20; if (l2 > h2) continue; v = Math.min(h2, Math.max(l2, v)); }
+        else v = Math.min(hi, Math.max(lo, v));
+        const J = horiz ? { x: v, y: a.y } : { x: a.x, y: v };
+        const n3 = { x: -d.y, y: d.x };                                   // direction port 3 faces when the tee is turned along d
+        const flip = toward ? ((toward.x - J.x) * n3.x + (toward.y - J.y) * n3.y) < 0 : false;
+        const rot = ((Math.round(Math.atan2(d.y, d.x) * 180 / Math.PI) + (flip ? 180 : 0)) % 360 + 360) % 360;
+        const comp = spawnComponent('junction_tee', J.x, J.y); if (!comp) return null;
+        comp.rotation = rot;
+        const wpA = path.slice(1, sg.i + 1).map(p => ({ x: p.x, y: p.y }));
+        const wpB = path.slice(sg.i + 1, path.length - 1).map(p => ({ x: p.x, y: p.y }));
+        placedWires = placedWires.filter(x => x.id !== w.id);
+        placedWires.push({ id: newWireId(), fromCompId: w.fromCompId, fromPortId: w.fromPortId, toCompId: comp.id, toPortId: flip ? '2' : '1', style: w.style, waypoints: wpA });
+        placedWires.push({ id: newWireId(), fromCompId: comp.id, fromPortId: flip ? '1' : '2', toCompId: w.toCompId, toPortId: w.toPortId, style: w.style, waypoints: wpB });
+        return { comp, J };
+    }
+    return null;
+}
+function hoseToast(msg) {
+    let el = document.getElementById('hoseToast');
+    if (!el) {
+        el = document.createElement('div'); el.id = 'hoseToast';
+        el.style.cssText = 'position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#0f172a;color:#e2e8f0;border:1px solid #38bdf8;padding:6px 12px;border-radius:6px;font-size:12px;z-index:50;pointer-events:none;opacity:0;transition:opacity .2s';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg; el.style.opacity = 1; clearTimeout(el._t); el._t = setTimeout(() => { el.style.opacity = 0; }, 2600);
+}
+
+// ── corner editing ─────────────────────────────────────────────────────────
+function hoseMaterialize(w) {                       // make every corner of the current route an editable waypoint
+    const path = getWirePath(w);
+    if (path) w.waypoints = path.slice(1, -1).map(p => ({ x: p.x, y: p.y }));
+    return w.waypoints || [];
+}
+function hoseHandleAt(w, wx, wy) {
+    const path = getWirePath(w); if (!path) return null;
+    for (let i = 1; i < path.length - 1; i++) if (Math.hypot(wx - path[i].x, wy - path[i].y) <= 9 / scale) return { idx: i - 1 };
+    return null;
+}
+function hoseAutoRoute(id) { const w = placedWires.find(x => x.id === id); if (w) { w.waypoints = []; updateUI(); render(); } }
+function hoseEditCorners(id) { const w = placedWires.find(x => x.id === id); if (w) { hoseMaterialize(w); updateUI(); render(); } }
+function drawHoseHandles(ctx, w, path) {
+    ctx.save();
+    for (let i = 1; i < path.length - 1; i++) {
+        ctx.fillStyle = '#0ea5e9'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+        ctx.fillRect(path[i].x - 5, path[i].y - 5, 10, 10); ctx.strokeRect(path[i].x - 5, path[i].y - 5, 10, 10);
+    }
+    ctx.restore();
+}
+function hoseInspectorHtml(w) {
+    const n = (w.waypoints || []).length;
+    return `<div class="prop-row"><span class="prop-label">Corners:</span><span class="prop-val">${n ? n + ' (manual)' : 'auto-routed'}</span></div>
+            <div style="font-size:0.68rem; color:#94a3b8; margin:0.2rem 0;">Drag the ▪ handles to move a corner, right-click a handle to delete it, double-click the hose to insert a T-junction.</div>
+            <div class="ctrl-btn-group" style="display:flex; gap:4px;">
+                <button class="action-btn" style="flex:1; background:#334155;" onclick="hoseEditCorners('${w.id}')">✏️ Edit corners</button>
+                <button class="action-btn" style="flex:1; background:#334155;" onclick="hoseAutoRoute('${w.id}')">↺ Auto-route</button>
+            </div>`;
+}
+
+// ── mouse / keyboard entry points (called from setupCanvasEvents) ──────────
+function hoseMouseDown(e, pos) {
+    // 0. grab a corner handle of the selected hose
+    if (!isWiring && selectedWireId) {
+        const w = placedWires.find(x => x.id === selectedWireId);
+        const hit = w && hoseHandleAt(w, pos.wx, pos.wy);
+        if (hit) { hoseMaterialize(w); draggingWp = { wireId: w.id, idx: hit.idx }; render(); return true; }
+    }
+    // 1. click-drawing in progress
+    if (isWiring && wireStartPort) {
+        const port = hoveredTargetPort || hosePortAt(pos.wx, pos.wy, 26);
+        if (port) {
+            if (port.compId === wireStartPort.compId && port.portId === wireStartPort.portId) cancelHoseDraft();
+            else commitHose(port.compId, port.portId);
+            return true;
+        }
+        const hw = hoseWireAt(pos.wx, pos.wy, 10);
+        if (hw) {
+            const a = hosePortInfo(wireStartPort.compId, wireStartPort.portId);
+            const toward = wireDraftPts.length ? wireDraftPts[wireDraftPts.length - 1] : (a ? a.pos : null);
+            const r = insertJunctionOnWire(hw, { x: pos.wx, y: pos.wy }, toward);
+            if (r) commitHose(r.comp.id, '3'); else hoseToast('A T-junction needs a straight hose run of at least 4 grid squares.');
+            return true;
+        }
+        const c = hoseDraftCursor(pos.wx, pos.wy), last = wireDraftPts.length ? wireDraftPts[wireDraftPts.length - 1] : null;
+        if (!last || !hoseNear(last, c)) wireDraftPts.push(c);
+        wireDraftCursor = null; render();
+        return true;
+    }
+    // 2. start a hose at a port
+    const port = hosePortAt(pos.wx, pos.wy, 18);
+    if (port) {
+        isWiring = true; wireStartPort = { compId: port.compId, portId: port.portId };
+        hoveredTargetPort = null; wireDraftPts = []; wireDraftCursor = null; wireDragCandidate = true;
+        render(); return true;
+    }
+    return false;
+}
+
+function hoseMouseMove(pos) {
+    if (draggingWp) {
+        const w = placedWires.find(x => x.id === draggingWp.wireId);
+        if (!w) { draggingWp = null; return false; }
+        w.waypoints[draggingWp.idx] = { x: snapToGrid ? Math.round(pos.wx / 20) * 20 : pos.wx, y: snapToGrid ? Math.round(pos.wy / 20) * 20 : pos.wy };
+        render(); return true;
+    }
+    if (!(isWiring && wireStartPort)) return false;
+    let t = hosePortAt(pos.wx, pos.wy, 26);
+    if (t && t.compId === wireStartPort.compId && t.portId === wireStartPort.portId) t = null;
+    hoveredTargetPort = t;
+    hoveredJunctionWire = t ? null : hoseWireAt(pos.wx, pos.wy, 10);
+    wireDraftCursor = hoseDraftCursor(pos.wx, pos.wy);
+    render(); return true;
+}
+
+function hoseMouseUp() {
+    draggingWp = null;
+    if (isWiring && wireStartPort && wireDragCandidate) {
+        wireDragCandidate = false;
+        if (hoveredTargetPort) commitHose(hoveredTargetPort.compId, hoveredTargetPort.portId);      // press-drag-release connection
+        return;                                                                                       // plain click → click-drawing mode continues
+    }
+    wireDragCandidate = false;
+}
+
+function hoseKeyDown(e) {
+    if (isWiring) {
+        if (e.key === 'Escape') { cancelHoseDraft(); return true; }
+        if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); undoHoseCorner(); return true; }
+    } else if (e.key === 'Escape' && (selectedCompId || selectedWireId)) {
+        selectedCompId = null; selectedWireId = null; updateUI(); render(); return true;
+    }
+    return false;
+}
+
+function hoseContextMenu(e) {
+    e.preventDefault();
+    const pos = getEventWorldPos(e);
+    if (isWiring) { undoHoseCorner(); return; }
+    if (selectedWireId) {
+        const w = placedWires.find(x => x.id === selectedWireId), hit = w && hoseHandleAt(w, pos.wx, pos.wy);
+        if (hit) { hoseMaterialize(w); w.waypoints.splice(hit.idx, 1); updateUI(); render(); }
+    }
+}
+
+// ── live draft preview (replaces the old straight-line draft in render()) ──
+function drawWireDraft() {
+    if (!isWiring || !wireStartPort) return;
+    const a = hosePortInfo(wireStartPort.compId, wireStartPort.portId); if (!a) return;
+    const sc = Math.max(scale, 0.01);
+
+    // candidate target ports + start ring
+    ctx.beginPath(); ctx.arc(a.pos.x, a.pos.y, 10, 0, Math.PI * 2); ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2.5; ctx.stroke();
+    for (const comp of placedComponents) {
+        const def = LIBRARY[comp.key]; if (!def || !def.ports) continue;
+        for (const p of def.ports) {
+            if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
+            const pw = getPortWorldPos(comp, p.id);
+            ctx.beginPath(); ctx.arc(pw.x, pw.y, 8, 0, Math.PI * 2); ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2; ctx.stroke();
+        }
+    }
+    // highlight a hose that would receive a T-junction
+    if (hoveredJunctionWire && !hoveredTargetPort) {
+        const hp = getWirePath(hoveredJunctionWire);
+        if (hp) { ctx.beginPath(); ctx.moveTo(hp[0].x, hp[0].y); hp.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.strokeStyle = 'rgba(34,211,238,0.75)'; ctx.lineWidth = 6; ctx.stroke(); }
+    }
+
+    // draft route
+    let path;
+    if (hoveredTargetPort) { const b = hosePortInfo(hoveredTargetPort.compId, hoveredTargetPort.portId); path = b ? buildHosePath(a.pos, a.dir, wireDraftPts, b.pos, b.dir) : null; }
+    else path = buildHosePath(a.pos, a.dir, wireDraftPts, null, null, wireDraftCursor || (currentMouseWorld ? { x: currentMouseWorld.wx, y: currentMouseWorld.wy } : null));
+    if (path && path.length > 1) {
+        ctx.lineWidth = 2.5; ctx.strokeStyle = '#facc15'; ctx.setLineDash([6, 4]);
+        ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y); path.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // placed corners
+    ctx.fillStyle = '#facc15'; wireDraftPts.forEach(p => ctx.fillRect(p.x - 4, p.y - 4, 8, 8));
+
+    // snapped cursor
+    if (wireDraftCursor && !hoveredTargetPort) {
+        const c = wireDraftCursor;
+        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.2; ctx.beginPath();
+        ctx.moveTo(c.x - 7, c.y); ctx.lineTo(c.x + 7, c.y); ctx.moveTo(c.x, c.y - 7); ctx.lineTo(c.x, c.y + 7); ctx.stroke();
+    }
+    if (hoveredTargetPort) {
+        ctx.beginPath(); ctx.arc(hoveredTargetPort.pos.x, hoveredTargetPort.pos.y, 11, 0, Math.PI * 2);
+        ctx.fillStyle = '#22c55e'; ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#16a34a'; ctx.fillRect(hoveredTargetPort.pos.x - 52, hoveredTargetPort.pos.y - 32, 104, 18);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.strokeRect(hoveredTargetPort.pos.x - 52, hoveredTargetPort.pos.y - 32, 104, 18);
+        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(`Connect: ${hoveredTargetPort.compTag}:${hoveredTargetPort.portId}`, hoveredTargetPort.pos.x, hoveredTargetPort.pos.y - 19);
+    }
+    // hint
+    const hx = (currentMouseWorld ? currentMouseWorld.wx : a.pos.x) + 16 / sc, hy = (currentMouseWorld ? currentMouseWorld.wy : a.pos.y) + 22 / sc;
+    const hint = hoveredTargetPort ? 'Click: finish hose' : hoveredJunctionWire ? 'Click: T-junction on this hose' : `Click: add corner · click a port to finish · ${wireDraftPts.length ? '⌫ / right-click: undo · ' : ''}Esc: cancel`;
+    ctx.save(); ctx.font = (11 / sc) + 'px sans-serif'; ctx.textAlign = 'left';
+    const tw = ctx.measureText(hint).width + 12 / sc;
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.88)'; ctx.fillRect(hx - 4 / sc, hy - 13 / sc, tw, 18 / sc);
+    ctx.fillStyle = '#e2e8f0'; ctx.fillText(hint, hx, hy);
+    ctx.restore();
+}
+
 // ── APPLICATION STATE & GLOBALS ──
 
         // ── APPLICATION STATE & GLOBAL VARIABLES ──
@@ -3473,21 +4130,24 @@ function resetSimulation() { if (simEngine) simEngine.reset(); updateTelemetry()
 
         // PRELOAD A COMPLETE 5-COMPONENT CIRCUIT
         function setupPreloadedCircuit() {
-            const res = spawnComponent('res_vented', 200, 420);
-            const pump = spawnComponent('pump_fixed', 200, 280);
-            const prv = spawnComponent('prv_direct', 380, 280);
-            const dcv = spawnComponent('dcv_43_closed', 200, 140);
-            const cyl = spawnComponent('cyl_double', 420, 140);
+            const res = spawnComponent('res_vented', 500, 440);   res.rotation = 270;
+            const pump = spawnComponent('pump_fixed', 340, 420);  pump.rotation = 270;
+            const prv = spawnComponent('prv_direct', 340, 600);
+            const dcv = spawnComponent('dcv_43_closed', 160, 300);
+            const cyl = spawnComponent('cyl_double', 160, 120);
+            const pts = (...p) => p.map(([x, y]) => ({ x, y }));
 
-            // Connect hoses
-            placedWires.push({ id: 'w1', fromCompId: res.id, fromPortId: 'S', toCompId: pump.id, toPortId: 'S', style: 'solid-blue' });
-            placedWires.push({ id: 'w2', fromCompId: pump.id, fromPortId: 'P', toCompId: dcv.id, toPortId: 'P', style: 'solid-red' });
-            placedWires.push({ id: 'w3', fromCompId: pump.id, fromPortId: 'P', toCompId: prv.id, toPortId: 'P', style: 'solid-red' });
-            placedWires.push({ id: 'w4', fromCompId: prv.id, fromPortId: 'T', toCompId: res.id, toPortId: 'T', style: 'solid-blue' });
-            placedWires.push({ id: 'w5', fromCompId: dcv.id, fromPortId: 'A', toCompId: cyl.id, toPortId: 'A', style: 'solid-red' });
-            placedWires.push({ id: 'w6', fromCompId: dcv.id, fromPortId: 'B', toCompId: cyl.id, toPortId: 'B', style: 'solid-blue' });
-            placedWires.push({ id: 'w7', fromCompId: dcv.id, fromPortId: 'T', toCompId: res.id, toPortId: 'T', style: 'solid-blue' }); // DCV tank return (rod side must be able to drain)
+            // Connect hoses (corners are stored on the grid; drag the handles of a selected hose to edit them)
+            const hose = (id, a, ap, b, bp, style, waypoints) => placedWires.push({ id, fromCompId: a.id, fromPortId: ap, toCompId: b.id, toPortId: bp, style, waypoints });
+            hose('w1', res, 'S', pump, 'S', 'solid-blue', []);
+            hose('w2', pump, 'P', dcv, 'P', 'solid-red', pts([140, 420]));
+            hose('w3', pump, 'P', prv, 'P', 'solid-red', pts([275, 420], [275, 600]));
+            hose('w4', prv, 'T', res, 'T', 'solid-blue', pts([445, 600], [445, 460]));
+            hose('w5', dcv, 'A', cyl, 'A', 'solid-red', pts([140, 180], [110, 180]));
+            hose('w6', dcv, 'B', cyl, 'B', 'solid-blue', pts([180, 170], [190, 170]));
+            hose('w7', dcv, 'T', res, 'T', 'solid-blue', pts([180, 360], [445, 360], [445, 460]));   // DCV tank return (rod side must drain)
 
+            selectedCompId = null; selectedWireId = null;
             updateUI();
         }
 
@@ -3600,7 +4260,7 @@ function resetSimulation() { if (simEngine) simEngine.reset(); updateTelemetry()
             const rx = p.relX * Math.cos(rad) - p.relY * Math.sin(rad);
             const ry = p.relX * Math.sin(rad) + p.relY * Math.cos(rad);
 
-            return { x: comp.x + rx, y: comp.y + ry };
+            return { x: Math.round((comp.x + rx) * 100) / 100, y: Math.round((comp.y + ry) * 100) / 100 };
         }
 
         function getEventWorldPos(e) {
@@ -3642,42 +4302,21 @@ function resetSimulation() { if (simEngine) simEngine.reset(); updateTelemetry()
                     return;
                 }
 
-                // 1. Check if clicked on a Port -> Initiate Wiring
-                for (let comp of placedComponents) {
-                    const def = LIBRARY[comp.key];
-                    if (!def || !def.ports) continue;
-                    for (let p of def.ports) {
-                        const pw = getPortWorldPos(comp, p.id);
-                        if (Math.hypot(pos.wx - pw.x, pos.wy - pw.y) < 18) {
-                            isWiring = true;
-                            wireStartPort = { compId: comp.id, portId: p.id };
-                            hoveredTargetPort = null;
-                            render();
-                            return;
-                        }
-                    }
-                }
-
-                // If wiring and clicked empty space -> cancel wiring
-                if (isWiring) {
-                    isWiring = false;
-                    wireStartPort = null;
-                    hoveredTargetPort = null;
-                    render();
-                    return;
-                }
+                // 1. Hose tool: start / continue / finish a hose, or grab a corner handle of the selected hose
+                if (hoseMouseDown(e, pos)) return;
 
                 // 2. Check if clicked on a Component -> Drag & Select
                 for (let i = placedComponents.length - 1; i >= 0; i--) {
                     const comp = placedComponents[i];
                     const def = LIBRARY[comp.key];
-                    const halfW = (def.w || 100) / 2 + 10;
-                    const halfH = (def.h || 80) / 2 + 10;
-
-                    if (Math.abs(pos.wx - comp.x) <= halfW && Math.abs(pos.wy - comp.y) <= halfH) {
+                    if (compContains(comp, def, pos.wx, pos.wy, 10)) {
                         selectedCompId = comp.id;
                         selectedWireId = null;
                         draggingCompId = comp.id;
+                        // directional valves: a click (without dragging) selects the flow mode under the cursor
+                        dragMoved = false;
+                        const dcvPos = (simEngine && def.dcv) ? dcvClickTarget(comp, def, pos.wx, pos.wy) : null;
+                        pendingDcvMode = (dcvPos === null) ? null : { compId: comp.id, pos: dcvPos };
                         dragOffsetX = pos.wx - comp.x;
                         dragOffsetY = pos.wy - comp.y;
 
@@ -3698,7 +4337,7 @@ function resetSimulation() { if (simEngine) simEngine.reset(); updateTelemetry()
                     if (c1 && c2) {
                         const p1 = getPortWorldPos(c1, w.fromPortId);
                         const p2 = getPortWorldPos(c2, w.toPortId);
-                        const pathPoints = calculateManhattanPath(p1, p2);
+                        const pathPoints = getWirePath(w) || calculateManhattanPath(p1, p2);
                         if (isPointNearPath(pos.wx, pos.wy, pathPoints, 10)) {
                             selectedWireId = w.id;
                             selectedCompId = null;
@@ -3735,29 +4374,13 @@ function resetSimulation() { if (simEngine) simEngine.reset(); updateTelemetry()
                             nx = Math.round(nx / 20) * 20;
                             ny = Math.round(ny / 20) * 20;
                         }
+                        if (nx !== comp.x || ny !== comp.y) dragMoved = true;
                         comp.x = nx;
                         comp.y = ny;
                         render();
                     }
-                } else if (isWiring && wireStartPort) {
-                    // Snapping & Target Validation
-                    hoveredTargetPort = null;
-                    let minDist = 26; // Snap radius
-
-                    for (let comp of placedComponents) {
-                        const def = LIBRARY[comp.key];
-                        if (!def || !def.ports) continue;
-                        for (let p of def.ports) {
-                            if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
-                            const pw = getPortWorldPos(comp, p.id);
-                            const dist = Math.hypot(currentMouseWorld.wx - pw.x, currentMouseWorld.wy - pw.y);
-                            if (dist < minDist) {
-                                minDist = dist;
-                                hoveredTargetPort = { compId: comp.id, portId: p.id, pos: pw, pDef: p, compTag: comp.tag };
-                            }
-                        }
-                    }
-                    render();
+                } else if (hoseMouseMove(pos)) {
+                    // hose tool handled the move (draft preview / corner drag)
                 }
             });
 
@@ -3766,71 +4389,24 @@ function resetSimulation() { if (simEngine) simEngine.reset(); updateTelemetry()
                     isPanning = false;
                 }
 
-                if (isWiring && wireStartPort) {
-                    if (hoveredTargetPort) {
-                        // Successfully create new connection!
-                        placedWires.push({
-                            id: 'wire_' + Date.now() + '_' + Math.floor(Math.random()*1000),
-                            fromCompId: wireStartPort.compId,
-                            fromPortId: wireStartPort.portId,
-                            toCompId: hoveredTargetPort.compId,
-                            toPortId: hoveredTargetPort.portId,
-                            style: wireStyle
-                        });
-                        selectedWireId = placedWires[placedWires.length - 1].id;
-                        selectedCompId = null;
-                    }
-                    isWiring = false;
-                    wireStartPort = null;
-                    hoveredTargetPort = null;
-                    updateUI();
-                    render();
-                }
+                hoseMouseUp();
+                dcvMouseUp();
 
                 draggingCompId = null;
             });
 
             
             canvas.addEventListener('dblclick', (e) => {
+                if (isWiring) return;
                 const pos = getEventWorldPos(e);
-                for (let w of placedWires) {
-                    const c1 = placedComponents.find(c => c.id === w.fromCompId);
-                    const c2 = placedComponents.find(c => c.id === w.toCompId);
-                    if (c1 && c2) {
-                        const p1 = getPortWorldPos(c1, w.fromPortId);
-                        const p2 = getPortWorldPos(c2, w.toPortId);
-                        const pathPoints = calculateManhattanPath(p1, p2);
-                        if (isPointNearPath(pos.wx, pos.wy, pathPoints, 12)) {
-                            const jx = snapToGrid ? Math.round(pos.wx / 20) * 20 : pos.wx;
-                            const jy = snapToGrid ? Math.round(pos.wy / 20) * 20 : pos.wy;
-                            const jComp = spawnComponent('junction_tee', jx, jy);
-                            if (jComp) {
-                                placedWires = placedWires.filter(wi => wi.id !== w.id);
-                                placedWires.push({
-                                    id: 'wire_' + Date.now() + '_1',
-                                    fromCompId: w.fromCompId,
-                                    fromPortId: w.fromPortId,
-                                    toCompId: jComp.id,
-                                    toPortId: '1',
-                                    style: w.style
-                                });
-                                placedWires.push({
-                                    id: 'wire_' + Date.now() + '_2',
-                                    fromCompId: jComp.id,
-                                    fromPortId: '2',
-                                    toCompId: w.toCompId,
-                                    toPortId: w.toPortId,
-                                    style: w.style
-                                });
-                                selectedCompId = jComp.id;
-                                updateUI();
-                                render();
-                                return;
-                            }
-                        }
-                    }
-                }
+                const w = hoseWireAt(pos.wx, pos.wy, 12);
+                if (!w) return;
+                const r = insertJunctionOnWire(w, { x: pos.wx, y: pos.wy }, null);
+                if (r) { selectedCompId = r.comp.id; selectedWireId = null; updateUI(); render(); }
+                else hoseToast('A T-junction needs a straight hose run of at least 4 grid squares.');
             });
+
+            canvas.addEventListener('contextmenu', (e) => hoseContextMenu(e));
 
 canvas.addEventListener('wheel', (e) => {
                 e.preventDefault();
@@ -3846,6 +4422,7 @@ canvas.addEventListener('wheel', (e) => {
 
             window.addEventListener('keydown', (e) => {
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+                if (hoseKeyDown(e)) return;
 
                 if (e.key === 'Delete' || e.key === 'Backspace') {
                     deleteSelected();
@@ -3943,7 +4520,7 @@ canvas.addEventListener('wheel', (e) => {
                     if (nodeP !== null) { ctx.strokeStyle = blendPressureColor(nodeP, pRef); particleColor = '#f8fafc'; }
 
                     // Manhattan Orthogonal Routing
-                    const pathPoints = calculateManhattanPath(p1, p2);
+                    const pathPoints = getWirePath(w) || calculateManhattanPath(p1, p2);
                     ctx.beginPath();
                     ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
                     for (let i = 1; i < pathPoints.length; i++) {
@@ -3958,60 +4535,15 @@ canvas.addEventListener('wheel', (e) => {
 
                     if (isSelected) {
                         ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.stroke();
+                        drawHoseHandles(ctx, w, pathPoints);
                     }
                 }
             }
 
-            // Draw Wire Draft & Target Validation
-            if (isWiring && wireStartPort) {
-                const c1 = placedComponents.find(c => c.id === wireStartPort.compId);
-                if (c1) {
-                    const p1 = getPortWorldPos(c1, wireStartPort.portId);
+            // Draw Wire Draft (click-routed corners, snapped cursor, T-junction hint)
+    drawWireDraft();
 
-                    // 1. Highlight Start Port with Gold Ring
-                    ctx.beginPath(); ctx.arc(p1.x, p1.y, 10, 0, Math.PI * 2);
-                    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2.5; ctx.stroke();
-
-                    // 2. Highlight All Candidate Target Ports across Canvas
-                    for (let comp of placedComponents) {
-                        const def = LIBRARY[comp.key];
-                        if (!def || !def.ports) continue;
-                        for (let p of def.ports) {
-                            if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
-                            const pw = getPortWorldPos(comp, p.id);
-                            ctx.beginPath(); ctx.arc(pw.x, pw.y, 8, 0, Math.PI * 2);
-                            ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2; ctx.stroke();
-                        }
-                    }
-
-                    // 3. Draft Line Target Position
-                    const targetPos = hoveredTargetPort ? hoveredTargetPort.pos : { x: currentMouseWorld.wx, y: currentMouseWorld.wy };
-                    const draftPath = calculateManhattanPath(p1, targetPos);
-
-                    ctx.lineWidth = 2.5; ctx.strokeStyle = '#facc15'; ctx.setLineDash([4, 4]);
-                    ctx.beginPath();
-                    ctx.moveTo(draftPath[0].x, draftPath[0].y);
-                    for (let i = 1; i < draftPath.length; i++) {
-                        ctx.lineTo(draftPath[i].x, draftPath[i].y);
-                    }
-                    ctx.stroke(); ctx.setLineDash([]);
-
-                    // 4. Highlight Hovered Target Port
-                    if (hoveredTargetPort) {
-                        ctx.beginPath(); ctx.arc(hoveredTargetPort.pos.x, hoveredTargetPort.pos.y, 11, 0, Math.PI * 2);
-                        ctx.fillStyle = '#22c55e'; ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
-
-                        // Tooltip Badge
-                        ctx.fillStyle = '#16a34a';
-                        ctx.fillRect(hoveredTargetPort.pos.x - 40, hoveredTargetPort.pos.y - 30, 80, 18);
-                        ctx.strokeStyle = '#ffffff'; ctx.strokeRect(hoveredTargetPort.pos.x - 40, hoveredTargetPort.pos.y - 30, 80, 18);
-                        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
-                        ctx.fillText(`Connect: ${hoveredTargetPort.compTag}:${hoveredTargetPort.portId}`, hoveredTargetPort.pos.x, hoveredTargetPort.pos.y - 18);
-                    }
-                }
-            }
-
-            // 2. Draw Placed Components
+    // 2. Draw Placed Components
             for (let comp of placedComponents) {
                 const def = LIBRARY[comp.key];
                 if (!def) continue;
@@ -4028,7 +4560,7 @@ canvas.addEventListener('wheel', (e) => {
                 if (isSelected) {
                     ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
                     const w = def.w || 100, h = def.h || 80;
-                    ctx.strokeRect(-w/2 - 8, -h/2 - 8, w + 16, h + 16);
+                    const bb = defBounds(def); ctx.strokeRect(bb.x0 - 8, bb.y0 - 8, bb.x1 - bb.x0 + 16, bb.y1 - bb.y0 + 16);
                     ctx.setLineDash([]);
                 }
 
@@ -4057,10 +4589,11 @@ canvas.addEventListener('wheel', (e) => {
                 }
 
                 drawLiveReadout(ctx, comp, def);
+                drawCompName(ctx, comp, def);
 
                 // Render ISO 1219-2 Designation Tag
                 if (showIsoTags) {
-                    const h = def.h || 80;
+                    const h = -2 * defBounds(def).y0;
                     ctx.fillStyle = '#0284c7'; ctx.fillRect(comp.x - 22, comp.y - h/2 - 20, 44, 16);
                     ctx.strokeStyle = '#ffffff'; ctx.strokeRect(comp.x - 22, comp.y - h/2 - 20, 44, 16);
                     ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
@@ -4219,6 +4752,7 @@ canvas.addEventListener('wheel', (e) => {
             placedComponents.forEach(c => {
                 if (c.state && c.state.spoolPos !== undefined) {
                     c.state.spoolPos = pos;
+                    if (c.key === 'dcv_43_pilot') c.state.manualPos = pos;
                 }
             });
             render();
@@ -4312,6 +4846,7 @@ canvas.addEventListener('wheel', (e) => {
                         <div class="prop-row"><span class="prop-label">Rotation:</span><span class="prop-val">${comp.rotation}°</span></div>
                         <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.3rem;">${def.spec}</div>
                         <div id="inspectorLive"></div>
+                        ${dcvInspectorHtml(comp)}
 
                         <div class="ctrl-btn-group">
                             <button class="action-btn" onclick="rotateSelected()">🔄 Rotate 90°</button>
@@ -4330,6 +4865,7 @@ canvas.addEventListener('wheel', (e) => {
                         <div class="prop-row"><span class="prop-label">To:</span><span class="prop-val">${c2 ? c2.tag : '?'} : ${w.toPortId}</span></div>
                         <div class="prop-row"><span class="prop-label">Style:</span><span class="prop-val">${w.style}</span></div>
                         <div id="inspectorLive"></div>
+                        ${hoseInspectorHtml(w)}
 
                         <div class="ctrl-btn-group">
                             <button class="action-btn" style="background: var(--accent-red);" onclick="deleteSelected()">🗑️ Delete Line</button>
@@ -4359,7 +4895,7 @@ canvas.addEventListener('wheel', (e) => {
             // Active Connections List
             const wireContainer = document.getElementById('wireListContainer');
             if (placedWires.length === 0) {
-                wireContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.72rem; text-align: center;">No active hose connections. Click port to wire.</div>`;
+                wireContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.72rem; text-align: center;">No hoses yet. Click a port, click grid points to route the hose, then click another port to finish.</div>`;
             } else {
                 wireContainer.innerHTML = '';
                 placedWires.forEach((w, idx) => {
