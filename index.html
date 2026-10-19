@@ -189,6 +189,7 @@
             <button class="tool-btn active" id="btnNames" onclick="toggleNames()">🔤 Names: ON</button>
             <button class="tool-btn active" id="btnFx" onclick="toggleActivityFx()">✨ Activity FX: ON</button>
             <button class="tool-btn active" id="btnScope" onclick="toggleScope()">📈 Graph: ON</button>
+            <button class="tool-btn" id="btnDemo" onclick="loadSensorDemo()" title="Load a ready-made sensor-controlled cylinder">🧪 Demo: sensor cycle</button>
             <button class="tool-btn" onclick="resetSimulation()">⏮ Reset Sim</button>
             <select class="tool-select" id="simSpeedSelect" onchange="setSimSpeed(this.value)" title="Simulation speed">
                 <option value="0.25">0.25×</option>
@@ -2870,7 +2871,7 @@ if (typeof SystemGraph !== 'undefined') {
 // Keys the USER/UI owns on comp.state – the engine never overwrites these with handler output.
 const SIM_UI_INPUT_KEYS = ['spoolPos', 'openingPercent', 'setting', 'manualPos', 'actL', 'actR', 'target', 'endSel'];
 // state written only by the engine (electrical signals, valve command memory): handler snapshots must never overwrite them
-const SIM_ENGINE_KEYS = ['sensorActive', 'sensorPosMm', 'q', 'lit', 'elecY1', 'elecY2', 'elecWired1', 'elecWired2', '_pilotSrc'];
+const SIM_ENGINE_KEYS = ['sensorActive', 'sensorPosMm', 'sensorLinked', 'q', 'lit', 'elecY1', 'elecY2', 'elecWired1', 'elecWired2', '_pilotSrc', '_elecSig', '_elecT0', 'elecWarn', '_elecWarned'];
 const SIM_LPM_PER_CM2_TO_MM_S = 10000 / 60;     // (L/min) / cm²  →  mm/s
 const SIM_STATE_DEFAULTS = { spoolPos: 0, setting: 180, openingPercent: 100, position: 0, flowQ: 15, pressureP: 0 };
 
@@ -3073,11 +3074,26 @@ class SimulationEngine {
             st._pilotSrc = src;
             const e1 = aL === 'solenoid' && !!st.elecY1, e2 = aR === 'solenoid' && !!st.elecY2;
             const elec = (e1 && !e2) ? 1 : (e2 && !e1) ? (n === 3 ? -1 : 0) : null;
-            const springReturn = n === 3 || aR === 'spring', manual = st.manualPos;
+            const springReturn = n === 3 || aR === 'spring', hold = !!(c.params && Number(c.params.elecHold));       // detent: keeps the last electrical command
+            const sig = (e1 ? 1 : 0) + (e2 ? 2 : 0), prevSig = st._elecSig || 0;
+            if (sig !== prevSig) {
+                if (sig !== 0) delete st.manualPos;                           // a NEW electrical command releases a manual override (otherwise sensors could never take over)
+                if (sig !== 0 && prevSig === 0) st._elecT0 = this.simTime;
+                if (sig === 0 && prevSig !== 0 && springReturn && !hold && src === null && (st.manualPos === undefined || st.manualPos === null)) {
+                    const dur = this.simTime - (st._elecT0 || 0);              // the signal vanished and the spring pushed the valve back
+                    if (dur < 3) {
+                        st.elecWarn = `The signal lasted only ${dur.toFixed(2)} s – the spring returned the valve. Switch on “Solenoid detent”, use a double-solenoid detent valve, or hold the command with a latching relay.`;
+                        if (!st._elecWarned && typeof hoseToast === 'function') { st._elecWarned = true; hoseToast('Valve fell back to rest: a sensor signal is momentary. Enable “Solenoid detent” on the valve or add a latching relay.'); }
+                    }
+                } else if (sig !== 0 && hold) st.elecWarn = null;
+                st._elecSig = sig;
+            }
+            if (hold) st.elecWarn = null;
+            const manual = st.manualPos;
             if (manual !== undefined && manual !== null) st.spoolPos = manual;
             else if (elec !== null) st.spoolPos = elec;
             else if (src) st.spoolPos = src === 'X' ? 1 : (n === 3 ? -1 : 0);
-            else st.spoolPos = springReturn ? 0 : (st.spoolPos || 0);
+            else st.spoolPos = (springReturn && !hold) ? 0 : (st.spoolPos || 0);
         }
     }
 
@@ -3787,6 +3803,10 @@ function dcvDraw(key, ctx, st) {
         ctx.save(); ctx.setLineDash([1.5, 4]); ctx.lineCap = 'round'; ctx.strokeStyle = on ? '#fde047' : '#a16207'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(px, -17); ctx.lineTo(px, -40); ctx.stroke(); ctx.restore();
     });
+    if (st && st.elecWarn) {                                          // visible hint on the symbol: the spring dropped the valve back after a short signal
+        ctx.save(); ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.moveTo(L.x0 + 4, -72); ctx.lineTo(L.x0 + 18, -72); ctx.lineTo(L.x0 + 11, -86); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0f172a'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', L.x0 + 11, -74); ctx.restore();
+    }
 
     // envelopes
     sp.envs.forEach((e, i) => {
@@ -3995,6 +4015,7 @@ function dcvElectricalHtml(comp, sp) {
             return `<div class="prop-row"><span class="prop-label">${p.id}:</span><span class="prop-val">${wired ? (on ? '<span class="param-ok">● energised</span>' : '○ de-energised') : 'not connected'}</span></div>`;
         }).join('') + `<div class="param-derived">Connect an electrical (dotted) wire from a sensor, relay or switch output to a yellow Y port.</div></div>`;
     }
+    if (st.elecWarn) html += `<div class="param-derived"><span class="param-warn">⚠ ${st.elecWarn}</span><br><button class="param-mini" onclick="setCompParam('${comp.id}','elecHold',1)">Enable solenoid detent</button></div>`;
     if (st.manualPos !== undefined && st.manualPos !== null && (sp.pilotCapable || ys.some(p => (p.id === 'Y1' ? st.elecWired1 : st.elecWired2)))) {
         html += `<div class="param-derived"><span class="param-warn">Manual override active</span> (position ${st.manualPos}) – it wins over electrical and pilot commands. <button class="param-mini" onclick="dcvReleaseManual('${comp.id}')">release</button></div>`;
     }
@@ -4593,7 +4614,9 @@ const PARAM_FAMILIES = (() => {
     F.regulator = [PD('flowSet', 'Regulated flow', 'L/min', 0.5, 100, 0.5, 10, { presets: [2, 5, 10, 20, 40], tip: 'Flow held constant once the minimum pressure drop is available.' })];
     F.area = [area, Cv];
     F.ball = [open, area];
-    F.dcvPilot = [PD('pilotShift', 'Pilot pressure to shift', 'bar', 1, 60, 0.5, 8, { tip: 'Pressure at X (→E) or Y (→R) that shifts the spool.' }), area, Cv];
+    const hold = PD('elecHold', 'Solenoid detent (hold last signal)', '', 0, 1, 1, 0, { type: 'bool', group: 'Operating', tip: 'On = the valve keeps the position of the last electrical command (detented / impulse valve). Off = spring valve: it falls back the moment the signal disappears – a sensor pulse is then too short, use a latching relay.' });
+    F.dcvSol = [area, Cv, hold];
+    F.dcvPilot = [PD('pilotShift', 'Pilot pressure to shift', 'bar', 1, 60, 0.5, 8, { tip: 'Pressure at X (→E) or Y (→R) that shifts the spool.' }), area, Cv, hold];
     // pumps & motors
     const flowQ = (def, max = 120) => PD('flowQ', 'Pump flow', 'L/min', 0, max, 0.5, def, { presets: [5, 10, 15, 20, 30, 50], tip: 'Delivered flow at zero pressure (displacement × speed).' });
     const slip = PD('slip', 'Internal leakage', 'L/min per 100 bar', 0, 10, 0.1, 0, { group: 'Advanced', tip: 'Volumetric loss growing with pressure.' });
@@ -4657,7 +4680,7 @@ const PARAM_KEYS = (() => {
     put(F.fixedThrottle, ['fixed_throttle']); put(F.needle, ['throttle_needle']); put(F.flowControl, ['flow_control']);
     put(F.regulator, ['flow_regulator', 'temp_comp_flow']); put(F.area, ['flow_divider', 'flow_fuse', 'logic_cartridge', 'dcv_pilot_2stage']);
     put(F.ball, ['ball_valve_2way', 'isolation_gate']); put(F.dcvPilot, ['dcv_43_pilot', 'dcvh_22', 'dcvh_22no', 'dcvh_32', 'dcvh_32no', 'dcvh_42', 'dcvh_52', 'dcvh_33', 'dcvh_43', 'dcvh_53']);
-    put(F.area, ['dcv_22', 'dcv_22_no', 'dcv_32_nc', 'dcv_32_no', 'dcv_42', 'dcv_43_closed', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float', 'dcv_43_prop', 'dcv_53']);
+    put(F.dcvSol, ['dcv_22', 'dcv_22_no', 'dcv_32_nc', 'dcv_32_no', 'dcv_42', 'dcv_43_closed', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float', 'dcv_43_prop', 'dcv_53']);
     put(F.pumpFixed, ['pump_fixed']); put(F.pumpVar, ['pump_var']); put(F.pumpManual, ['manual_pump']);
     put(F.motorFixed, ['motor_fixed']); put(F.motorVar, ['motor_var']);
     put(F.cyl, ['cyl_double', 'cyl_double_rod', 'cyl_telescopic', 'cyl_rodless', 'rack_pinion', 'rotary_double']);
@@ -5282,7 +5305,16 @@ scopeInit();
 // ════════ STAGE 10 — ELECTRICAL (inductive sensor, relay, lamp, dotted wires) ════════
 // ── signal evaluation (called by SimulationEngine every sub-step) ──────────
 function electricSensorActive(comp, comps) {
-    const st = comp.state, cyl = comps.find(c => c.id === st.target), h = cyl && cyl.handler;
+    const st = comp.state;
+    let cyl = comps.find(c => c.id === st.target);
+    if (!cyl) {                                                       // no (valid) cylinder yet – e.g. the sensor was placed before the cylinder: link to the nearest one
+        const keep = st.endSel;
+        if (typeof sensorAutoLink === 'function') sensorAutoLink(comp);
+        if (keep) st.endSel = keep;
+        cyl = comps.find(c => c.id === st.target);
+    }
+    st.sensorLinked = !!cyl;
+    const h = cyl && cyl.handler;
     if (!h || typeof h.position !== 'number' || !h.strokeLength) { st.sensorPosMm = null; return false; }
     const tol = hydNum(comp.params && comp.params.sensingMm, 2), pos = h.position * h.strokeLength;
     const atRet = pos <= tol, atExt = pos >= h.strokeLength - tol, sel = st.endSel || 'ret';
@@ -5349,6 +5381,7 @@ function drawProx(ctx, st) {
     elecDotted(ctx, 22, 0, 40, 0, on);                                                      // output connector
     ctx.beginPath(); ctx.arc(0, -29, 4, 0, Math.PI * 2); ctx.fillStyle = on ? '#22c55e' : '#334155'; ctx.fill(); ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.stroke();   // LED
     ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#94a3b8'; ctx.fillText('IND', 0, 33);
+    if (st && st.sensorLinked === false) { ctx.fillStyle = '#f87171'; ctx.fillText('⚠ no cylinder', 0, 45); }
     ctx.restore();
 }
 function drawRelay(ctx, st) {
@@ -5468,6 +5501,28 @@ function electricLiveRows(c, row) {
     if (c.key === 'lamp_signal') return row('Lamp', st.lit ? '<span class="param-ok">● on</span>' : '○ off');
     if (st.elecWired1 || st.elecWired2) return row('Solenoids', `Y1 ${st.elecWired1 ? (st.elecY1 ? '●' : '○') : '–'}  Y2 ${st.elecWired2 ? (st.elecY2 ? '●' : '○') : '–'}`);
     return '';
+}
+
+// ── ready-made example: cylinder, double-solenoid detent 4/2 valve and two inductive sensors ──────────────
+function loadSensorDemo() {
+    if (placedComponents.length && !confirm('Replace the current schematic with the sensor-controlled cylinder demo?')) return;
+    placedComponents = []; placedWires = []; selectedCompId = null; selectedWireId = null;
+    if (typeof simEngine !== 'undefined' && simEngine) HydraulicSolver._warm.clear();
+    const sp = (k, x, y, rot) => { const c = spawnComponent(k, x, y); if (rot) c.rotation = rot; return c; };
+    const res = sp('res_vented', 500, 440, 270), pump = sp('pump_fixed', 340, 420, 270), prv = sp('prv_direct', 340, 600), v = sp('dcvh_42', 160, 300), cyl = sp('cyl_double', 160, 120);
+    cyl.params = { position: 0 };
+    setDcvActuators(v.id, 'solenoid', 'solenoid');
+    const sr = sp('prox_inductive', 20, 140), se = sp('prox_inductive', 260, 140);
+    sr.state.target = cyl.id; sr.state.endSel = 'ret'; se.state.target = cyl.id; se.state.endSel = 'ext';
+    const pts = (...p) => p.map(([x, y]) => ({ x, y }));
+    const H = (a, ap, b, bp, style, wp) => placedWires.push({ id: newWireId(), fromCompId: a.id, fromPortId: ap, toCompId: b.id, toPortId: bp, style, waypoints: wp });
+    H(res, 'S', pump, 'S', 'solid-blue', []); H(pump, 'P', v, 'P', 'solid-red', pts([140, 420])); H(pump, 'P', prv, 'P', 'solid-red', pts([275, 420], [275, 600]));
+    H(prv, 'T', res, 'T', 'solid-blue', pts([445, 600], [445, 460])); H(v, 'A', cyl, 'A', 'solid-red', pts([140, 200], [110, 200]));
+    H(v, 'B', cyl, 'B', 'solid-blue', pts([180, 180], [190, 180])); H(v, 'T', res, 'T', 'solid-blue', pts([180, 360], [445, 360], [445, 460]));
+    H(sr, 'OUT', v, 'Y1', 'electric', pts([80, 140], [80, 220], [60, 220])); H(se, 'OUT', v, 'Y2', 'electric', pts([320, 140], [320, 220], [200, 220]));
+    selectedCompId = null; updateUI(); render();
+    if (typeof simEngine !== 'undefined' && simEngine) simEngine.reset();
+    if (typeof hoseToast === 'function') hoseToast('Demo loaded – press “Run Physics Engine”. The left sensor extends, the right sensor retracts.');
 }
 
 // ── APPLICATION STATE & GLOBALS ──
