@@ -152,6 +152,162 @@
         }
         @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
     </style>
+    <meta name="theme-color" content="#050608">
+    <style id="themeObsidian">
+/* ═══════════════════════════════════════════════════════════════════════════
+   OBSIDIAN & CHAMPAGNE  –  deep obsidian canvas · charcoal panels · champagne-gold trims
+   Override layer: it only restyles the page chrome.  Component symbols, hoses, electrical
+   wires and the neon signal colours are drawn on the canvas and are NOT touched.
+   Delete this <style> block to return to the previous look.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+    /* surfaces */
+    --obsidian:   #050608;                 /* page + working grid                       */
+    --obsidian-2: #0A0C10;                 /* recessed wells (search box, inputs)       */
+    --charcoal:   #111318;                 /* primary panels                            */
+    --charcoal-2: #161A22;                 /* cards, telemetry, elevated fills          */
+    --charcoal-3: #1D222C;                 /* hover / pressed                           */
+    /* champagne gold */
+    --gold-pale:  #F0E6D2;                 /* titles, highlights                        */
+    --gold:       #E6C875;                 /* borders, trims, selection rings           */
+    --gold-deep:  #B8963E;                 /* gradient base / pressed metal             */
+    --gold-line:  rgba(230, 200, 117, 0.22);
+    --gold-line-strong: rgba(230, 200, 117, 0.55);
+    --gold-glow:  rgba(230, 200, 117, 0.35);
+    /* remap the legacy variables the page already uses */
+    --bg-dark:      var(--obsidian);
+    --panel-bg:     var(--charcoal);
+    --panel-border: var(--gold-line);
+    --accent-cyan:  var(--gold);           /* section titles, hover, active rings        */
+    --accent-yellow: var(--gold);
+    --text-main:    #F4EFE4;
+    --text-muted:   #A29C8C;
+    --code-bg:      var(--obsidian-2);
+    color-scheme: dark;
+}
+
+body { background: var(--obsidian); }
+::selection { background: rgba(230, 200, 117, 0.28); color: #FFF8E4; }
+
+/* ── header ─────────────────────────────────────────────────────────────── */
+header {
+    position: relative;
+    background: linear-gradient(180deg, var(--charcoal-2) 0%, var(--charcoal) 100%);
+    border-bottom: 1px solid var(--gold-line);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+header h1 { color: var(--gold-pale); letter-spacing: 0.02em; text-shadow: 0 0 22px rgba(230, 200, 117, 0.28); }
+.badge { background: rgba(230, 200, 117, 0.10); border: 1px solid var(--gold-line-strong); color: var(--gold); letter-spacing: 0.03em; }
+
+.telemetry-bar {
+    background: var(--charcoal-2);
+    border: 1px solid var(--gold-line-strong);
+    box-shadow: inset 0 1px 0 rgba(240, 230, 210, 0.06), 0 0 22px rgba(230, 200, 117, 0.07);
+}
+.metric-label { color: var(--text-muted); letter-spacing: 0.06em; }
+.metric-val   { color: var(--gold-pale); text-shadow: 0 0 12px rgba(230, 200, 117, 0.30); }
+
+/* ── glowing divider streaks (header + toolbar, panel edges) ─────────────── */
+header::after, .toolbar::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; pointer-events: none;
+    background: linear-gradient(90deg, transparent 0%, var(--gold) 16%, var(--gold-pale) 50%, var(--gold) 84%, transparent 100%);
+    background-size: 220% 100%;
+    opacity: 0.8; filter: drop-shadow(0 0 5px rgba(230, 200, 117, 0.75));
+    animation: goldSheen 12s linear infinite;
+}
+@keyframes goldSheen { 0% { background-position: 0% 0; } 100% { background-position: 220% 0; } }
+@media (prefers-reduced-motion: reduce) { header::after, .toolbar::after { animation: none; } }
+
+/* ── toolbar ────────────────────────────────────────────────────────────── */
+.toolbar { position: relative; background: var(--charcoal); border-bottom: 1px solid var(--gold-line); }
+.tool-group { border-right: 1px solid transparent; border-image: linear-gradient(180deg, transparent, var(--gold-line-strong), transparent) 1; }
+.tool-btn { background: var(--charcoal-2); border: 1px solid var(--gold-line); color: var(--text-main); }
+.tool-btn:hover { border-color: var(--gold); background: var(--charcoal-3); box-shadow: 0 0 14px rgba(230, 200, 117, 0.16); }
+.tool-btn.active {
+    background: linear-gradient(180deg, rgba(230, 200, 117, 0.22), rgba(230, 200, 117, 0.08));
+    color: var(--gold-pale); border-color: var(--gold);
+    box-shadow: inset 0 0 0 1px rgba(230, 200, 117, 0.22), 0 0 14px rgba(230, 200, 117, 0.20);
+}
+select.tool-select { background: var(--charcoal-2); color: var(--text-main); border: 1px solid var(--gold-line); }
+
+/* ── sidebar (component library) ────────────────────────────────────────── */
+.sidebar {
+    background:
+        linear-gradient(180deg, rgba(230, 200, 117, 0) 0%, rgba(230, 200, 117, 0.85) 50%, rgba(230, 200, 117, 0) 100%) right top / 1px 100% no-repeat,
+        var(--charcoal);
+    border-right: 1px solid rgba(230, 200, 117, 0.10);
+    box-shadow: 6px 0 26px rgba(230, 200, 117, 0.04);
+}
+.search-box { border-bottom: 1px solid var(--gold-line); }
+.search-box input, .inspector input, .inspector select { background: var(--obsidian-2); border: 1px solid var(--gold-line); color: var(--text-main); }
+.search-box input::placeholder { color: #6F6A5D; }
+.category-title {
+    color: var(--gold); letter-spacing: 0.09em;
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(90deg, rgba(230, 200, 117, 0.7), rgba(230, 200, 117, 0)) 1;
+}
+.comp-card { background: var(--charcoal-2); border: 1px solid rgba(240, 230, 210, 0.07); box-shadow: inset 0 1px 0 rgba(240, 230, 210, 0.04); }
+.comp-card:hover { border-color: var(--gold-line-strong); background: var(--charcoal-3); box-shadow: 0 0 0 1px rgba(230, 200, 117, 0.12), 0 6px 18px rgba(0, 0, 0, 0.5); }
+.comp-iso { color: var(--text-muted); }
+.add-icon { color: var(--gold); }
+
+/* ── working grid ───────────────────────────────────────────────────────── */
+.workspace-container { background: var(--obsidian); box-shadow: inset 0 0 0 1px rgba(230, 200, 117, 0.10), inset 0 0 90px rgba(0, 0, 0, 0.65); }
+
+/* ── inspector ──────────────────────────────────────────────────────────── */
+.inspector {
+    background:
+        linear-gradient(180deg, rgba(230, 200, 117, 0) 0%, rgba(230, 200, 117, 0.85) 50%, rgba(230, 200, 117, 0) 100%) left top / 1px 100% no-repeat,
+        var(--charcoal);
+    border-left: 1px solid rgba(230, 200, 117, 0.10);
+    box-shadow: -6px 0 26px rgba(230, 200, 117, 0.04);
+}
+.inspector h2 {
+    color: var(--gold); letter-spacing: 0.09em;
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(90deg, rgba(230, 200, 117, 0.7), rgba(230, 200, 117, 0)) 1;
+}
+.inspector-card { background: var(--charcoal-2); border: 1px solid var(--gold-line); box-shadow: inset 0 1px 0 rgba(240, 230, 210, 0.05), 0 8px 24px rgba(0, 0, 0, 0.35); }
+.prop-label { color: var(--text-muted); }
+.prop-val   { color: var(--gold-pale); }
+
+/* champagne metal buttons */
+.action-btn {
+    background: linear-gradient(180deg, #F0DC9E 0%, #E6C875 45%, #C9A44E 100%);
+    color: #17130A; border: 1px solid rgba(240, 230, 210, 0.45);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 10px rgba(230, 200, 117, 0.18);
+}
+.action-btn:hover { background: linear-gradient(180deg, #F7E7B3 0%, #EFD487 45%, #D6B25C 100%); box-shadow: 0 0 16px rgba(230, 200, 117, 0.35); }
+/* buttons that set their own inline colours (secondary / mode / export) */
+.action-btn[style*="#334155"] { background: var(--charcoal-3) !important; color: var(--gold-pale) !important; border: 1px solid var(--gold-line-strong) !important; box-shadow: none !important; }
+.action-btn[style*="#334155"]:hover { border-color: var(--gold) !important; box-shadow: 0 0 12px rgba(230, 200, 117, 0.22) !important; }
+.action-btn[style*="#0891b2"], .action-btn[style*="#0284c7"] {
+    background: linear-gradient(180deg, #F0DC9E 0%, #E6C875 45%, #C9A44E 100%) !important; color: #17130A !important;
+    border: 1px solid rgba(240, 230, 210, 0.45) !important; box-shadow: 0 0 12px rgba(230, 200, 117, 0.25) !important;
+}
+.action-btn[style*="accent-red"] { color: #fff !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; }
+
+.wire-item { background: var(--charcoal-2); border: 1px solid var(--gold-line); }
+.wire-item.selected { border-color: var(--gold); background: var(--charcoal-3); box-shadow: 0 0 12px rgba(230, 200, 117, 0.18); }
+.hotkey-legend { background: var(--charcoal-2); border: 1px solid var(--gold-line); }
+.hotkey-legend kbd { background: var(--obsidian-2); color: var(--gold); border: 1px solid var(--gold-line-strong); }
+
+/* inline-styled helper text in the inspector: warm greys instead of slate */
+.inspector [style*="color:#94a3b8"], .inspector [style*="color: #94a3b8"] { color: var(--text-muted) !important; }
+.inspector [style*="color:#cbd5e1"], .inspector [style*="color: #cbd5e1"] { color: #DDD6C4 !important; }
+.inspector [style*="color:#64748b"] { color: #837D6E !important; }
+
+/* ── focus, scrollbars ──────────────────────────────────────────────────── */
+input:focus, select:focus { outline: none; border-color: var(--gold) !important; box-shadow: 0 0 0 3px rgba(230, 200, 117, 0.16); }
+button:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
+input[type=range] { accent-color: var(--gold); }
+* { scrollbar-width: thin; scrollbar-color: rgba(230, 200, 117, 0.45) transparent; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(230, 200, 117, 0.6), rgba(184, 150, 62, 0.45)); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #F0DC9E, #C9A44E); background-clip: padding-box; border: 2px solid transparent; }
+
+    </style>
 </head>
 <body>
 
@@ -3452,8 +3608,8 @@ function drawLiveReadout(ctx, comp, def) {
     ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
     lines.forEach((ln, i) => {
         const w = ctx.measureText(ln).width + 10, y = y0 + i * 14;
-        ctx.fillStyle = 'rgba(2, 6, 23, 0.55)'; ctx.fillRect(comp.x - w / 2, y - 10, w, 13);
-        ctx.fillStyle = (st.reliefOpen || st.endStop) ? '#fb923c' : '#e2e8f0'; ctx.fillText(ln, comp.x, y);
+        ctx.fillStyle = 'rgba(5, 6, 8, 0.66)'; ctx.fillRect(comp.x - w / 2, y - 10, w, 13);
+        ctx.fillStyle = (st.reliefOpen || st.endStop) ? '#fb923c' : '#F0E6D2'; ctx.fillText(ln, comp.x, y);
     });
     ctx.restore();
 }
@@ -3533,11 +3689,12 @@ function liveStroke(st, dflt = 0.365) {
 function drawPressureLegend(ctx, cssW, cssH, pRef) {
     const x = 18, y = cssH - 34, w = 170, h = 8;
     ctx.save();
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.82)'; ctx.fillRect(x - 8, y - 20, w + 16, 50);
+    ctx.fillStyle = 'rgba(17, 19, 24, 0.92)'; ctx.fillRect(x - 8, y - 20, w + 16, 50);
+    ctx.strokeStyle = 'rgba(230, 200, 117, 0.55)'; ctx.lineWidth = 1; ctx.strokeRect(x - 8 + 0.5, y - 20 + 0.5, w + 15, 49);
     const g = ctx.createLinearGradient ? ctx.createLinearGradient(x, 0, x + w, 0) : null;
     if (g && g.addColorStop) { g.addColorStop(0, '#3b82f6'); g.addColorStop(1, '#ef4444'); ctx.fillStyle = g; } else ctx.fillStyle = '#3b82f6';
     ctx.fillRect(x, y, w, h);
-    ctx.font = 'bold 10px sans-serif'; ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 10px sans-serif'; ctx.fillStyle = '#F0E6D2';
     ctx.textAlign = 'left';  ctx.fillText('Hose pressure', x, y - 6); ctx.fillText('0 bar', x, y + 22);
     ctx.textAlign = 'right'; ctx.fillText(pRef.toFixed(0) + ' bar (relief)', x + w, y + 22);
     ctx.restore();
@@ -4057,7 +4214,7 @@ function drawCompName(ctx, comp, def) {
     if (!showNames) return;
     const b = defBounds(def);
     ctx.save();
-    ctx.font = '11px sans-serif'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center';
+    ctx.font = '11px sans-serif'; ctx.fillStyle = '#B5AE9B'; ctx.textAlign = 'center';
     ctx.fillText(compDisplayName(comp, def), comp.x, comp.y + b.y1 + 14);
     ctx.restore();
 }
@@ -4229,7 +4386,7 @@ function hoseToast(msg) {
     let el = document.getElementById('hoseToast');
     if (!el) {
         el = document.createElement('div'); el.id = 'hoseToast';
-        el.style.cssText = 'position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#0f172a;color:#e2e8f0;border:1px solid #38bdf8;padding:6px 12px;border-radius:6px;font-size:12px;z-index:50;pointer-events:none;opacity:0;transition:opacity .2s';
+        el.style.cssText = 'position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#161A22;color:#F0E6D2;border:1px solid #E6C875;box-shadow:0 0 22px rgba(230,200,117,.28);padding:6px 12px;border-radius:6px;font-size:12px;z-index:50;pointer-events:none;opacity:0;transition:opacity .2s';
         document.body.appendChild(el);
     }
     el.textContent = msg; el.style.opacity = 1; clearTimeout(el._t); el._t = setTimeout(() => { el.style.opacity = 0; }, 2600);
@@ -4251,8 +4408,8 @@ function hoseEditCorners(id) { const w = placedWires.find(x => x.id === id); if 
 function drawHoseHandles(ctx, w, path) {
     ctx.save();
     for (let i = 1; i < path.length - 1; i++) {
-        ctx.fillStyle = '#0ea5e9'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
-        ctx.fillRect(path[i].x - 5, path[i].y - 5, 10, 10); ctx.strokeRect(path[i].x - 5, path[i].y - 5, 10, 10);
+        ctx.fillStyle = '#E6C875'; ctx.strokeStyle = '#050608'; ctx.lineWidth = 1.5; ctx.shadowColor = 'rgba(230,200,117,0.7)'; ctx.shadowBlur = 6;
+        ctx.fillRect(path[i].x - 5, path[i].y - 5, 10, 10); ctx.shadowBlur = 0; ctx.strokeRect(path[i].x - 5, path[i].y - 5, 10, 10);
     }
     ctx.restore();
 }
@@ -4363,7 +4520,7 @@ function drawWireDraft() {
     const sc = Math.max(scale, 0.01);
 
     // candidate target ports + start ring
-    ctx.beginPath(); ctx.arc(a.pos.x, a.pos.y, 10, 0, Math.PI * 2); ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(a.pos.x, a.pos.y, 10, 0, Math.PI * 2); ctx.strokeStyle = '#E6C875'; ctx.lineWidth = 2.5; ctx.stroke();
     const dKind = hosePortKind(wireStartPort);
     for (const comp of placedComponents) {
         const def = LIBRARY[comp.key]; if (!def || !def.ports) continue;
@@ -4386,16 +4543,16 @@ function drawWireDraft() {
     if (hoveredTargetPort) { const b = hosePortInfo(hoveredTargetPort.compId, hoveredTargetPort.portId); path = b ? buildHosePath(a.pos, a.dir, wireDraftPts, b.pos, b.dir) : null; }
     else path = buildHosePath(a.pos, a.dir, wireDraftPts, null, null, wireDraftCursor || (currentMouseWorld ? { x: currentMouseWorld.wx, y: currentMouseWorld.wy } : null));
     if (path && path.length > 1) {
-        ctx.lineWidth = 2.5; ctx.strokeStyle = '#facc15'; ctx.setLineDash(dKind === 'electric' ? [1.5, 6] : [6, 4]); ctx.lineCap = dKind === 'electric' ? 'round' : 'butt';
+        ctx.lineWidth = 2.5; ctx.strokeStyle = '#E6C875'; ctx.setLineDash(dKind === 'electric' ? [1.5, 6] : [6, 4]); ctx.lineCap = dKind === 'electric' ? 'round' : 'butt';
         ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y); path.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke(); ctx.setLineDash([]);
     }
     // placed corners
-    ctx.fillStyle = '#facc15'; wireDraftPts.forEach(p => ctx.fillRect(p.x - 4, p.y - 4, 8, 8));
+    ctx.fillStyle = '#E6C875'; wireDraftPts.forEach(p => ctx.fillRect(p.x - 4, p.y - 4, 8, 8));
 
     // snapped cursor
     if (wireDraftCursor && !hoveredTargetPort) {
         const c = wireDraftCursor;
-        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.2; ctx.beginPath();
+        ctx.strokeStyle = '#F0E6D2'; ctx.lineWidth = 1.2; ctx.beginPath();
         ctx.moveTo(c.x - 7, c.y); ctx.lineTo(c.x + 7, c.y); ctx.moveTo(c.x, c.y - 7); ctx.lineTo(c.x, c.y + 7); ctx.stroke();
     }
     if (hoveredTargetPort) {
@@ -4411,8 +4568,9 @@ function drawWireDraft() {
     const hint = hoveredTargetPort ? 'Click: finish hose' : hoveredJunctionWire ? 'Click: T-junction on this hose' : `Click: add corner · click a port to finish · ${wireDraftPts.length ? '⌫ / right-click: undo · ' : ''}Esc: cancel`;
     ctx.save(); ctx.font = (11 / sc) + 'px sans-serif'; ctx.textAlign = 'left';
     const tw = ctx.measureText(hint).width + 12 / sc;
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.88)'; ctx.fillRect(hx - 4 / sc, hy - 13 / sc, tw, 18 / sc);
-    ctx.fillStyle = '#e2e8f0'; ctx.fillText(hint, hx, hy);
+    ctx.fillStyle = 'rgba(17, 19, 24, 0.94)'; ctx.fillRect(hx - 4 / sc, hy - 13 / sc, tw, 18 / sc);
+    ctx.strokeStyle = 'rgba(230, 200, 117, 0.6)'; ctx.lineWidth = 1 / sc; ctx.strokeRect(hx - 4 / sc, hy - 13 / sc, tw, 18 / sc);
+    ctx.fillStyle = '#F0E6D2'; ctx.fillText(hint, hx, hy);
     ctx.restore();
 }
 
@@ -4573,10 +4731,11 @@ function drawInternalFlow(ctx, comp, def) {
 function drawFxLegend(ctx, cssW, cssH) {
     const x = 18, y = cssH - 98;
     ctx.save();
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.82)'; ctx.fillRect(x - 8, y - 14, 190, 62);
-    ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#e2e8f0';
+    ctx.fillStyle = 'rgba(17, 19, 24, 0.92)'; ctx.fillRect(x - 8, y - 14, 190, 62);
+    ctx.strokeStyle = 'rgba(230, 200, 117, 0.55)'; ctx.lineWidth = 1; ctx.strokeRect(x - 8 + 0.5, y - 14 + 0.5, 189, 61);
+    ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#F0E6D2';
     [[FX.ball.dumpColor, 'Relief / dump flow to tank'], [FX.ball.returnColor, 'Return flow to tank'], [FX.palette.work[0], 'Blinking = carrying flow']].forEach(([hex, txt], i) => {
-        fxSphere(ctx, x + 6, y + 4 + i * 17, 5, hex); ctx.fillStyle = '#e2e8f0'; ctx.fillText(txt, x + 18, y + 8 + i * 17);
+        fxSphere(ctx, x + 6, y + 4 + i * 17, 5, hex); ctx.fillStyle = '#F0E6D2'; ctx.fillText(txt, x + 18, y + 8 + i * 17);
     });
     ctx.restore();
 }
@@ -4811,22 +4970,22 @@ function paramInjectStyles() {
     const st = document.createElement('style'); st.id = 'paramStyles';
     st.textContent = `
       #inspectorCard { max-height: calc(100vh - 230px); overflow-y: auto; }
-      .param-block { margin-top: .6rem; padding-top: .45rem; border-top: 1px solid #334155; }
-      .param-title { display:flex; justify-content:space-between; align-items:center; font-weight:700; color:#38bdf8; font-size:.8rem; margin-bottom:.3rem; }
-      .param-group { margin:.45rem 0 .15rem; font-size:.62rem; letter-spacing:.06em; text-transform:uppercase; color:#64748b; }
+      .param-block { margin-top: .6rem; padding-top: .5rem; border-top: 1px solid transparent; border-image: linear-gradient(90deg, var(--gold-line-strong, rgba(230,200,117,.55)), transparent) 1; }
+      .param-title { display:flex; justify-content:space-between; align-items:center; font-weight:700; color:var(--gold, #E6C875); font-size:.8rem; letter-spacing:.05em; margin-bottom:.3rem; }
+      .param-group { margin:.45rem 0 .15rem; font-size:.62rem; letter-spacing:.09em; text-transform:uppercase; color:#8C8576; }
       .param-row { margin:.3rem 0 .5rem; }
-      .param-head { display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:.72rem; color:#cbd5e1; }
+      .param-head { display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:.72rem; color:#E2DBC9; }
       .param-head label { flex:1; cursor:help; }
-      .param-mod { color:#f59e0b; font-size:.7rem; margin-left:3px; visibility:hidden; }
+      .param-mod { color:var(--gold, #E6C875); font-size:.7rem; margin-left:3px; visibility:hidden; text-shadow:0 0 8px rgba(230,200,117,.7); }
       .param-row.modified .param-mod { visibility:visible; }
-      .param-head input[type=number] { width:74px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:4px; padding:1px 4px; font-size:.72rem; text-align:right; }
-      .param-unit { color:#94a3b8; font-size:.65rem; min-width:34px; }
-      .param-row input[type=range] { width:100%; margin:.15rem 0 0; accent-color:#0ea5e9; }
+      .param-head input[type=number] { width:74px; background:var(--obsidian-2, #0A0C10); color:#F4EFE4; border:1px solid var(--gold-line, rgba(230,200,117,.22)); border-radius:4px; padding:1px 4px; font-size:.72rem; text-align:right; }
+      .param-unit { color:var(--text-muted, #A29C8C); font-size:.65rem; min-width:34px; }
+      .param-row input[type=range] { width:100%; margin:.15rem 0 0; accent-color:var(--gold, #E6C875); }
       .param-chips { display:flex; flex-wrap:wrap; gap:3px; margin-top:2px; }
-      .param-chip, .param-mini { background:#1e293b; color:#cbd5e1; border:1px solid #334155; border-radius:10px; font-size:.62rem; padding:0 7px; cursor:pointer; }
-      .param-chip:hover, .param-mini:hover { background:#0369a1; color:#fff; }
-      .param-derived { font-size:.66rem; color:#94a3b8; margin:.2rem 0 .4rem; line-height:1.35; }
-      .param-none { font-size:.7rem; color:#94a3b8; }
+      .param-chip, .param-mini { background:var(--charcoal-3, #1D222C); color:#E8E0CC; border:1px solid var(--gold-line, rgba(230,200,117,.22)); border-radius:10px; font-size:.62rem; padding:0 7px; cursor:pointer; }
+      .param-chip:hover, .param-mini:hover { background:var(--gold, #E6C875); color:#17130A; border-color:var(--gold, #E6C875); box-shadow:0 0 10px rgba(230,200,117,.35); }
+      .param-derived { font-size:.66rem; color:var(--text-muted, #A29C8C); margin:.2rem 0 .4rem; line-height:1.35; }
+      .param-none { font-size:.7rem; color:var(--text-muted, #A29C8C); }
       .param-warn { color:#fb923c; } .param-ok { color:#4ade80; }
     `;
     document.head.appendChild(st);
@@ -5125,7 +5284,7 @@ function scopeNiceTicks(lo, hi, n = 5) {
 function scopeDraw(g, W, H) {
     const M = { l: 46, r: 10, t: 10, b: 22 }, pw = W - M.l - M.r, ph = H - M.t - M.b, Q = SCOPE.qty, info = SCOPE_Q[Q];
     g.save(); g.clearRect(0, 0, W, H);
-    g.fillStyle = '#060b16'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#07080B'; g.fillRect(0, 0, W, H);
     const ids = [...SCOPE.selected].filter(id => SCOPE.data.has(id) && SCOPE.data.get(id).t.length);
     const tR = SCOPE.frozenT !== null ? SCOPE.frozenT : SCOPE.tNow, tL = tR - SCOPE.windowS;
     // y range from the visible samples
@@ -5138,14 +5297,14 @@ function scopeDraw(g, W, H) {
     const X = (t) => M.l + (t - tL) / SCOPE.windowS * pw, Y = (v) => M.t + ph - (v - yr.min) / (yr.max - yr.min) * ph;
     g.font = '10px sans-serif'; g.textBaseline = 'middle';
     // grid + y labels
-    g.strokeStyle = '#17233b'; g.lineWidth = 1; g.fillStyle = '#7b8ba8'; g.textAlign = 'right';
+    g.strokeStyle = 'rgba(230, 200, 117, 0.09)'; g.lineWidth = 1; g.fillStyle = '#A29C8C'; g.textAlign = 'right';
     const tstep = yr.ticks.length > 1 ? yr.ticks[1] - yr.ticks[0] : 1, tdec = tstep >= 1 ? 0 : tstep >= 0.1 ? 1 : 2;     // one consistent number format per axis
     yr.ticks.forEach(v => { const y = Math.round(Y(v)) + 0.5; g.beginPath(); g.moveTo(M.l, y); g.lineTo(W - M.r, y); g.stroke(); g.fillText(v.toFixed(tdec), M.l - 5, y); });
     // x grid + labels
     g.textAlign = 'center'; g.textBaseline = 'top';
     const nx = SCOPE.windowS <= 10 ? 5 : SCOPE.windowS <= 30 ? 6 : 6, stepT = SCOPE.windowS / nx;
     for (let i = 0; i <= nx; i++) { const tt = tL + i * stepT, x = Math.round(X(tt)) + 0.5; g.beginPath(); g.moveTo(x, M.t); g.lineTo(x, M.t + ph); g.stroke(); g.fillText(i === nx ? 'now' : '−' + (SCOPE.windowS - i * stepT).toFixed(SCOPE.windowS % nx ? 1 : 0) + ' s', x, M.t + ph + 5); }
-    g.strokeStyle = '#2b3a5c'; g.strokeRect(M.l + 0.5, M.t + 0.5, pw, ph);
+    g.strokeStyle = 'rgba(230, 200, 117, 0.40)'; g.strokeRect(M.l + 0.5, M.t + 0.5, pw, ph);
     g.save(); g.beginPath(); g.rect(M.l, M.t, pw, ph); g.clip();
     ids.forEach(id => {
         const s = SCOPE.data.get(id), col = scopeColor(id);
@@ -5160,9 +5319,9 @@ function scopeDraw(g, W, H) {
         const lastI = (() => { let k = s.t.length - 1; while (k > 0 && s.t[k] > tR) k--; return k; })();
         if (lastI >= 0 && s.t[lastI] >= tL) { g.fillStyle = col; g.beginPath(); g.arc(X(s.t[lastI]), Y(s[Q][lastI]), 3, 0, Math.PI * 2); g.fill(); }
     });
-    if (SCOPE.hover !== null && SCOPE.hover >= M.l && SCOPE.hover <= W - M.r) { g.strokeStyle = '#94a3b8'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(SCOPE.hover + 0.5, M.t); g.lineTo(SCOPE.hover + 0.5, M.t + ph); g.stroke(); g.setLineDash([]); }
+    if (SCOPE.hover !== null && SCOPE.hover >= M.l && SCOPE.hover <= W - M.r) { g.strokeStyle = 'rgba(240, 230, 210, 0.55)'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(SCOPE.hover + 0.5, M.t); g.lineTo(SCOPE.hover + 0.5, M.t + ph); g.stroke(); g.setLineDash([]); }
     g.restore();
-    g.fillStyle = '#94a3b8'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(`${info.label} [${info.unit}]`, M.l + 4, M.t + 3);
+    g.fillStyle = '#E6C875'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(`${info.label} [${info.unit}]`, M.l + 4, M.t + 3);
     if (!ids.length) { g.fillStyle = '#64748b'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(simEngine ? 'Tick components in the list to plot them' : 'Press “Run Physics Engine” to record data', M.l + pw / 2, M.t + ph / 2); }
     if (SCOPE.frozenT !== null) { g.fillStyle = '#f59e0b'; g.textAlign = 'right'; g.textBaseline = 'top'; g.fillText('⏸ frozen', W - M.r - 4, M.t + 3); }
     g.restore();
@@ -5174,30 +5333,31 @@ function scopeInjectStyles() {
     if (document.getElementById('scopeStyles')) return;
     const st = document.createElement('style'); st.id = 'scopeStyles';
     st.textContent = `
-      #scopePanel { position:absolute; right:12px; bottom:12px; width:480px; z-index:20; background:rgba(8,12,24,.94); border:1px solid #22304f; border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.5); color:#cbd5e1; font-size:11px; cursor:default; }
+      #scopePanel { position:absolute; right:12px; bottom:12px; width:480px; z-index:20; background:linear-gradient(180deg, rgba(22,26,34,.96), rgba(17,19,24,.96)); border:1px solid var(--gold-line-strong, rgba(230,200,117,.55)); border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.6), 0 0 24px rgba(230,200,117,.08); color:#E2DBC9; font-size:11px; cursor:default; }
       #scopePanel.big { width:min(820px, calc(100% - 24px)); }
-      #scopePanel .sc-head { display:flex; align-items:center; gap:5px; padding:5px 7px; border-bottom:1px solid #1b2742; }
-      #scopePanel .sc-title { font-weight:700; color:#38bdf8; margin-right:2px; white-space:nowrap; }
-      #scopePanel button { background:#16213a; color:#cbd5e1; border:1px solid #2b3a5c; border-radius:5px; font-size:11px; padding:1px 7px; cursor:pointer; }
-      #scopePanel button:hover { background:#0369a1; color:#fff; }
-      #scopePanel button.on { background:#0ea5e9; color:#fff; border-color:#38bdf8; }
-      #scopePanel select { background:#0f172a; color:#e2e8f0; border:1px solid #2b3a5c; border-radius:5px; font-size:11px; }
+      #scopePanel .sc-head { display:flex; align-items:center; gap:5px; padding:5px 7px; border-bottom:1px solid transparent; border-image:linear-gradient(90deg, rgba(230,200,117,.7), rgba(230,200,117,.05)) 1; }
+      #scopePanel .sc-title { font-weight:700; color:var(--gold, #E6C875); letter-spacing:.05em; margin-right:2px; white-space:nowrap; }
+      #scopePanel button { background:var(--charcoal-3, #1D222C); color:#E8E0CC; border:1px solid var(--gold-line, rgba(230,200,117,.22)); border-radius:5px; font-size:11px; padding:1px 7px; cursor:pointer; }
+      #scopePanel button:hover { background:var(--gold, #E6C875); color:#17130A; border-color:var(--gold, #E6C875); }
+      #scopePanel button.on { background:linear-gradient(180deg,#F0DC9E,#D4B35E); color:#17130A; border-color:rgba(240,230,210,.5); box-shadow:0 0 10px rgba(230,200,117,.3); }
+      #scopePanel select { background:var(--obsidian-2, #0A0C10); color:#F4EFE4; border:1px solid var(--gold-line, rgba(230,200,117,.22)); border-radius:5px; font-size:11px; }
       #scopePanel .sc-tabs { display:flex; gap:3px; flex:1; }
       #scopePanel .sc-body { display:flex; height:200px; }
       #scopePanel.big .sc-body { height:300px; }
-      #scopePanel .sc-list { width:178px; overflow-y:auto; border-right:1px solid #1b2742; padding:2px 0; flex:none; }
+      #scopePanel .sc-list { width:178px; overflow-y:auto; border-right:1px solid var(--gold-line, rgba(230,200,117,.22)); padding:2px 0; flex:none; }
       #scopePanel .sc-row { display:flex; align-items:center; gap:5px; padding:2px 6px; cursor:pointer; white-space:nowrap; }
-      #scopePanel .sc-row:hover { background:#101a31; }
+      #scopePanel .sc-row:hover { background:var(--charcoal-3, #1D222C); }
       #scopePanel .sc-row.idle { opacity:.55; }
-      #scopePanel .sc-dot { width:9px; height:9px; border-radius:50%; flex:none; border:1px solid #475569; }
+      #scopePanel .sc-row input[type=checkbox] { accent-color:var(--gold, #E6C875); }
+      #scopePanel .sc-dot { width:9px; height:9px; border-radius:50%; flex:none; border:1px solid rgba(240,230,210,.35); }
       #scopePanel .sc-name { flex:1; overflow:hidden; text-overflow:ellipsis; }
-      #scopePanel .sc-val { color:#e2e8f0; font-variant-numeric:tabular-nums; }
+      #scopePanel .sc-val { color:var(--gold-pale, #F0E6D2); font-variant-numeric:tabular-nums; }
       #scopePanel .sc-plot { position:relative; flex:1; min-width:0; }
       #scopePanel canvas { width:100%; height:100%; display:block; }
-      #scopePanel .sc-tip { position:absolute; pointer-events:none; display:none; background:rgba(2,6,23,.92); border:1px solid #334155; border-radius:5px; padding:3px 6px; font-size:10px; white-space:nowrap; }
-      #scopePanel .sc-foot { padding:3px 8px; color:#64748b; font-size:10px; border-top:1px solid #1b2742; }
+      #scopePanel .sc-tip { position:absolute; pointer-events:none; display:none; background:rgba(5,6,8,.94); border:1px solid var(--gold-line-strong, rgba(230,200,117,.55)); border-radius:5px; padding:3px 6px; font-size:10px; white-space:nowrap; color:#F0E6D2; }
+      #scopePanel .sc-foot { padding:3px 8px; color:#8C8576; font-size:10px; border-top:1px solid var(--gold-line, rgba(230,200,117,.22)); }
       #scopePanel.min .sc-body, #scopePanel.min .sc-foot { display:none; }
-      #scopePanel .sc-none { padding:8px; color:#64748b; }`;
+      #scopePanel .sc-none { padding:8px; color:#8C8576; }`;
     document.head.appendChild(st);
 }
 function scopeInit() {
@@ -5998,7 +6158,7 @@ canvas.addEventListener('wheel', (e) => {
                     else if (simRunning && activeFault !== 'PUMP_FAILURE') drawFalstadDotsOnPath(pathPoints, particleColor);
 
                     if (isSelected) {
-                        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.stroke();
+                        ctx.strokeStyle = 'rgba(230, 200, 117, 0.9)'; ctx.lineWidth = 1.6; ctx.shadowColor = 'rgba(230, 200, 117, 0.7)'; ctx.shadowBlur = 8; ctx.stroke(); ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
                         drawHoseHandles(ctx, w, pathPoints);
                     }
                 }
@@ -6027,9 +6187,9 @@ canvas.addEventListener('wheel', (e) => {
                 drawInternalFlow(ctx, comp, def);             // balls travelling through the valve / pump along the solved paths              // active spool envelope, relief LED, motor spoke, accumulator level …
 
                 if (isSelected) {
-                    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = '#E6C875'; ctx.lineWidth = 1.6; ctx.setLineDash([5, 4]); ctx.shadowColor = 'rgba(230, 200, 117, 0.65)'; ctx.shadowBlur = 10;
                     const w = def.w || 100, h = def.h || 80;
-                    const bb = defBounds(def); ctx.strokeRect(bb.x0 - 8, bb.y0 - 8, bb.x1 - bb.x0 + 16, bb.y1 - bb.y0 + 16);
+                    const bb = defBounds(def); ctx.strokeRect(bb.x0 - 8, bb.y0 - 8, bb.x1 - bb.x0 + 16, bb.y1 - bb.y0 + 16); ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
                     ctx.setLineDash([]);
                 }
 
@@ -6064,9 +6224,9 @@ canvas.addEventListener('wheel', (e) => {
                 // Render ISO 1219-2 Designation Tag
                 if (showIsoTags) {
                     const h = -2 * defBounds(def).y0;
-                    ctx.fillStyle = '#0284c7'; ctx.fillRect(comp.x - 22, comp.y - h/2 - 20, 44, 16);
-                    ctx.strokeStyle = '#ffffff'; ctx.strokeRect(comp.x - 22, comp.y - h/2 - 20, 44, 16);
-                    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillStyle = '#161A22'; ctx.fillRect(comp.x - 22, comp.y - h/2 - 20, 44, 16);
+                    ctx.strokeStyle = 'rgba(230, 200, 117, 0.85)'; ctx.lineWidth = 1; ctx.strokeRect(comp.x - 22 + 0.5, comp.y - h/2 - 20 + 0.5, 43, 15);
+                    ctx.fillStyle = '#F0E6D2'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
                     ctx.fillText(comp.tag, comp.x, comp.y - h/2 - 8);
                 }
             }
@@ -6156,10 +6316,12 @@ canvas.addEventListener('wheel', (e) => {
             const startX = Math.floor((-panX / scale) / 20) * 20;
             const startY = Math.floor((-panY / scale) / 20) * 20;
 
-            ctx.fillStyle = '#1e293b';
+            const dotMinor = 'rgba(240, 230, 210, 0.085)', dotMajor = 'rgba(230, 200, 117, 0.32)';
+            ctx.fillStyle = dotMinor;
             for (let x = startX; x < startX + gridCols * 20; x += 20) {
                 for (let y = startY; y < startY + gridRows * 20; y += 20) {
-                    ctx.fillRect(x, y, 1.5, 1.5);
+                    if (x % 100 === 0 && y % 100 === 0) { ctx.fillStyle = dotMajor; ctx.fillRect(x - 0.5, y - 0.5, 2.5, 2.5); ctx.fillStyle = dotMinor; }   // champagne node every 5 squares
+                    else ctx.fillRect(x, y, 1.5, 1.5);
                 }
             }
         }
