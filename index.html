@@ -346,6 +346,7 @@ input[type=range] { accent-color: var(--gold); }
             <button class="tool-btn active" id="btnFx" onclick="toggleActivityFx()">✨ Activity FX: ON</button>
             <button class="tool-btn active" id="btnScope" onclick="toggleScope()">📈 Graph: ON</button>
             <button class="tool-btn" id="btnDemo" onclick="loadSensorDemo()" title="Load a ready-made sensor-controlled cylinder">🧪 Demo: sensor cycle</button>
+            <select class="tool-select" id="demoSelect" title="Load a ready-made operator circuit" onchange="loadOperatorDemo(this.value); this.value='';"><option value="">🎮 Operator demos…</option><option value="joystick">Joystick → proportional valve</option><option value="cable">Lever → pulley / cable valve</option><option value="pedal">Pedal → proportional flow regulator</option></select>
             <button class="tool-btn" onclick="resetSimulation()">⏮ Reset Sim</button>
             <select class="tool-select" id="simSpeedSelect" onchange="setSimSpeed(this.value)" title="Simulation speed">
                 <option value="0.25">0.25×</option>
@@ -2023,7 +2024,7 @@ class SystemGraph {
                     const def = library[comp.key];
                     const ports = def && def.ports ? def.ports : [];
                     ports.forEach(p => {
-                        if (p.type === 'electric') return;          // electrical ports are not hydraulic nodes
+                        if (p.type === 'electric' || p.type === 'string') return;          // electrical / cable ports are not hydraulic nodes
                         const portKey = `${comp.id}:${p.id}`;
                         dsu.makeSet(portKey);
                     });
@@ -2280,6 +2281,7 @@ class HydraulicSolver {
     // type ∈ open | check | relief | reducing | sequence | counterbalance | pocheck |
     //        poclose | unloading | needle | fixed | regulator
     static getConductingPaths(key, state = {}) {
+        if (typeof key === 'string' && key.indexOf('dcvp_') === 0) key = 'dcvh_' + key.slice(5);   // pulley / cable operated copies share the hydraulic family's flow tables
         const rawPos = hydNum(state.spoolPos, 0), pos = Math.sign(rawPos);
         const open = Math.max(0, Math.min(1, hydNum(state.openingPercent, 100) / 100));
         const P = (from, to, type = 'open', scale = 1, sense = null) => ({ from, to, type, scale, sense });
@@ -2291,11 +2293,25 @@ class HydraulicSolver {
             case 'dcv_32_nc':       return rawPos > 0.5 ? [P('P', 'A')] : [P('A', 'T')];
             case 'dcv_32_no':       return rawPos > 0.5 ? [P('A', 'T')] : [P('P', 'A')];
             case 'dcv_53':          return pos > 0 ? [P('P', 'A'), P('B', 'T2')] : pos < 0 ? [P('P', 'B'), P('A', 'T1')] : [];
-            case 'dcv_43_prop': {                       // opening area follows the command magnitude
+            case 'dcv_43_prop':
+            case 'pv_dir_43': {                         // opening area follows the command magnitude
                 const m = Math.min(1, Math.abs(rawPos));
                 if (m < 0.03) return [];
                 return pos > 0 ? [P('P', 'A', 'open', m), P('B', 'T', 'open', m)] : [P('P', 'B', 'open', m), P('A', 'T', 'open', m)];
             }
+            case 'pv_dir_comp_43': {                    // pressure-compensated: metered flow P→actuator ∝ command, independent of load pressure
+                const m = Math.min(1, Math.abs(rawPos));
+                if (m < 0.03) return [];
+                return pos > 0 ? [P('P', 'A', 'regcomp', m), P('B', 'T', 'open', m)] : [P('P', 'B', 'regcomp', m), P('A', 'T', 'open', m)];
+            }
+            case 'pv_flow_reg': {                       // proportional flow regulator: Q = Qmax · command, compensated
+                const cmd = Math.max(0, Math.min(1, hydNum(state.cmdEff, open)));
+                return cmd < 0.01 ? [] : [P('IN', 'OUT', 'regmax', cmd)];
+            }
+            case 'shuttle_valve':   return [P('A', 'C', 'shuttle', 1, 'B'), P('B', 'C', 'shuttle', 1, 'A')];
+            case 'counterbalance_dual':
+                                    return [P('C1', 'V1', 'counterbalance', 1, 'V2'), P('V1', 'C1', 'check'), P('C2', 'V2', 'counterbalance', 1, 'V1'), P('V2', 'C2', 'check')];
+            case 'flow_sensor_e':   return [P('IN', 'OUT', 'resist')];
             case 'dcv_42':          return pos > 0 ? [P('P', 'A'), P('B', 'T')] : [P('P', 'B'), P('A', 'T')];
             // hydraulic / manual operated family
             case 'dcvh_22':         return rawPos > 0.5 ? [P('P', 'A')] : [];
@@ -2434,7 +2450,7 @@ class HydraulicSolver {
             const s = o.switchWidthBar;
 
             if (/^junction_/.test(key) || /^res_/.test(key)) continue;   // junctions are merged nodes, reservoirs are fixed-pressure nodes
-            if (lib.ports && lib.ports.length && lib.ports.every(q => q.type === 'electric')) continue;   // purely electrical parts have no hydraulic model
+            if (lib.ports && lib.ports.length && lib.ports.every(q => q.type === 'electric' || q.type === 'string')) continue;   // purely electrical / mechanical parts have no hydraulic model
 
             // ── pumps ───────────────────────────────────────────────────────
             if (['pump_fixed', 'pump_var', 'manual_pump', 'air_compressor'].includes(key) && has('P') && has('S')) {
@@ -2542,13 +2558,14 @@ class HydraulicSolver {
             let paths = HydraulicSolver.getConductingPaths(key, st);
             let generic = false;
             if (paths === null) {
-                const flowPorts = portIds.filter(p => !['pilot', 'drain'].includes(lib.ports.find(q => q.id === p).type));
-                if (portIds.length === 2 && flowPorts.length === 2 ||
+                const hydIds = portIds.filter(p => !['electric', 'string'].includes(lib.ports.find(q => q.id === p).type));   // signal ports carry no oil
+                const flowPorts = hydIds.filter(p => !['pilot', 'drain'].includes(lib.ports.find(q => q.id === p).type));
+                if (hydIds.length === 2 && flowPorts.length === 2 ||
                     (key.startsWith('motor_') && has('A') && has('B'))) {
-                    const a = key.startsWith('motor_') ? 'A' : portIds[0], b = key.startsWith('motor_') ? 'B' : portIds[1];
+                    const a = key.startsWith('motor_') ? 'A' : hydIds[0], b = key.startsWith('motor_') ? 'B' : hydIds[1];
                     paths = [{ from: a, to: b, type: 'resist', scale: 1, sense: null }];
                     generic = true;
-                } else { paths = []; if (portIds.length > 1) this.unmodeled.push(comp.id + ' (' + key + ')'); }
+                } else { paths = []; if (hydIds.length > 1) this.unmodeled.push(comp.id + ' (' + key + ')'); }
             }
 
             for (const pth of paths) {
@@ -2584,9 +2601,14 @@ class HydraulicSolver {
                                     qfn = (P) => orif(P[0] - P[1], Cv * Amax); break; }
                     case 'fixed': { const dia = hydNum(par.orificeDiam, 1.5);
                                     qfn = (P) => orif(P[0] - P[1], Cv * Math.PI / 4 * dia * dia); break; }
+                    case 'regcomp': { const Qm = hydNum(par.flowMax, 30) * pth.scale;                // compensated metering: flow set by the command, not by ΔP
+                                    qfn = (P) => Qm * Math.tanh(hydPos(P[0] - P[1]) / 3.0); break; }
+                    case 'regmax':  { const Qm = hydNum(par.flowMax, 30) * pth.scale;
+                                    qfn = (P) => Qm * Math.tanh(hydPos(P[0] - P[1]) / 3.0); break; }
+                    case 'shuttle': qfn = (P) => orif(P[0] - P[1], CvA) * hydLogistic((P[0] - P[2]) / 0.5); break;   // ball seats against the lower inlet
                     case 'regulator': { const Qs = hydNum(par.flowSet, 10);
                                     qfn = (P) => Qs * Math.tanh(hydPos(P[0] - P[1]) / 3.0); break; }
-                    case 'resist': { let R = (key === 'flowmeter') ? hydNum(par.resistance, 0.001) : h.getResistance();
+                    case 'resist': { let R = (key === 'flowmeter' || key === 'flow_sensor_e') ? hydNum(par.resistance, 0.001) : (h && h.getResistance ? h.getResistance() : 0.001);
                                     if (fault === 'FILTER_CLOG' && typeof FilterComponent !== 'undefined' && h instanceof FilterComponent) R *= 30;
                                     qfn = (P) => { const d = P[0] - P[1]; return d / Math.sqrt(R * Math.sqrt(d * d + HYD_EPS * HYD_EPS)); }; break; }
                     default: qfn = (P) => orif(P[0] - P[1], CvA);
@@ -3025,9 +3047,10 @@ if (typeof SystemGraph !== 'undefined') {
 // ══════════════════════════════════════════════════════════════════════════
 
 // Keys the USER/UI owns on comp.state – the engine never overwrites these with handler output.
-const SIM_UI_INPUT_KEYS = ['spoolPos', 'openingPercent', 'setting', 'manualPos', 'actL', 'actR', 'target', 'endSel'];
+const SIM_UI_INPUT_KEYS = ['spoolPos', 'openingPercent', 'setting', 'manualPos', 'actL', 'actR', 'target', 'endSel', 'keys'];
 // state written only by the engine (electrical signals, valve command memory): handler snapshots must never overwrite them
-const SIM_ENGINE_KEYS = ['sensorActive', 'sensorPosMm', 'sensorLinked', 'q', 'lit', 'elecY1', 'elecY2', 'elecWired1', 'elecWired2', '_pilotSrc', '_elecSig', '_elecT0', 'elecWarn', '_elecWarned'];
+const SIM_ENGINE_KEYS = ['sensorActive', 'sensorPosMm', 'sensorLinked', 'q', 'lit', 'elecY1', 'elecY2', 'elecWired1', 'elecWired2', '_pilotSrc', '_elecSig', '_elecT0', 'elecWarn', '_elecWarned',
+    'strW1', 'strW2', 'strWired1', 'strWired2', 'cmdLevel', 'cmdWired', 'cmdEff', 'cmdActive', 'opX', 'opY', '_tapX', '_tapY', '_mx', '_my', '_mAct', 'swOn', 'cmpHi', 'cmpLo', 'sensVal', 'sigAct', 'tension'];
 const SIM_LPM_PER_CM2_TO_MM_S = 10000 / 60;     // (L/min) / cm²  →  mm/s
 const SIM_STATE_DEFAULTS = { spoolPos: 0, setting: 180, openingPercent: 100, position: 0, flowQ: 15, pressureP: 0 };
 
@@ -3094,7 +3117,7 @@ class SimulationEngine {
     // ── environment access (re-read every call: clearCanvas() reassigns the arrays) ──
     get components() { return this.opts.components || (typeof placedComponents !== 'undefined' ? placedComponents : []); }
     get allWires()   { return this.opts.wires      || (typeof placedWires !== 'undefined' ? placedWires : []); }
-    get wires()      { return this.allWires.filter(w => w.style !== 'electric'); }          // hydraulic hoses only – electrical wires never reach the solver
+    get wires()      { return this.allWires.filter(w => !isSignalWire(w)); }                // hydraulic hoses only – electrical wires and pulley cables never reach the solver
 
     isPhysicsEnabled() {
         const ext = (typeof simRunning === 'undefined') ? true : simRunning;   // existing "Run/Pause" button
@@ -3135,7 +3158,8 @@ class SimulationEngine {
             delete comp.solved;
         });
         this.wires.forEach(w => { w.flowLmin = 0; w.pressureBar = 0; });
-        this.allWires.forEach(w => { if (w.style === 'electric') w.signal = false; });
+        this.allWires.forEach(w => { if (isSignalWire(w)) { w.signal = false; w.level = 0; } });
+        if (typeof operatorResetAll === 'function') operatorResetAll();
         HydraulicSolver._warm.clear();
         this._rt = new WeakMap();
         this._endStops = {};
@@ -3203,7 +3227,11 @@ class SimulationEngine {
     }
 
     // Electrical signals: sensors / relays drive nets, solenoid ports and lamps read them (see stage10_electrical.js)
-    _electrical() { if (typeof electricEvaluate === 'function') electricEvaluate(this.components, this.allWires); }
+    _electrical(h) {
+        if (typeof operatorStep === 'function') operatorStep(this.components, h || 0);                 // keyboard / mouse operators move first
+        if (typeof signalEvaluate === 'function') signalEvaluate(this.components, this.allWires, this);   // electrical levels + pulley-cable tension
+        else if (typeof electricEvaluate === 'function') electricEvaluate(this.components, this.allWires);
+    }
 
     // Valve commands.  Priority: manual (click / pedal held / lever) > electrical (solenoid Y1 / Y2) > hydraulic pilot (X / Y) > rest.
     //   Pilot: X ≥ shift pressure → left position (+1), Y ≥ shift pressure → right position (−1, or rest on 2-position valves);
@@ -3211,12 +3239,29 @@ class SimulationEngine {
     //   Electrical: Y1 only → left position, Y2 only → right position (−1 / rest); neither or both → no command.
     //   No command: 3-position and spring-return valves go to rest; two-sided 2-position valves keep their last position.
     //   Plain valves without electrical wiring keep following the position clicked in the UI.
-    _applyPilots() {
+    _applyPilots(h) {
         const r = this.lastResult;
+        for (const c of this.components) {                                  // analog (proportional) comps: command → spool / opening
+            const def = typeof LIBRARY !== 'undefined' ? LIBRARY[c.key] : null; if (!def) continue;
+            const st = c.state;
+            if (def.analog === 'flow') { st.cmdEff = st.cmdWired ? Math.max(0, Math.min(1, st.cmdLevel || 0)) : Math.max(0, Math.min(1, (st.openingPercent === undefined ? 100 : st.openingPercent) / 100)); }
+        }
         for (const c of this.components) {
             const def = typeof LIBRARY !== 'undefined' ? LIBRARY[c.key] : null, sp = def && def.dcv;
             if (!sp) continue;
-            const st = c.state, n = sp.envs.length, wired = !!(st.elecWired1 || st.elecWired2);
+            const st = c.state, n = sp.envs.length, wired = !!(st.elecWired1 || st.elecWired2 || st.strWired1 || st.strWired2);
+            if (sp.analog) {                                                // proportional valve: spool follows the analog command with dead-band and first-order lag
+                if (st.manualPos !== undefined && st.manualPos !== null) { st.spoolPos = st.manualPos; continue; }
+                if (!st.cmdWired) continue;                                 // unwired: the slider / click position stays
+                const db = Math.max(0, Math.min(0.5, hydNum(c.params && c.params.deadband, 3) / 100)), raw = Math.max(-1, Math.min(1, st.cmdLevel || 0));
+                const tgt = Math.abs(raw) <= db ? 0 : Math.sign(raw) * (Math.abs(raw) - db) / (1 - db);
+                const tau = Math.max(0.001, hydNum(c.params && c.params.lagMs, 40) / 1000);
+                const a = h > 0 ? 1 - Math.exp(-h / tau) : 1;
+                let np = (st.spoolPos || 0) + (tgt - (st.spoolPos || 0)) * a;
+                if (Math.abs(np - tgt) < 1e-3) np = tgt;                    // the lag never quite arrives – snap, so a zero command really centres the spool
+                st.spoolPos = np; st.cmdActive = Math.abs(raw) > 0.02;
+                continue;
+            }
             if (!sp.pilotCapable && !wired) continue;
             const acts = dcvActObjects(sp, st), aL = acts[0].type, aR = acts[1].type;
             let src = null;
@@ -3229,9 +3274,13 @@ class SimulationEngine {
             }
             st._pilotSrc = src;
             const e1 = aL === 'solenoid' && !!st.elecY1, e2 = aR === 'solenoid' && !!st.elecY2;
-            const elec = (e1 && !e2) ? 1 : (e2 && !e1) ? (n === 3 ? -1 : 0) : null;
+            const pthr = hydNum(c.params && c.params.pullThreshold, 0.5);
+            const s1 = aL === 'string' && (st.strW1 || 0) >= pthr, s2 = aR === 'string' && (st.strW2 || 0) >= pthr;   // pulley cables: pull above the threshold
+            const elec0 = (e1 && !e2) ? 1 : (e2 && !e1) ? (n === 3 ? -1 : 0) : null;
+            const strc = (s1 && !s2) ? 1 : (s2 && !s1) ? (n === 3 ? -1 : 0) : null;
+            const elec = elec0 !== null ? elec0 : strc;                      // solenoid and cable commands share one priority level
             const springReturn = n === 3 || aR === 'spring', hold = !!(c.params && Number(c.params.elecHold));       // detent: keeps the last electrical command
-            const sig = (e1 ? 1 : 0) + (e2 ? 2 : 0), prevSig = st._elecSig || 0;
+            const sig = (e1 ? 1 : 0) + (e2 ? 2 : 0) + (s1 ? 4 : 0) + (s2 ? 8 : 0), prevSig = st._elecSig || 0;
             if (sig !== prevSig) {
                 if (sig !== 0) delete st.manualPos;                           // a NEW electrical command releases a manual override (otherwise sensors could never take over)
                 if (sig !== 0 && prevSig === 0) st._elecT0 = this.simTime;
@@ -3255,8 +3304,8 @@ class SimulationEngine {
 
     _substep(h) {
         const comps = this.components;
-        this._electrical();
-        this._applyPilots();
+        this._electrical(h);
+        this._applyPilots(h);
         if (!comps.length) { this.lastResult = null; this.telemetry = this._emptyTelemetry(); return null; }
 
         let result = this._solve(comps, h);
@@ -3312,7 +3361,7 @@ class SimulationEngine {
     }
 
     _inputSignature() {
-        let s = (typeof activeFault !== 'undefined' ? activeFault : '') + '|' + this._topologySignature() + '|' + JSON.stringify(this.opts.solverOptions) + '|' + this.wires.map(w => JSON.stringify(w.params || 0)).join('') + '|' + this.allWires.filter(w => w.style === 'electric').map(w => w.id + w.fromCompId + w.fromPortId + w.toCompId + w.toPortId).join(',') + '|';
+        let s = (typeof activeFault !== 'undefined' ? activeFault : '') + '|' + this._topologySignature() + '|' + JSON.stringify(this.opts.solverOptions) + '|' + this.wires.map(w => JSON.stringify(w.params || 0)).join('') + '|' + this.allWires.filter(w => isSignalWire(w)).map(w => w.id + w.fromCompId + w.fromPortId + w.toCompId + w.toPortId).join(',') + '|';
         for (const c of this.components) {
             s += `${c.id}:${c.state ? c.state.spoolPos : ''}:${c.state ? c.state.openingPercent : ''}:${c.params ? JSON.stringify(c.params) : ''};`;
         }
@@ -3641,7 +3690,7 @@ function refreshInspectorLive() {
         }
     } else if (selectedWireId) {
         const w = placedWires.find(k => k.id === selectedWireId);
-        if (w && w.style === 'electric') html += row('Signal', w.signal ? '<span class="param-ok">HIGH (24 V)</span>' : 'LOW (0 V)');
+        if (w && isSignalWire(w)) html += w.style === 'string' ? row('Cable tension', Math.round(Math.max(0, w.level || 0) * 100) + ' %') : row('Signal level', (w.level !== undefined ? w.level.toFixed(2) : (w.signal ? '1.00' : '0.00')) + (w.signal ? ' <span class="param-ok">● HIGH</span>' : ' ○ low'));
         else if (w && w.flowLmin !== undefined) html += row('Flow', f(w.flowLmin) + ' L/min (' + (w.flowLmin >= 0 ? 'from → to' : 'to → from') + ')') + row('Pressure', f(w.pressureBar) + ' bar') + hoseLiveRows(w, row);
     }
     el.innerHTML = html ? `<div style="margin-top:0.4rem; padding-top:0.3rem; border-top:1px solid #334155; font-size:0.72rem;">${html}</div>` : '';
@@ -3807,6 +3856,28 @@ const DCV_PILOT_ORDER = ['dcvh_33', 'dcvh_22', 'dcvh_22no', 'dcvh_32', 'dcvh_32n
     };
     Object.assign(DCV_SPECS.dcv_43_pilot, { pilotCapable: true, actDefault: HH });          // the older pilot valve gets the same selectable actuators
 })();
+// ── pulley / cable operated copies of the hydraulic family (ports W1 / W2 take an ivory cable) ───────────────
+const DCV_PULLEY_ORDER = ['dcvp_33', 'dcvp_22', 'dcvp_22no', 'dcvp_32', 'dcvp_32no', 'dcvp_42', 'dcvp_52', 'dcvp_43', 'dcvp_53'];
+(function addPulleyFamily() {
+    const names = { 33: '3/3', 22: '2/2 (NC)', '22no': '2/2 (NO)', 32: '3/2 (NC)', '32no': '3/2 (NO)', 42: '4/2', 52: '5/2', 43: '4/3', 53: '5/3' };
+    DCV_PILOT_ORDER.forEach(hk => {
+        const id = hk.replace('dcvh_', ''), src = DCV_SPECS[hk], three = src.envs.length === 3, k = 'dcvp_' + id;
+        DCV_SPECS[k] = Object.assign({}, src, {
+            title: `${names[id]} DCV – Pulley / Cable Operated`, short: `${names[id].replace(/ \(.*\)/, '')} Cable${/NO/.test(names[id]) ? ' NO' : /NC/.test(names[id]) ? ' NC' : ''}`,
+            desc: src.desc.replace(/\.$/, '') + '. Operated by pulley cables (ports W1 left / W2 right) from a pedal, lever or joystick; every side can also be set to hydraulic, solenoid, lever or pedal.',
+            actDefault: three ? ['string', 'string'] : ['string', 'spring'], iso: 'ISO 1219-1: Sec 6.4 (mechanical, cable)'
+        });
+    });
+})();
+// ── proportional valves with an analog command port (CMD) ─────────────────────────────────────────────────
+const DCV_PROP_ORDER = ['pv_dir_43', 'pv_dir_comp_43'];
+(function addProportional() {
+    const base = DCV_SPECS.dcv_43_prop;
+    DCV_SPECS.pv_dir_43 = Object.assign({}, base, { title: 'Proportional Directional Valve 4/3 (analog command)', short: 'Prop. DCV 4/3', iso: 'ISO 1219-1: Sec 6.6', analog: true, prop: true,
+        desc: 'Spool position follows the analog command at CMD (−100 … +100 %, e.g. from a joystick or lever). Opening area ∝ |command|, with spool dynamics and dead-band (parameters).' });
+    DCV_SPECS.pv_dir_comp_43 = Object.assign({}, base, { title: 'Pressure-Compensated Proportional Valve 4/3', short: 'Prop. DCV + comp.', iso: 'ISO 1219-1: Sec 6.6', analog: true, prop: true, comp: true,
+        desc: 'Proportional directional valve with a pressure compensator: flow to the actuator ∝ |command| and (almost) independent of load pressure. Maximum flow is a parameter.' });
+})();
 const DCV_ORDER = ['dcv_43_closed', 'dcv_43_pilot', 'dcv_32_nc', 'dcv_32_no', 'dcv_22', 'dcv_22_no', 'dcv_43_prop', 'dcv_42', 'dcv_53', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float'];
 
 function dcvLayout(sp) {
@@ -3908,6 +3979,14 @@ function dcvPedal(ctx, xInner, dir, lit) {                    // foot pedal: box
     ctx.fillStyle = lit ? '#fde68a' : '#94a3b8'; ctx.beginPath(); ctx.moveTo(x + 2, 12); ctx.lineTo(x + 16, 12); ctx.lineTo(x + 13, 4); ctx.lineTo(x + 5, 4); ctx.closePath(); ctx.fill();   // plate
     ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#94a3b8'; ctx.fillText('PEDAL', cx, 28);
 }
+function dcvCable(ctx, xInner, dir, lit) {                    // cable / pulley actuator: box with a small pulley wheel
+    const x = dir < 0 ? xInner - 18 : xInner, cx = x + 9;
+    ctx.fillStyle = lit ? '#f5e9c4' : '#0f172a'; ctx.fillRect(x, -17, 18, 34);
+    ctx.strokeStyle = lit ? '#fff7dc' : '#a79f86'; ctx.lineWidth = 1.8; ctx.strokeRect(x, -17, 18, 34);
+    ctx.beginPath(); ctx.arc(cx, 2, 5.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, 2, 1.4, 0, Math.PI * 2); ctx.fillStyle = lit ? '#14110A' : '#a79f86'; ctx.fill();
+    ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#a79f86'; ctx.fillText('CABLE', cx, 28);
+}
 function dcvDrawActuator(ctx, sp, a, edge, dir, lit) {
     if (!a || a.type === 'none') return;
     if (a.type === 'spring') { dcvSpring(ctx, edge, dir, false); return; }
@@ -3925,6 +4004,7 @@ function dcvDrawActuator(ctx, sp, a, edge, dir, lit) {
     if (a.type === 'solenoid') dcvSolenoid(ctx, bx, dir, lit);
     else if (a.type === 'lever') dcvLever(ctx, bx, dir, lit);
     else if (a.type === 'pedal') dcvPedal(ctx, bx, dir, lit);
+    else if (a.type === 'string') dcvCable(ctx, bx, dir, lit);
 }
 
 // x position (on the 20 px grid) of the electrical connector above a solenoid:  side 0 = left (Y1), 1 = right (Y2)
@@ -3949,17 +4029,30 @@ function dcvDraw(key, ctx, st) {
 
     // actuators (left, right)
     const acts = dcvActObjects(sp, st);
-    const litLeft = (pos === sp.envs[0].pos && pos !== 0) || !!(st && st.elecY1 && acts[0].type === 'solenoid');
-    const litRight = (st && st.elecY2 && acts[1].type === 'solenoid') || n === 3 ? (pos === sp.envs[n - 1].pos && pos !== 0) : (acts[1].type !== 'spring' && pos === 0 && ((st && st.manualPos === 0) || (st && st._pilotSrc === 'Y')));
+    const litLeft = (pos === sp.envs[0].pos && pos !== 0) || !!(st && st.elecY1 && acts[0].type === 'solenoid') || !!(st && acts[0].type === 'string' && (st.strW1 || 0) >= 0.5);
+    const litRight = (st && st.elecY2 && acts[1].type === 'solenoid') || (st && acts[1].type === 'string' && (st.strW2 || 0) >= 0.5) || n === 3 ? (pos === sp.envs[n - 1].pos && pos !== 0) : (acts[1].type !== 'spring' && pos === 0 && ((st && st.manualPos === 0) || (st && st._pilotSrc === 'Y')));
     dcvDrawActuator(ctx, sp, acts[0], L.x0, -1, litLeft);
     dcvDrawActuator(ctx, sp, acts[1], L.x1, 1, litRight);
     // dotted electrical connector stubs above the solenoids (ports Y1 / Y2)
     [[0, acts[0]], [1, acts[1]]].forEach(([side, a]) => {
-        if (a.type !== 'solenoid') return;
-        const px = dcvSolenoidPortX(sp, side), on = !!(st && (side === 0 ? st.elecY1 : st.elecY2));
-        ctx.save(); ctx.setLineDash([1.5, 4]); ctx.lineCap = 'round'; ctx.strokeStyle = on ? '#fde047' : '#a16207'; ctx.lineWidth = 2;
+        const isSol = a.type === 'solenoid', isStr = a.type === 'string';
+        if (!isSol && !isStr) return;
+        if (isSol && sp.analog && side === 1) return;                       // a proportional valve has ONE analog connector (left)
+        const px = dcvSolenoidPortX(sp, side);
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineWidth = 2;
+        if (isStr) {                                                        // solid ivory cable stub
+            const on = !!(st && (side === 0 ? st.strW1 : st.strW2) >= 0.5);
+            ctx.strokeStyle = on ? '#f5e9c4' : '#8f876f';
+        } else {                                                            // dotted electrical stub
+            const on = sp.analog ? !!(st && Math.abs(st.cmdLevel || 0) > 0.02) : !!(st && (side === 0 ? st.elecY1 : st.elecY2));
+            ctx.setLineDash([1.5, 4]); ctx.strokeStyle = on ? '#fde047' : '#a16207';
+        }
         ctx.beginPath(); ctx.moveTo(px, -17); ctx.lineTo(px, -40); ctx.stroke(); ctx.restore();
     });
+    if (sp.comp) {                                                          // pressure compensator badge
+        ctx.save(); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.4; ctx.strokeRect(L.x0 + 6, 28, 30, 18);
+        ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('ΔP', L.x0 + 21, 41); ctx.restore();
+    }
     if (st && st.elecWarn) {                                          // visible hint on the symbol: the spring dropped the valve back after a short signal
         ctx.save(); ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.moveTo(L.x0 + 4, -72); ctx.lineTo(L.x0 + 18, -72); ctx.lineTo(L.x0 + 11, -86); ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#0f172a'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', L.x0 + 11, -74); ctx.restore();
@@ -4008,7 +4101,7 @@ function dcvPortType(id) { return id === 'P' ? 'pressure' : /^T\d?$|^R$/.test(id
 
 function registerDcvLibrary() {
     const defs = {};
-    const ALL = DCV_ORDER.concat(DCV_PILOT_ORDER);
+    const ALL = DCV_ORDER.concat(DCV_PILOT_ORDER, DCV_PULLEY_ORDER, DCV_PROP_ORDER);
     ALL.forEach((key) => {
         const sp = DCV_SPECS[key], L = dcvLayout(sp), ports = [];
         Object.keys(sp.slots).forEach(id => {
@@ -4019,14 +4112,22 @@ function registerDcvLibrary() {
         if (sp.pilotCapable || sp.act[1] === 'pilot') ports.push({ id: 'Y', label: 'Port Y (Pilot Pressure, → R)', relX: L.x1 + sp.pilotLen, relY: 0, type: 'pilot' });
         // electrical connector of each solenoid (pilot-capable valves: always present, visible only for a solenoid side)
         const acts0 = sp.pilotCapable ? null : dcvActObjects(sp, {});
-        [['Y1', 0], ['Y2', 1]].forEach(([id, side]) => {
-            if (!(sp.pilotCapable || acts0[side].type === 'solenoid')) return;
-            const target = side === 0 ? sp.envs[0].label : sp.envs[sp.envs.length - 1].label;
-            ports.push({ id, label: `Solenoid ${id} (24 V signal → ${target})`, relX: dcvSolenoidPortX(sp, side), relY: -40, type: 'electric', io: 'in' });
-        });
+        if (sp.analog) {
+            ports.push({ id: 'CMD', label: 'Command input (analog −100 … +100 %)', relX: dcvSolenoidPortX(sp, 0), relY: -40, type: 'electric', io: 'in' });
+        } else {
+            [['Y1', 0], ['Y2', 1]].forEach(([id, side]) => {
+                if (!(sp.pilotCapable || acts0[side].type === 'solenoid')) return;
+                const target = side === 0 ? sp.envs[0].label : sp.envs[sp.envs.length - 1].label;
+                ports.push({ id, label: `Solenoid ${id} (24 V signal → ${target})`, relX: dcvSolenoidPortX(sp, side), relY: -40, type: 'electric', io: 'in' });
+            });
+            if (sp.pilotCapable) [['W1', 0], ['W2', 1]].forEach(([id, side]) => {                // pulley-cable connectors
+                const target = side === 0 ? sp.envs[0].label : sp.envs[sp.envs.length - 1].label;
+                ports.push({ id, label: `Pulley cable ${id} (pull → ${target})`, relX: dcvSolenoidPortX(sp, side), relY: -40, type: 'string', io: 'in' });
+            });
+        }
         const hit = { x0: L.ext0 - 8, x1: L.ext1 + 8, y0: -86, y1: 52 };
         defs[key] = {
-            title: sp.title, short: sp.short, cat: key.startsWith('dcvh_') ? '2b. Hydraulic / Manual Operated DCVs' : '2. Directional Valves', iso: sp.iso, tagPrefix: '1V', spec: sp.desc,
+            title: sp.title, short: sp.short, cat: key.startsWith('dcvh_') ? '2b. Hydraulic / Manual Operated DCVs' : key.startsWith('dcvp_') ? '2c. Pulley / Cable Operated DCVs' : key.startsWith('pv_') ? '2d. Proportional Valves' : '2. Directional Valves', iso: sp.iso, tagPrefix: '1V', spec: sp.desc,
             w: hit.x1 - hit.x0, h: hit.y1 - hit.y0, hit, ports, dcv: sp,
             defaultState: sp.pilotCapable ? { actL: sp.actDefault[0], actR: sp.actDefault[1] } : undefined,
             draw: function (ctx, st) { dcvDraw(key, ctx, st || {}); }
@@ -4052,6 +4153,8 @@ function portIsActive(comp, def, p) {
     if (p.id === 'Y') return dcvAct(comp, 'R') === 'pilot';
     if (p.id === 'Y1') return dcvAct(comp, 'L') === 'solenoid';
     if (p.id === 'Y2') return dcvAct(comp, 'R') === 'solenoid';
+    if (p.id === 'W1') return dcvAct(comp, 'L') === 'string';
+    if (p.id === 'W2') return dcvAct(comp, 'R') === 'string';
     return true;
 }
 
@@ -4146,19 +4249,19 @@ function dcvInspectorHtml(comp) {
 
 function dcvActuatorSelectHtml(comp, sp) {
     const acts = dcvActObjects(sp, comp.state), n = sp.envs.length;
-    const optsL = [['pilot', 'Hydraulic pilot (port X)'], ['solenoid', 'Solenoid'], ['lever', 'Hand lever'], ['pedal', 'Foot pedal']];
+    const optsL = [['pilot', 'Hydraulic pilot (port X)'], ['solenoid', 'Solenoid'], ['string', 'Pulley / cable (port W)'], ['lever', 'Hand lever'], ['pedal', 'Foot pedal']];
     const optsR = (n === 2 ? [['spring', 'Spring return']] : []).concat(optsL.map(o => o[0] === 'pilot' ? ['pilot', 'Hydraulic pilot (port Y)'] : o));
     const sel = (side, opts, cur) => `<select style="flex:1; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:4px; font-size:.7rem;" onchange="setDcvActuators('${comp.id}', ${side === 'L' ? "this.value, null" : "null, this.value"})">` +
         opts.map(o => `<option value="${o[0]}" ${o[0] === cur ? 'selected' : ''}>${o[1]}</option>`).join('') + '</select>';
-    const presets = (n === 3 ? [['Hyd + Hyd', 'pilot', 'pilot'], ['Hyd + Solenoid', 'pilot', 'solenoid'], ['Hyd + Lever', 'pilot', 'lever'], ['Hyd + Pedal', 'pilot', 'pedal']]
-                             : [['Hyd + Spring', 'pilot', 'spring'], ['Hyd + Hyd', 'pilot', 'pilot'], ['Hyd + Solenoid', 'pilot', 'solenoid'], ['Hyd + Lever', 'pilot', 'lever'], ['Hyd + Pedal', 'pilot', 'pedal']])
+    const presets = (n === 3 ? [['Hyd + Hyd', 'pilot', 'pilot'], ['Hyd + Solenoid', 'pilot', 'solenoid'], ['Hyd + Lever', 'pilot', 'lever'], ['Hyd + Pedal', 'pilot', 'pedal'], ['Cable + Cable', 'string', 'string'], ['Cable + Hyd', 'string', 'pilot'], ['Cable + Solenoid', 'string', 'solenoid']]
+                             : [['Hyd + Spring', 'pilot', 'spring'], ['Hyd + Hyd', 'pilot', 'pilot'], ['Hyd + Solenoid', 'pilot', 'solenoid'], ['Hyd + Lever', 'pilot', 'lever'], ['Hyd + Pedal', 'pilot', 'pedal'], ['Cable + Spring', 'string', 'spring'], ['Cable + Cable', 'string', 'string'], ['Cable + Solenoid', 'string', 'solenoid']])
         .map(p => `<button class="param-chip" onclick="setDcvActuators('${comp.id}','${p[1]}','${p[2]}')">${p[0]}</button>`).join('');
     return `<div class="param-block"><div class="param-title"><span>🎛 Actuation</span></div>
         <div class="param-group">Left actuator → ${sp.envs[0].label}</div>${sel('L', optsL, acts[0].type)}
         <div class="param-group">Right actuator → ${sp.envs[n - 1].label}${n === 2 ? ' (rest)' : ''}</div>${sel('R', optsR, acts[1].type)}
         <div class="param-chips" style="margin-top:6px">${presets}</div>
         <div class="param-derived">${acts.some(a => a.type === 'pilot') ? 'Hydraulic sides show a pilot port (X left, Y right): connect a hose to it. Pilot pressure above the shift pressure (parameter) moves the spool.' : 'No hydraulic side – pilot ports are hidden.'}
-        ${acts.some(a => a.type === 'pedal') ? ' Pedal: hold the mouse button on the pedal, it springs back on release.' : ''}${acts.some(a => a.type === 'lever') ? ' Lever: click to latch.' : ''}${acts.some(a => a.type === 'solenoid') ? ' Solenoid: click to energise.' : ''}</div></div>`;
+        ${acts.some(a => a.type === 'pedal') ? ' Pedal: hold the mouse button on the pedal, it springs back on release.' : ''}${acts.some(a => a.type === 'lever') ? ' Lever: click to latch.' : ''}${acts.some(a => a.type === 'solenoid') ? ' Solenoid: click to energise.' : ''}${acts.some(a => a.type === 'string') ? ' Cable: connect an ivory cable from a pedal / lever / joystick (or a pulley chain) to port W; a pull above the threshold (parameter) moves the valve.' : ''}</div></div>`;
 }
 
 function dcvReleaseManual(compId) { const c = placedComponents.find(k => k.id === compId); if (c) { delete c.state.manualPos; updateUI(); render(); } }
@@ -4172,6 +4275,15 @@ function dcvElectricalHtml(comp, sp) {
             return `<div class="prop-row"><span class="prop-label">${p.id}:</span><span class="prop-val">${wired ? (on ? '<span class="param-ok">● energised</span>' : '○ de-energised') : 'not connected'}</span></div>`;
         }).join('') + `<div class="param-derived">Connect an electrical (dotted) wire from a sensor, relay or switch output to a yellow Y port.</div></div>`;
     }
+    const ws = def.ports.filter(p => p.type === 'string' && portIsActive(comp, def, p));
+    if (ws.length) {
+        html += `<div class="param-block"><div class="param-title"><span>🪢 Cable connectors</span></div>` + ws.map(p => {
+            const wired = placedWires.some(w => w.style === 'string' && ((w.fromCompId === comp.id && w.fromPortId === p.id) || (w.toCompId === comp.id && w.toPortId === p.id)));
+            const t = p.id === 'W1' ? st.strW1 : st.strW2;
+            return `<div class="prop-row"><span class="prop-label">${p.id}:</span><span class="prop-val">${wired ? (Number(t) >= 0.5 ? '<span class="param-ok">● pulled ' + Math.round(t * 100) + ' %</span>' : '○ slack ' + Math.round((t || 0) * 100) + ' %') : 'not connected'}</span></div>`;
+        }).join('') + `<div class="param-derived">Connect a cable (ivory) from an operator S port or a pulley chain. The valve shifts when the pull exceeds the threshold.</div></div>`;
+    }
+    if (def.analog) html += `<div class="param-block"><div class="param-title"><span>🎚 Analog command</span></div><div class="prop-row"><span class="prop-label">CMD:</span><span class="prop-val">${st.cmdWired ? (Math.round((st.cmdLevel || 0) * 100) + ' %') : 'not connected (use the slider)'}</span></div><div class="param-derived">Connect a joystick / lever / pedal analog output (or a sensor SIG) to CMD. −100 % … +100 % = full spool travel either way.</div></div>`;
     if (st.elecWarn) html += `<div class="param-derived"><span class="param-warn">⚠ ${st.elecWarn}</span><br><button class="param-mini" onclick="setCompParam('${comp.id}','elecHold',1)">Enable solenoid detent</button></div>`;
     if (st.manualPos !== undefined && st.manualPos !== null && (sp.pilotCapable || ys.some(p => (p.id === 'Y1' ? st.elecWired1 : st.elecWired2)))) {
         html += `<div class="param-derived"><span class="param-warn">Manual override active</span> (position ${st.manualPos}) – it wins over electrical and pilot commands. <button class="param-mini" onclick="dcvReleaseManual('${comp.id}')">release</button></div>`;
@@ -4243,14 +4355,18 @@ function hosePortInfo(compId, portId) {
     const comp = placedComponents.find(c => c.id === compId); if (!comp) return null;
     const def = LIBRARY[comp.key], p = def && def.ports && def.ports.find(q => q.id === portId); if (!p) return null;
     let dx = 0, dy = 0;
-    if (Math.abs(p.relY) > 0.5) dy = Math.sign(p.relY); else dx = Math.sign(p.relX) || 1;
+    if (p.dir) { dx = p.dir[0]; dy = p.dir[1]; }                         // explicit exit direction (operators, sensors …)
+    else if (Math.abs(p.relY) > 0.5) dy = Math.sign(p.relY); else dx = Math.sign(p.relX) || 1;
     const rad = comp.rotation * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
     return { comp, pos: getPortWorldPos(comp, portId), dir: { x: Math.round(dx * c - dy * s), y: Math.round(dx * s + dy * c) } };
 }
 // 'electric' ports (yellow, dotted wires) and 'hydraulic' ports (hoses) can only be joined with their own kind
+const SIGNAL_TYPES = ['electric', 'string'];                          // port types that are NOT hydraulic: yellow = electrical, ivory = pulley cable
+function isSignalWire(w) { return w.style === 'electric' || w.style === 'string'; }
+function portKindOfType(t) { return t === 'electric' ? 'electric' : t === 'string' ? 'string' : 'hydraulic'; }
 function hosePortKind(ref) {
     const c = placedComponents.find(x => x.id === ref.compId), d = c && LIBRARY[c.key], p = d && d.ports.find(q => q.id === ref.portId);
-    return p && p.type === 'electric' ? 'electric' : 'hydraulic';
+    return portKindOfType(p && p.type);
 }
 function hosePortAt(wx, wy, radius, kind) {
     let best = null, bd = radius;
@@ -4258,7 +4374,7 @@ function hosePortAt(wx, wy, radius, kind) {
         const def = LIBRARY[comp.key]; if (!def || !def.ports) continue;
         for (const p of def.ports) {
             if (!portIsActive(comp, def, p)) continue;
-            if (kind && (p.type === 'electric' ? 'electric' : 'hydraulic') !== kind) continue;
+            if (kind && portKindOfType(p.type) !== kind) continue;
             const pw = getPortWorldPos(comp, p.id), d = Math.hypot(wx - pw.x, wy - pw.y);
             if (d < bd) { bd = d; best = { compId: comp.id, portId: p.id, pos: pw, pDef: p, compTag: comp.tag }; }
         }
@@ -4314,7 +4430,7 @@ function getWirePath(w) {
 }
 function hoseWireAt(wx, wy, thr) {
     for (let i = placedWires.length - 1; i >= 0; i--) {
-        if (placedWires[i].style === 'electric') continue;                       // T-junctions exist for hoses only
+        if (isSignalWire(placedWires[i])) continue;                              // T-junctions exist for hoses only
         const path = getWirePath(placedWires[i]);
         if (path && isPointNearPath(wx, wy, path, thr)) return placedWires[i];
     }
@@ -4342,9 +4458,9 @@ function undoHoseCorner() { if (wireDraftPts.length) { wireDraftPts.pop(); wireD
 
 function commitHose(toCompId, toPortId) {
     const kind = hosePortKind(wireStartPort);
-    const w = { id: newWireId(), fromCompId: wireStartPort.compId, fromPortId: wireStartPort.portId, toCompId, toPortId, style: kind === 'electric' ? 'electric' : wireStyle, waypoints: wireDraftPts.map(p => ({ x: p.x, y: p.y })) };
+    const w = { id: newWireId(), fromCompId: wireStartPort.compId, fromPortId: wireStartPort.portId, toCompId, toPortId, style: kind !== 'hydraulic' ? kind : wireStyle, waypoints: wireDraftPts.map(p => ({ x: p.x, y: p.y })) };
     placedWires.push(w);
-    for (const cid of [w.fromCompId, w.toCompId]) { const cc = placedComponents.find(x => x.id === cid); if (cc && LIBRARY[cc.key] && LIBRARY[cc.key].dcv && kind === 'electric') delete cc.state.manualPos; }   // a fresh connection starts from the electrical command
+    for (const cid of [w.fromCompId, w.toCompId]) { const cc = placedComponents.find(x => x.id === cid); if (cc && LIBRARY[cc.key] && LIBRARY[cc.key].dcv && kind !== 'hydraulic') delete cc.state.manualPos; }   // a fresh connection starts from the electrical command
     selectedWireId = w.id; selectedCompId = null;
     isWiring = false; wireStartPort = null; hoveredTargetPort = null; wireDraftPts = []; wireDraftCursor = null; hoveredJunctionWire = null; wireDragCandidate = false;
     updateUI(); render();
@@ -4414,7 +4530,7 @@ function drawHoseHandles(ctx, w, path) {
     ctx.restore();
 }
 function hoseInspectorHtml(w) {
-    if (w.style === 'electric') return `<div class="param-derived">Electrical wire (dotted). The signal is <b>${w.signal ? 'HIGH – 24 V' : 'LOW – 0 V'}</b>. Drag the ▪ handles to re-route it; hydraulics are not affected.</div>
+    if (isSignalWire(w)) return `<div class="param-derived">${w.style === 'string' ? 'Pulley cable (ivory). Tension: <b>' + Math.round((w.level || 0) * 100) + ' %</b>.' : 'Electrical wire (dotted). Level: <b>' + (w.level !== undefined ? w.level.toFixed(2) : (w.signal ? '1.00' : '0.00')) + '</b> (≥ 0.5 = HIGH).'} Drag the ▪ handles to re-route it; hydraulics are not affected.</div>
             <div class="ctrl-btn-group" style="display:flex; gap:4px;"><button class="action-btn" style="flex:1; background:#334155;" onclick="hoseEditCorners('${w.id}')">✏️ Edit corners</button><button class="action-btn" style="flex:1; background:#334155;" onclick="hoseAutoRoute('${w.id}')">↺ Auto-route</button></div>`;
     const n = (w.waypoints || []).length;
     return `<div class="prop-row"><span class="prop-label">Corners:</span><span class="prop-val">${n ? n + ' (manual)' : 'auto-routed'}</span></div>
@@ -4437,13 +4553,13 @@ function hoseMouseDown(e, pos) {
     if (isWiring && wireStartPort) {
         const kind = hosePortKind(wireStartPort);
         const port = hoveredTargetPort || hosePortAt(pos.wx, pos.wy, 26, kind);
-        if (!port && hosePortAt(pos.wx, pos.wy, 18)) { hoseToast(kind === 'electric' ? 'An electrical wire connects to yellow electrical ports only.' : 'A hose connects to hydraulic ports only – electrical ports are yellow.'); return true; }
+        if (!port && hosePortAt(pos.wx, pos.wy, 18)) { hoseToast(kind === 'electric' ? 'An electrical wire connects to yellow electrical ports only.' : kind === 'string' ? 'A pulley cable connects to ivory cable ports only.' : 'A hose connects to hydraulic ports only – electrical ports are yellow, cable ports ivory.'); return true; }
         if (port) {
             if (port.compId === wireStartPort.compId && port.portId === wireStartPort.portId) cancelHoseDraft();
             else commitHose(port.compId, port.portId);
             return true;
         }
-        const hw = kind === 'electric' ? null : hoseWireAt(pos.wx, pos.wy, 10);
+        const hw = kind !== 'hydraulic' ? null : hoseWireAt(pos.wx, pos.wy, 10);
         if (hw) {
             const a = hosePortInfo(wireStartPort.compId, wireStartPort.portId);
             const toward = wireDraftPts.length ? wireDraftPts[wireDraftPts.length - 1] : (a ? a.pos : null);
@@ -4467,6 +4583,7 @@ function hoseMouseDown(e, pos) {
 }
 
 function hoseMouseMove(pos) {
+    if (typeof heldOperator !== 'undefined' && heldOperator) { operatorMouseMove(pos); return true; }      // dragging a pedal / lever / joystick
     if (draggingWp) {
         const w = placedWires.find(x => x.id === draggingWp.wireId);
         if (!w) { draggingWp = null; return false; }
@@ -4478,7 +4595,7 @@ function hoseMouseMove(pos) {
     let t = hosePortAt(pos.wx, pos.wy, 26, kind);
     if (t && t.compId === wireStartPort.compId && t.portId === wireStartPort.portId) t = null;
     hoveredTargetPort = t;
-    hoveredJunctionWire = (t || kind === 'electric') ? null : hoseWireAt(pos.wx, pos.wy, 10);
+    hoveredJunctionWire = (t || kind !== 'hydraulic') ? null : hoseWireAt(pos.wx, pos.wy, 10);
     wireDraftCursor = hoseDraftCursor(pos.wx, pos.wy);
     render(); return true;
 }
@@ -4527,7 +4644,7 @@ function drawWireDraft() {
         for (const p of def.ports) {
             if (comp.id === wireStartPort.compId && p.id === wireStartPort.portId) continue;
             if (!portIsActive(comp, def, p)) continue;
-            if ((p.type === 'electric' ? 'electric' : 'hydraulic') !== dKind) continue;
+            if (portKindOfType(p.type) !== dKind) continue;
             const pw = getPortWorldPos(comp, p.id);
             ctx.beginPath(); ctx.arc(pw.x, pw.y, 8, 0, Math.PI * 2); ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2; ctx.stroke();
         }
@@ -4543,7 +4660,7 @@ function drawWireDraft() {
     if (hoveredTargetPort) { const b = hosePortInfo(hoveredTargetPort.compId, hoveredTargetPort.portId); path = b ? buildHosePath(a.pos, a.dir, wireDraftPts, b.pos, b.dir) : null; }
     else path = buildHosePath(a.pos, a.dir, wireDraftPts, null, null, wireDraftCursor || (currentMouseWorld ? { x: currentMouseWorld.wx, y: currentMouseWorld.wy } : null));
     if (path && path.length > 1) {
-        ctx.lineWidth = 2.5; ctx.strokeStyle = '#E6C875'; ctx.setLineDash(dKind === 'electric' ? [1.5, 6] : [6, 4]); ctx.lineCap = dKind === 'electric' ? 'round' : 'butt';
+        ctx.lineWidth = 2.5; ctx.strokeStyle = '#E6C875'; ctx.setLineDash(dKind === 'electric' ? [1.5, 6] : dKind === 'string' ? [] : [6, 4]); ctx.lineCap = dKind === 'hydraulic' ? 'butt' : 'round';
         ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y); path.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke(); ctx.setLineDash([]);
     }
     // placed corners
@@ -4676,7 +4793,7 @@ function fxBallsAlong(ctx, pts, phase, r, hex, spacing) {
 
 // Which hoses are return lines to the tank?  (hose inside a tank-referenced node, not the pump suction line)
 function fxClassifyWire(w) {
-    if (!showActivityFx || !simIsLive() || w.style === 'electric') return null;
+    if (!showActivityFx || !simIsLive() || isSignalWire(w)) return null;
     const g = simEngine._graph; if (!g) return null;
     const c1 = placedComponents.find(c => c.id === w.fromCompId), c2 = placedComponents.find(c => c.id === w.toCompId);
     if (!c1 || !c2) return null;
@@ -4775,7 +4892,8 @@ const PARAM_FAMILIES = (() => {
     F.ball = [open, area];
     const hold = PD('elecHold', 'Solenoid detent (hold last signal)', '', 0, 1, 1, 0, { type: 'bool', group: 'Operating', tip: 'On = the valve keeps the position of the last electrical command (detented / impulse valve). Off = spring valve: it falls back the moment the signal disappears – a sensor pulse is then too short, use a latching relay.' });
     F.dcvSol = [area, Cv, hold];
-    F.dcvPilot = [PD('pilotShift', 'Pilot pressure to shift', 'bar', 1, 60, 0.5, 8, { tip: 'Pressure at X (→E) or Y (→R) that shifts the spool.' }), area, Cv, hold];
+    const pull = PD('pullThreshold', 'Cable pull to shift', '%', 10, 95, 5, 50, { unitScale: 100, tip: 'A cable pulled beyond this fraction of the full operator travel shifts the valve (pulley ratios scale the pull).', presets: [25, 50, 75] });
+    F.dcvPilot = [PD('pilotShift', 'Pilot pressure to shift', 'bar', 1, 60, 0.5, 8, { tip: 'Pressure at X (→E) or Y (→R) that shifts the spool.' }), pull, area, Cv, hold];
     // pumps & motors
     const flowQ = (def, max = 120) => PD('flowQ', 'Pump flow', 'L/min', 0, max, 0.5, def, { presets: [5, 10, 15, 20, 30, 50], tip: 'Delivered flow at zero pressure (displacement × speed).' });
     const slip = PD('slip', 'Internal leakage', 'L/min per 100 bar', 0, 10, 0.1, 0, { group: 'Advanced', tip: 'Volumetric loss growing with pressure.' });
@@ -4825,6 +4943,24 @@ const PARAM_FAMILIES = (() => {
     F.flowmeter = [PD('resistance', 'Meter resistance', 'bar/(L/min)²', 0.0001, 0.05, 0.0001, 0.001, { group: 'Advanced', scale: 'log', tip: 'Pressure drop of the turbine.' })];
     F.levelSwitch = [PD('fluidLevel', 'Fluid level', '%', 0, 100, 1, 85, { group: 'Operating', tip: 'Simulated oil level.' }), PD('threshold', 'Switching level', '%', 0, 100, 1, 20, { tip: 'Contact closes at or above this level.' })];
     F.tempSwitch = [PD('fluidTemp', 'Override oil temperature', '°C', 0, 150, 1, 55, { group: 'Operating', tip: 'Reset the value to follow the simulated oil temperature (HUD).' }), PD('threshold', 'Switching temperature', '°C', 20, 120, 1, 60, { tip: 'Contact closes at or above this temperature.' })];
+    // ── proportional valves, operators, pulleys, new sensors ──
+    const lag = PD('lagMs', 'Spool response time', 'ms', 5, 500, 5, 40, { group: 'Dynamics', tip: 'First-order lag between command and spool position (valve bandwidth).', presets: [15, 40, 100, 250] });
+    const dead = PD('deadband', 'Dead-band (overlap)', '%', 0, 30, 0.5, 3, { group: 'Dynamics', tip: 'Command range around zero that does not move the spool (spool overlap).', presets: [0, 3, 8, 15] });
+    const fmax = (d) => PD('flowMax', 'Maximum flow at 100 % command', 'L/min', 1, 200, 1, d, { tip: 'Flow set by the compensator at full command, independent of load pressure.', presets: [10, 20, 30, 60] });
+    F.pv = [lag, dead, area, Cv]; F.pvComp = [fmax(30), lag, dead, area, Cv]; F.pvFlow = [fmax(30)];
+    const ramp = PD('rampS', 'Response time (0 → 100 %)', 's', 0.05, 5, 0.05, 0.5, { group: 'Operator', tip: 'Time the operator needs to travel from centre to full deflection while a key is held.', presets: [0.15, 0.5, 1, 2] });
+    const back = PD('returnS', 'Spring-return time', 's', 0.05, 5, 0.05, 0.3, { group: 'Operator', tip: 'Time to return to centre after the key is released.', presets: [0.1, 0.3, 1] });
+    const travel = PD('travel', 'Maximum deflection', '%', 10, 100, 5, 100, { group: 'Operator', tip: 'Largest output the operator can reach (limits the stroke of what it drives).', presets: [25, 50, 75, 100] });
+    const latch = PD('latch', 'Latch (stay where released)', '', 0, 1, 1, 0, { type: 'bool', group: 'Operator', tip: 'On: the operator keeps its position after the key is released (detent). Off: spring returns to centre.' });
+    const tap = PD('stepPct', 'Tap steps (0 = hold to move)', '%', 0, 50, 5, 0, { group: 'Operator', tip: 'Above 0 every key press moves the operator by this many percent and keeps it there – for exact levels.', presets: [0, 10, 20, 25] });
+    F.opPedal = [ramp, back, travel]; F.opLever = [ramp, back, travel, latch, tap];
+    F.sensP = [PD('range', 'Measuring range', 'bar', 10, 700, 10, 250, { tip: 'SIG = pressure ÷ range.', presets: [100, 250, 400] }), PD('setpoint', 'Switch point', 'bar', 0, 700, 1, 150, { group: 'Switch', tip: 'SW goes HIGH at or above this pressure.' }), PD('hysteresis', 'Hysteresis', 'bar', 0, 50, 0.5, 5, { group: 'Switch' }), PD('invert', 'Invert switch', '', 0, 1, 1, 0, { type: 'bool', group: 'Switch' })];
+    F.sensQ = [PD('range', 'Measuring range', 'L/min', 5, 300, 5, 60, { tip: 'SIG = |flow| ÷ range.', presets: [30, 60, 120] }), PD('signed', 'Signed output (±)', '', 0, 1, 1, 0, { type: 'bool', tip: 'On: SIG is −100…+100 % with the flow direction.' }), PD('setpoint', 'Switch point', 'L/min', 0, 300, 0.5, 30, { group: 'Switch' }), PD('hysteresis', 'Hysteresis', 'L/min', 0, 50, 0.5, 1, { group: 'Switch' }), PD('invert', 'Invert switch', '', 0, 1, 1, 0, { type: 'bool', group: 'Switch' }), PD('resistance', 'Line resistance', '', 0.0001, 0.05, 0.0001, 0.001, { group: 'Advanced' })];
+    F.sensT = [PD('tMin', 'Range start', '°C', -20, 60, 1, 0), PD('tMax', 'Range end', '°C', 40, 200, 5, 120), PD('setpoint', 'Switch point', '°C', 0, 200, 1, 60, { group: 'Switch', tip: 'SW goes HIGH at or above this temperature.' }), PD('hysteresis', 'Hysteresis', '°C', 0, 30, 0.5, 2, { group: 'Switch' }), PD('invert', 'Invert switch', '', 0, 1, 1, 0, { type: 'bool', group: 'Switch' })];
+    F.block = [PD('ratio', 'Pulley ratio (travel in : out)', ':1', 0.25, 8, 0.25, 2, { tip: 'Output cable travel = input travel ÷ ratio. 2:1 halves the stroke and doubles the force.', presets: [0.5, 1, 2, 4] })];
+    F.sol = [PD('proportional', 'Proportional pull', '', 0, 1, 1, 0, { type: 'bool', tip: 'Off: full pull while the input is HIGH. On: pull ∝ input level.' }), PD('stroke', 'Plunger stroke (pull at 100 %)', '%', 10, 100, 5, 100, { tip: 'Cable pull delivered at full input.', presets: [50, 75, 100] })];
+    F.cmp = [PD('threshold', 'Threshold', '', 0.05, 0.95, 0.05, 0.5, { tip: 'HI when input ≥ threshold, LO when input ≤ −threshold.', presets: [0.2, 0.5, 0.8] }), PD('hysteresis', 'Hysteresis', '', 0, 0.5, 0.01, 0.05)];
+    F.dualCB = F.counterbalance;
     return F;
 })();
 
@@ -4838,8 +4974,12 @@ const PARAM_KEYS = (() => {
     put(F.check, ['check_valve']); put(F.po, ['po_check', 'po_check_close', 'po_check_vented']);
     put(F.fixedThrottle, ['fixed_throttle']); put(F.needle, ['throttle_needle']); put(F.flowControl, ['flow_control']);
     put(F.regulator, ['flow_regulator', 'temp_comp_flow']); put(F.area, ['flow_divider', 'flow_fuse', 'logic_cartridge', 'dcv_pilot_2stage']);
-    put(F.ball, ['ball_valve_2way', 'isolation_gate']); put(F.dcvPilot, ['dcv_43_pilot', 'dcvh_22', 'dcvh_22no', 'dcvh_32', 'dcvh_32no', 'dcvh_42', 'dcvh_52', 'dcvh_33', 'dcvh_43', 'dcvh_53']);
+    put(F.ball, ['ball_valve_2way', 'isolation_gate']); put(F.dcvPilot, ['dcv_43_pilot', 'dcvp_22', 'dcvp_22no', 'dcvp_32', 'dcvp_32no', 'dcvp_42', 'dcvp_52', 'dcvp_33', 'dcvp_43', 'dcvp_53', 'dcvh_22', 'dcvh_22no', 'dcvh_32', 'dcvh_32no', 'dcvh_42', 'dcvh_52', 'dcvh_33', 'dcvh_43', 'dcvh_53']);
     put(F.dcvSol, ['dcv_22', 'dcv_22_no', 'dcv_32_nc', 'dcv_32_no', 'dcv_42', 'dcv_43_closed', 'dcv_43_open', 'dcv_43_tandem', 'dcv_43_float', 'dcv_43_prop', 'dcv_53']);
+    put(F.pv, ['pv_dir_43']); put(F.pvComp, ['pv_dir_comp_43']); put(F.pvFlow, ['pv_flow_reg']);
+    put(F.opPedal, ['op_pedal']); put(F.opLever, ['op_lever', 'op_joystick']);
+    put(F.sensP, ['press_sensor_e']); put(F.sensQ, ['flow_sensor_e']); put(F.sensT, ['temp_sensor_e']);
+    put(F.block, ['pulley_block']); put(F.sol, ['solenoid_puller']); put(F.cmp, ['signal_cmp']); put(F.dualCB, ['counterbalance_dual']); put(F.area, ['shuttle_valve']);
     put(F.pumpFixed, ['pump_fixed']); put(F.pumpVar, ['pump_var']); put(F.pumpManual, ['manual_pump']);
     put(F.motorFixed, ['motor_fixed']); put(F.motorVar, ['motor_var']);
     put(F.cyl, ['cyl_double', 'cyl_double_rod', 'cyl_telescopic', 'cyl_rodless', 'rack_pinion', 'rotary_double']);
@@ -4858,6 +4998,9 @@ const PARAM_NONE = {
     junction_cross: 'Ideal junction node – nothing to adjust. Set the line size on the hoses connected to it.',
     air_bleed: 'Normally closed bleed valve – no flow path is modelled.',
     muffler: 'Single exhaust port – not part of the hydraulic circuit.',
+    pulley_idler: 'Ideal idler pulley – passes the cable pull straight through. Rotate the part to change the cable direction.',
+    string_junction: 'Ideal cable junction – the strongest pull wins. Nothing to adjust.',
+    shuttle_valve: 'Ball shuttle valve – seats against the lower-pressure inlet (flow area is adjustable below).',
     lamp_signal: 'Indicator lamp – lights while its input wire carries a signal. Nothing to adjust.',
     electric_motor: 'Prime-mover symbol – shaft speed is not modelled; set the flow on the pump it drives.'
 };
@@ -5044,7 +5187,8 @@ function paramPanelHtml(comp) {
     paramInjectStyles();
     const defs = paramDefsFor(comp.key), target = 'c|' + comp.id;
     if (!defs.length) return `<div class="param-block"><div class="param-title">⚙ Parameters</div><div class="param-none">${PARAM_NONE[comp.key] || 'No adjustable parameters.'}</div></div>`;
-    const ordered = ['Operating', 'Setting', 'Geometry', 'Advanced'].flatMap(g => defs.filter(d => d.group === g));
+    const ORDER = ['Operating', 'Operator', 'Setting', 'Switch', 'Dynamics', 'Geometry', 'Advanced'];
+    const ordered = ORDER.flatMap(g => defs.filter(d => d.group === g)).concat(defs.filter(d => !ORDER.includes(d.group)));   // unknown groups are never dropped
     const extra = (comp.key === 'filter_clogging' || comp.key === 'strainer') ? `<button class="param-mini" style="margin:.2rem 0" onclick="replaceFilterElement('${comp.id}')">🧽 Replace element (clear clogging)</button>` : '';
     return `<div class="param-block"><div class="param-title"><span>⚙ Parameters <span style="font-weight:400;color:#64748b;font-size:.65rem">live</span></span>
               <button class="param-mini" onclick="resetAllParams('${comp.id}')">reset all</button></div>
@@ -5098,7 +5242,7 @@ function hoseSpeedLimit(w) {                              // classic line-veloci
     return fx ? { limit: 4, kind: 'return' } : { limit: 6, kind: 'pressure' };
 }
 function hoseParamHtml(w) {
-    if (w.style === 'electric') return '';
+    if (isSignalWire(w)) return '';
     paramInjectStyles();
     const target = 'h|' + w.id, d = Math.max(1, (w.params && w.params.diameter) || 16), L = (w.params && w.params.length) || 2;
     const vol = Math.PI / 4 * d * d * L * 1e-3;
@@ -5639,7 +5783,7 @@ function drawElectricWire(ctx, w, isSelected) {
 }
 
 // ── inspector ──────────────────────────────────────────────────────────────
-function electricInspectorHtml(comp) {
+function electricInspectorHtmlBase(comp) {
     const st = comp.state;
     if (comp.key === 'prox_inductive') {
         const cyls = placedComponents.filter(c => ELEC_CYL.test(c.key));
@@ -5654,7 +5798,7 @@ function electricInspectorHtml(comp) {
     if (comp.key === 'relay_latch') return `<div class="param-block"><div class="param-derived">SET (top) latches Q high, RESET (bottom) releases it. A bare sensor drops out as soon as the piston leaves its end – put a relay between sensor and a spring-return / spring-centred valve to hold the command.</div></div>`;
     return '';
 }
-function electricLiveRows(c, row) {
+function electricLiveRowsBase(c, row) {
     const st = c.state, f = (v, d = 1) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '–';
     if (c.key === 'prox_inductive') return row('Output', st.sensorActive ? '<span class="param-ok">● HIGH (24 V)</span>' : '○ low') + row('Piston position', f(st.sensorPosMm) + ' mm');
     if (c.key === 'relay_latch') return row('Q', st.q ? '<span class="param-ok">● set</span>' : '○ reset');
@@ -5684,6 +5828,794 @@ function loadSensorDemo() {
     if (typeof simEngine !== 'undefined' && simEngine) simEngine.reset();
     if (typeof hoseToast === 'function') hoseToast('Demo loaded – press “Run Physics Engine”. The left sensor extends, the right sensor retracts.');
 }
+
+
+// ════════ STAGE 11 — SIGNAL NETWORK, OPERATORS (pedal / lever / joystick), PULLEYS, SENSORS, NEW VALVES ════════
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// STAGE 11 – SIGNAL NETWORK, OPERATORS (pedal / lever / joystick), PULLEYS, SENSORS, NEW VALVES
+//
+//  One signal network carries two kinds of wires:
+//     electrical (yellow, dotted)  level  −1 … +1   (digital inputs treat ≥ 0.5 as HIGH)
+//     pulley cable (ivory, solid)  tension 0 … 1    (a cable can only pull)
+//  Every net takes the value of its strongest driver.  Components are drivers (operators, sensors, relays …),
+//  transformers (comparator, block pulley, solenoid puller) or receivers (valves, lamps, relays).
+//
+//  Operators are moved by the keyboard (keys are typed as a comma-separated list in the inspector),
+//  and by the mouse, ONLY while the physics engine is running.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+const SIG_HIGH = 0.5;
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const clampPM = (v) => Math.max(-1, Math.min(1, v));
+
+// ── helpers to read solved hydraulics for sensors ────────────────────────────────────────────
+function sigPortValue(comp, kind, port) {
+    const r = typeof simEngine !== 'undefined' && simEngine && simEngine.lastResult, cs = r && r.componentStates && r.componentStates[comp.id];
+    if (!cs) return null;
+    return (kind === 'p' ? cs.portPressures : cs.portFlows || {})[port];
+}
+function sensorTemperature(comp, eng) {                              // oil temperature + local throttling heat of whatever is attached to the same line
+    const base = eng ? eng.oilTempC : 40;
+    let rise = 0;
+    try {
+        const g = eng && eng._graph, nid = g && g.portToNodeMap.get(`${comp.id}:T`);
+        const node = nid !== undefined && g.nodes.get(nid);
+        if (node && typeof scopeCompTemp === 'function') {
+            (node.ports || []).forEach(pr => {
+                const cid = pr.compId !== undefined ? pr.compId : String(pr).split(':')[0];
+                const c = placedComponents.find(x => x.id === cid); if (!c || c.id === comp.id) return;
+                const t = scopeCompTemp(c, eng.lastResult); if (isFinite(t)) rise = Math.max(rise, t - base);
+            });
+        }
+    } catch (e) { /* sensor stays at oil temperature */ }
+    return base + rise;
+}
+
+// ── the signal network ───────────────────────────────────────────────────────────────────────
+function signalEvaluate(comps, wires, eng) {
+    const parent = new Map(), kf = (c, p) => `${c}:${p}`;
+    const find = (k) => { while (parent.get(k) !== k) { parent.set(k, parent.get(parent.get(k))); k = parent.get(k); } return k; };
+    const has = (k) => parent.has(k);
+    comps.forEach(c => { const d = LIBRARY[c.key]; if (d && d.ports) d.ports.forEach(p => { if (SIGNAL_TYPES.includes(p.type)) parent.set(kf(c.id, p.id), kf(c.id, p.id)); }); });
+    const union = (a, b) => { if (has(a) && has(b)) parent.set(find(a), find(b)); };
+    comps.forEach(c => {                                              // parts that simply pass a cable through
+        if (c.key === 'pulley_idler') union(kf(c.id, 'A'), kf(c.id, 'B'));
+        if (c.key === 'string_junction') { union(kf(c.id, 'L'), kf(c.id, 'R')); union(kf(c.id, 'L'), kf(c.id, 'T')); }
+    });
+    const wired = new Set();
+    wires.forEach(w => {
+        if (!isSignalWire(w)) return;
+        const a = kf(w.fromCompId, w.fromPortId), b = kf(w.toCompId, w.toPortId);
+        if (!has(a) || !has(b)) return;
+        wired.add(a); wired.add(b); union(a, b);
+    });
+    const num = (c, id, d) => (c.params && c.params[id] !== undefined && c.params[id] !== '' && isFinite(+c.params[id])) ? +c.params[id] : d;
+
+    // ── drivers that do not depend on the nets ──
+    const fixed = [];                                                 // [comp, port, value]
+    comps.forEach(c => {
+        const st = c.state, k = c.key;
+        if (k === 'prox_inductive') { st.sensorActive = electricSensorActive(c, comps); if (st.sensorActive) fixed.push([c, 'OUT', 1]); }
+        else if (k === 'relay_latch') { if (st.q) fixed.push([c, 'Q', 1]); }
+        else if (OP_TYPES[k]) {
+            const x = clampPM(st.opX || 0), y = clampPM(st.opY || 0);
+            if (k === 'op_pedal') { fixed.push([c, 'OUT', clamp01(x)], [c, 'S', clamp01(x)]); }
+            else if (k === 'op_lever') { fixed.push([c, 'OUT', x], [c, 'S1', clamp01(-x)], [c, 'S2', clamp01(x)]); }
+            else { fixed.push([c, 'OX', x], [c, 'OY', y], [c, 'SX1', clamp01(-x)], [c, 'SX2', clamp01(x)], [c, 'SY1', clamp01(-y)], [c, 'SY2', clamp01(y)]); }
+            st.sigAct = Math.abs(x) > 0.02 || Math.abs(y) > 0.02;
+        } else if (k === 'press_sensor_e' || k === 'flow_sensor_e' || k === 'temp_sensor_e') {
+            const v = k === 'press_sensor_e' ? sigPortValue(c, 'p', 'P') : k === 'flow_sensor_e' ? sigPortValue(c, 'q', 'IN') : sensorTemperature(c, eng);
+            if (v === null || v === undefined || !isFinite(v)) { st.sensVal = undefined; return; }
+            const lo = k === 'temp_sensor_e' ? num(c, 'tMin', 0) : 0, hi = k === 'press_sensor_e' ? num(c, 'range', 250) : k === 'flow_sensor_e' ? num(c, 'range', 60) : num(c, 'tMax', 120);
+            const signed = k === 'flow_sensor_e' && num(c, 'signed', 0) > 0;
+            const val = k === 'flow_sensor_e' && !signed ? Math.abs(v) : v;
+            st.sensVal = val;
+            const norm = signed ? clampPM(val / hi) : clamp01((val - lo) / Math.max(1e-9, hi - lo));
+            fixed.push([c, 'SIG', norm]);
+            const sp = num(c, 'setpoint', k === 'press_sensor_e' ? 150 : k === 'flow_sensor_e' ? 30 : 60), hy = Math.max(0, num(c, 'hysteresis', k === 'temp_sensor_e' ? 2 : k === 'flow_sensor_e' ? 1 : 5));
+            if (val >= sp) st.swOn = true; else if (val <= sp - hy) st.swOn = false;
+            const out = num(c, 'invert', 0) > 0 ? !st.swOn : !!st.swOn;
+            if (out) fixed.push([c, 'SW', 1]);
+            st.sigAct = out;
+        }
+    });
+
+    // ── passes: transformers read the previous pass ──
+    let vals = new Map();
+    for (let pass = 0; pass < 4; pass++) {
+        const drive = new Map();
+        const put = (c, port, v) => { const k = kf(c.id, port); if (!has(k)) return; const r = find(k), cur = drive.get(r); if (cur === undefined || Math.abs(v) > Math.abs(cur)) drive.set(r, v); };
+        const read = (c, port) => { const k = kf(c.id, port); if (!has(k)) return 0; const v = vals.get(find(k)); return v === undefined ? 0 : v; };
+        fixed.forEach(f => put(f[0], f[1], f[2]));
+        comps.forEach(c => {
+            const k = c.key, st = c.state;
+            if (k === 'pulley_block') put(c, 'OUT', clamp01(read(c, 'IN')) * (1 / Math.max(0.1, num(c, 'ratio', 2))));
+            else if (k === 'solenoid_puller') {
+                const v = read(c, 'IN'), prop = num(c, 'proportional', 0) > 0;
+                put(c, 'S', prop ? clamp01(v) * clamp01(num(c, 'stroke', 100) / 100) : (v >= SIG_HIGH ? clamp01(num(c, 'stroke', 100) / 100) : 0));
+            } else if (k === 'signal_cmp') {
+                const v = read(c, 'IN'), thr = num(c, 'threshold', 0.5), hy = Math.max(0, num(c, 'hysteresis', 0.05));
+                const hi = st.cmpHi ? v > thr - hy : v >= thr, lo = st.cmpLo ? v < -thr + hy : v <= -thr;
+                if (hi) put(c, 'HI', 1);
+                if (lo) put(c, 'LO', 1);
+                if (pass === 3) { st.cmpHi = hi; st.cmpLo = lo; st.sigAct = hi || lo; st.sensVal = v; }
+            }
+        });
+        vals = drive;
+    }
+    const read = (c, port) => { const k = kf(c.id, port); if (!has(k)) return 0; const v = vals.get(find(k)); return v === undefined ? 0 : v; };
+
+    // ── receivers ──
+    comps.forEach(c => {
+        const d = LIBRARY[c.key]; if (!d) return;
+        const st = c.state;
+        if (d.dcv) {
+            st.elecY1 = read(c, 'Y1') >= SIG_HIGH; st.elecY2 = read(c, 'Y2') >= SIG_HIGH;
+            st.elecWired1 = wired.has(kf(c.id, 'Y1')); st.elecWired2 = wired.has(kf(c.id, 'Y2'));
+            st.strW1 = clamp01(read(c, 'W1')); st.strW2 = clamp01(read(c, 'W2'));
+            st.strWired1 = wired.has(kf(c.id, 'W1')); st.strWired2 = wired.has(kf(c.id, 'W2'));
+            st.cmdWired = wired.has(kf(c.id, 'CMD')); st.cmdLevel = clampPM(read(c, 'CMD'));
+        } else if (d.analog === 'flow') { st.cmdWired = wired.has(kf(c.id, 'CMD')); st.cmdLevel = clampPM(read(c, 'CMD')); }
+        else if (c.key === 'lamp_signal') st.lit = read(c, 'IN') >= SIG_HIGH;
+        else if (c.key === 'relay_latch') {
+            const S = read(c, 'SET') >= SIG_HIGH, R = read(c, 'RST') >= SIG_HIGH, dom = c.params && c.params.resetDominant !== undefined ? Number(c.params.resetDominant) : 1;
+            if (S && R) st.q = !dom; else if (S) st.q = true; else if (R) st.q = false;
+        } else if (c.key === 'pulley_idler' || c.key === 'pulley_block' || c.key === 'solenoid_puller' || c.key === 'string_junction') {
+            const t = Math.max(read(c, c.key === 'pulley_idler' ? 'A' : c.key === 'string_junction' ? 'L' : c.key === 'pulley_block' ? 'IN' : 'IN'), read(c, c.key === 'pulley_block' ? 'OUT' : c.key === 'solenoid_puller' ? 'S' : c.key === 'pulley_idler' ? 'B' : 'R'));
+            st.tension = t; st.sigAct = t > 0.02;
+        }
+    });
+    wires.forEach(w => {
+        if (!isSignalWire(w)) return;
+        const k = kf(w.fromCompId, w.fromPortId), v = has(k) && vals.has(find(k)) ? vals.get(find(k)) : 0;
+        w.level = v; w.signal = Math.abs(v) >= (w.style === 'string' ? 0.05 : SIG_HIGH);
+    });
+    return { wired };
+}
+
+// ── drawing of both wire kinds ──────────────────────────────────────────────────────────────
+function drawSignalWire(ctx, w, isSelected) {
+    if (w.style === 'electric') return drawElectricWire(ctx, w, isSelected);
+    const path = getWirePath(w); if (!path) return;
+    const live = typeof simIsLive === 'function' && simIsLive(), t = live ? clamp01(w.level || 0) : 0;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.setLineDash([]);
+    ctx.lineWidth = (isSelected ? 3 : 2) + t * 1.6;
+    ctx.strokeStyle = t > 0.02 ? `rgb(${Math.round(190 + 60 * t)},${Math.round(176 + 62 * t)},${Math.round(130 + 66 * t)})` : '#8f876f';
+    if (t > 0.02) { ctx.shadowColor = 'rgba(245,233,196,0.75)'; ctx.shadowBlur = 4 + 6 * t; }
+    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y); for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y); ctx.stroke();
+    ctx.shadowBlur = 0;
+    if (t > 0.02) {                                                   // small knots ride along the taut cable towards the puller
+        if (w._phaseFrame !== simEngine.frameId) { w._phaseFrame = simEngine.frameId; w._sp = ((w._sp || 0) + 60 * simEngine.frameSimDt) % 18; }
+        ctx.setLineDash([2, 16]); ctx.lineDashOffset = -(w._sp || 0); ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(255,247,220,0.9)';
+        ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y); for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y); ctx.stroke();
+    }
+    ctx.restore();
+    if (isSelected) drawHoseHandles(ctx, w, path);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// OPERATORS: pedal · lever · joystick  (keyboard + mouse while the physics engine runs)
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+const OP_TYPES = {
+    op_pedal:    { name: 'Pedal',    keys: 1, layout: ['press'] },
+    op_lever:    { name: 'Lever',    keys: 2, layout: ['− (negative)', '+ (positive)', 'centre (optional)'] },
+    op_joystick: { name: 'Joystick', keys: 4, layout: ['X −', 'X +', 'Y − (down)', 'Y + (up)', 'centre (optional)'] }
+};
+const OP_PRESETS = {
+    op_pedal:    ['p', 'o', 'i', 'u', 'space'],
+    op_lever:    ['a,d', 'q,e', 'z,c', 'j,l', 'arrowleft,arrowright'],
+    op_joystick: ['arrowleft,arrowright,arrowdown,arrowup', 'f,h,g,t', 'j,l,k,i']
+};
+const OP_ALIASES = { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', '↑': 'arrowup', '↓': 'arrowdown', '←': 'arrowleft', '→': 'arrowright',
+                     spacebar: 'space', ' ': 'space', esc: 'escape', ctrl: 'control', del: 'delete', return: 'enter', pgup: 'pageup', pgdn: 'pagedown', comma: ',', plus: '+', minus: '-' };
+const OP_PRETTY = { arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', space: 'Space', escape: 'Esc', control: 'Ctrl', enter: 'Enter', pageup: 'PgUp', pagedown: 'PgDn' };
+let OP_DOWN = new Set();                                              // keys currently held (lower-case names)
+let OP_RECORD = null;                                                 // { id, tokens } while the key recorder listens
+let heldOperator = null;                                              // { id } while the mouse drags an operator
+
+function normKey(t) { t = String(t || '').trim().toLowerCase(); return OP_ALIASES[t] !== undefined ? OP_ALIASES[t] : t; }
+function parseKeys(text) { return String(text || '').split(',').map(normKey).filter(k => k !== ''); }
+function keyOfEvent(e) { const k = e.key === ' ' ? 'space' : String(e.key || '').toLowerCase(); return k; }
+function prettyKey(k) { return OP_PRETTY[k] || (k.length === 1 ? k.toUpperCase() : k.charAt(0).toUpperCase() + k.slice(1)); }
+function prettyKeys(text) { return parseKeys(text).map(prettyKey).join(' · '); }
+function operatorsLive() { return typeof simEngine !== 'undefined' && !!simEngine && simEngine.running && typeof simRunning !== 'undefined' && !!simRunning; }
+function opNum(c, id, d) { return (c.params && c.params[id] !== undefined && c.params[id] !== '' && isFinite(+c.params[id])) ? +c.params[id] : d; }
+
+function operatorAutoKeys(comp) {                                     // give every new operator a key set nobody else uses
+    const used = new Set(); placedComponents.forEach(c => { if (OP_TYPES[c.key] && c.id !== comp.id) parseKeys(c.state.keys).forEach(k => used.add(k)); });
+    const list = OP_PRESETS[comp.key] || [];
+    const pick = list.find(p => parseKeys(p).every(k => !used.has(k))) || list[0] || '';
+    comp.state.keys = pick;
+}
+function operatorKeyConflicts(comp) {
+    const mine = new Set(parseKeys(comp.state.keys)), out = [];
+    placedComponents.forEach(c => { if (c.id === comp.id || !OP_TYPES[c.key]) return; parseKeys(c.state.keys).forEach(k => { if (mine.has(k)) out.push(`${prettyKey(k)} (also used by ${c.tag})`); }); });
+    return out;
+}
+function setOperatorKeys(id, text) {
+    const c = placedComponents.find(x => x.id === id); if (!c || !OP_TYPES[c.key]) return;
+    c.state.keys = parseKeys(text).join(','); updateUI(); render();
+}
+function operatorRecordKeys(id) {
+    if (OP_RECORD && OP_RECORD.id === id) { OP_RECORD = null; if (typeof hoseToast === 'function') hoseToast('Key recording cancelled.'); updateUI(); return; }
+    const c = placedComponents.find(x => x.id === id); if (!c || !OP_TYPES[c.key]) return;
+    OP_RECORD = { id, tokens: [] };
+    if (typeof hoseToast === 'function') hoseToast(`Press ${OP_TYPES[c.key].keys} key${OP_TYPES[c.key].keys > 1 ? 's' : ''} in this order: ${OP_TYPES[c.key].layout.slice(0, OP_TYPES[c.key].keys).join(', ')} (Esc cancels, Enter finishes early)`);
+    updateUI();
+}
+function operatorRecordFinish(save) {
+    const rec = OP_RECORD; OP_RECORD = null; if (!rec) return;
+    const c = placedComponents.find(x => x.id === rec.id);
+    if (save && c && rec.tokens.length) c.state.keys = rec.tokens.join(',');
+    updateUI(); render();
+}
+
+// ── keyboard ────────────────────────────────────────────────────────────────────────────────
+function operatorKeyDown(e) {
+    const k = keyOfEvent(e);
+    if (OP_RECORD) {                                                  // recorder: capture the next keys instead of using them
+        e.preventDefault();
+        if (k === 'escape') { operatorRecordFinish(false); return true; }
+        if (k === 'enter') { operatorRecordFinish(true); return true; }
+        if (!e.repeat && !OP_RECORD.tokens.includes(k)) OP_RECORD.tokens.push(k);
+        const need = OP_TYPES[(placedComponents.find(x => x.id === OP_RECORD.id) || {}).key];
+        if (need && OP_RECORD.tokens.length >= need.keys) operatorRecordFinish(true);
+        else { const c = placedComponents.find(x => x.id === OP_RECORD.id); if (c) { c.state.keys = OP_RECORD.tokens.join(','); updateUI(); } }
+        return true;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey || !operatorsLive()) return false;
+    let used = false;
+    placedComponents.forEach(c => {
+        if (!OP_TYPES[c.key]) return;
+        const idx = parseKeys(c.state.keys).indexOf(k); if (idx < 0) return;
+        used = true; OP_DOWN.add(k); OP_CONSUMED.add(k);
+        const step = opNum(c, 'stepPct', 0) / 100;
+        if (step > 0 && !e.repeat && c.key !== 'op_pedal') operatorTap(c, idx, step);
+    });
+    if (used) { e.preventDefault(); const ae = typeof document !== 'undefined' && document.activeElement; if (ae && ae.tagName === 'BUTTON') ae.blur(); }   // a focused button must not also react to Space / Enter
+    return used;
+}
+const OP_CONSUMED = new Set();                                        // keys whose key-down was taken by an operator (their key-up is swallowed too)
+function operatorKeyUp(e) { const k = keyOfEvent(e); OP_DOWN.delete(k); if (OP_CONSUMED.delete(k)) e.preventDefault(); }
+function operatorTap(c, idx, s) {                                     // "tap steps": every key press moves the lever by a fixed amount and keeps it there
+    const st = c.state, cur = (a, fb) => st[a] !== undefined ? st[a] : (fb || 0);
+    if (c.key === 'op_lever') { if (idx === 0) st._tapX = clampPM(cur('_tapX', st.opX) - s); else if (idx === 1) st._tapX = clampPM(cur('_tapX', st.opX) + s); else if (idx === 2) st._tapX = 0; }
+    else if (c.key === 'op_joystick') {
+        if (idx === 0) st._tapX = clampPM(cur('_tapX', st.opX) - s); else if (idx === 1) st._tapX = clampPM(cur('_tapX', st.opX) + s);
+        else if (idx === 2) st._tapY = clampPM(cur('_tapY', st.opY) - s); else if (idx === 3) st._tapY = clampPM(cur('_tapY', st.opY) + s);
+        else if (idx === 4) { st._tapX = 0; st._tapY = 0; }
+    }
+}
+if (typeof window !== 'undefined') { window.addEventListener('keyup', operatorKeyUp); window.addEventListener('blur', () => OP_DOWN.clear()); }
+function operatorResetAll() { OP_DOWN.clear(); OP_CONSUMED.clear(); heldOperator = null; }
+
+// ── dynamics (called every sub-step) ────────────────────────────────────────────────────────
+function operatorStep(comps, dt) {
+    comps.forEach(c => {
+        const T = OP_TYPES[c.key]; if (!T) return;
+        const st = c.state, keys = parseKeys(st.keys), down = i => !!keys[i] && OP_DOWN.has(keys[i]);
+        const ramp = Math.max(0.03, opNum(c, 'rampS', 0.5)), back = Math.max(0.03, opNum(c, 'returnS', 0.3));
+        const latch = opNum(c, 'latch', 0) > 0, step = opNum(c, 'stepPct', 0) > 0, travel = clamp01(opNum(c, 'travel', 100) / 100);
+        const axis = (neg, pos, ctr, cur, tapKey, mouseKey) => {
+            const dir = (pos ? 1 : 0) - (neg ? 1 : 0);
+            let target;
+            if (ctr) { target = 0; st[tapKey] = 0; }
+            else if (st._mAct && st[mouseKey] !== undefined) { target = clampPM(st[mouseKey]); st[tapKey] = target; }
+            else if (step) target = st[tapKey] !== undefined ? st[tapKey] : 0;
+            else if (dir !== 0) { target = dir; st[tapKey] = cur; }
+            else if (latch) target = st[tapKey] !== undefined ? st[tapKey] : cur;
+            else { target = 0; st[tapKey] = 0; }
+            target *= travel;
+            const toward = Math.abs(target) < Math.abs(cur) || Math.sign(target) !== Math.sign(cur) && cur !== 0;   // moving back to centre = spring return
+            const rate = (toward ? 1 / back : 1 / ramp) * dt, d = target - cur;
+            return dt <= 0 ? cur : (Math.abs(d) <= rate ? target : cur + Math.sign(d) * rate);
+        };
+        if (c.key === 'op_pedal') {
+            const tgt = (down(0) || (st._mAct && st._mx > 0.5)) ? travel : 0, rate = ((tgt < (st.opX || 0)) ? 1 / back : 1 / ramp) * dt, d = tgt - (st.opX || 0);
+            st.opX = dt <= 0 ? (st.opX || 0) : (Math.abs(d) <= rate ? tgt : (st.opX || 0) + Math.sign(d) * rate);
+        } else if (c.key === 'op_lever') {
+            st.opX = axis(down(0), down(1), down(2), st.opX || 0, '_tapX', '_mx');
+        } else {
+            st.opX = axis(down(0), down(1), down(4), st.opX || 0, '_tapX', '_mx');
+            st.opY = axis(down(2), down(3), down(4), st.opY || 0, '_tapY', '_my');
+        }
+    });
+}
+
+// ── mouse ───────────────────────────────────────────────────────────────────────────────────
+function operatorLocal(comp, pos) {
+    const a = -(comp.rotation || 0) * Math.PI / 180, dx = pos.wx - comp.x, dy = pos.wy - comp.y;
+    return { x: dx * Math.cos(a) - dy * Math.sin(a), y: dx * Math.sin(a) + dy * Math.cos(a) };
+}
+function operatorMouseDown(comp, pos) {
+    if (!OP_TYPES[comp.key] || !operatorsLive()) return false;
+    const l = operatorLocal(comp, pos);
+    const grab = comp.key === 'op_pedal' ? (l.x > -46 && l.x < 46 && l.y > -24 && l.y < 30)
+               : comp.key === 'op_lever' ? (l.x > -40 && l.x < 40 && l.y > -40 && l.y < 36)
+               : (Math.hypot(l.x, l.y) < 36);
+    if (!grab) return false;
+    heldOperator = { id: comp.id }; comp.state._mAct = true; operatorMouseMove(pos); return true;
+}
+function operatorMouseMove(pos) {
+    if (!heldOperator) return false;
+    const c = placedComponents.find(x => x.id === heldOperator.id); if (!c) { heldOperator = null; return false; }
+    const l = operatorLocal(c, pos);
+    if (c.key === 'op_pedal') c.state._mx = 1;
+    else if (c.key === 'op_lever') c.state._mx = clampPM(l.x / 36);
+    else { c.state._mx = clampPM(l.x / 24); c.state._my = clampPM(-l.y / 24); }
+    return true;
+}
+function operatorMouseUp() {
+    if (!heldOperator) return false;
+    const c = placedComponents.find(x => x.id === heldOperator.id); if (c) { c.state._mAct = false; c.state._mx = c.state._my = undefined; }
+    heldOperator = null; return true;
+}
+
+// ── inspector ───────────────────────────────────────────────────────────────────────────────
+function operatorInspectorHtml(comp) {
+    const T = OP_TYPES[comp.key]; if (!T) return '';
+    const st = comp.state, rec = OP_RECORD && OP_RECORD.id === comp.id, conf = operatorKeyConflicts(comp);
+    const keys = parseKeys(st.keys), ph = (OP_PRESETS[comp.key] || [''])[0];
+    const map = T.layout.map((l, i) => `<div class="prop-row"><span class="prop-label">${i + 1}. ${l}</span><span class="prop-val">${keys[i] ? '<kbd>' + prettyKey(keys[i]) + '</kbd>' : '—'}</span></div>`).join('');
+    const chips = (OP_PRESETS[comp.key] || []).map(p => `<button class="param-chip" onclick="setOperatorKeys('${comp.id}','${p}')">${prettyKeys(p)}</button>`).join('');
+    return `<div class="param-block"><div class="param-title"><span>⌨ Keyboard control</span></div>
+        <div class="param-group">Keys – comma-separated, in the order shown below</div>
+        <div style="display:flex;gap:4px"><input type="text" id="opKeysInput" value="${st.keys || ''}" placeholder="e.g. ${ph}" style="flex:1;border-radius:4px;padding:3px 6px;font-size:.75rem" onchange="setOperatorKeys('${comp.id}', this.value)">
+        <button class="param-mini" style="padding:2px 9px" onclick="operatorRecordKeys('${comp.id}')">${rec ? '■ stop' : '⏺ record'}</button></div>
+        <div class="param-chips" style="margin-top:5px">${chips}</div>${map}
+        ${conf.length ? `<div class="param-derived"><span class="param-warn">⚠ Key conflict: ${conf.join(', ')}</span></div>` : ''}
+        <div class="param-derived">Keys are active while the physics engine is <b>running</b> (they win over the other shortcuts, e.g. Space). ${comp.key === 'op_pedal' ? 'Hold the key to press, release to spring back.' : 'Hold a key to move (response time in the parameters); on release the operator springs back – or stays, with <i>Latch</i> / <i>Tap steps</i> on.'} You can also drag the operator with the mouse.</div>
+        <div id="opLive"></div></div>`;
+}
+function operatorLiveHtml(c) {
+    const bar = (v, bipolar) => `<div style="height:7px;background:#0A0C10;border:1px solid rgba(230,200,117,.3);border-radius:4px;position:relative;margin:2px 0 4px">` +
+        (bipolar ? `<div style="position:absolute;left:${v < 0 ? 50 + v * 50 : 50}%;width:${Math.abs(v) * 50}%;top:0;bottom:0;background:#E6C875;border-radius:3px"></div><div style="position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:#F0E6D2"></div>`
+                 : `<div style="width:${clamp01(v) * 100}%;height:100%;background:#E6C875;border-radius:3px"></div>`) + '</div>';
+    const st = c.state;
+    return `<div class="prop-row"><span class="prop-label">${c.key === 'op_joystick' ? 'X' : 'Level'}:</span><span class="prop-val">${Math.round((st.opX || 0) * 100)} %</span></div>${bar(st.opX || 0, c.key !== 'op_pedal')}` +
+           (c.key === 'op_joystick' ? `<div class="prop-row"><span class="prop-label">Y:</span><span class="prop-val">${Math.round((st.opY || 0) * 100)} %</span></div>${bar(st.opY || 0, true)}` : '');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// SYMBOLS
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+const SG = { ink: '#e2e8f0', dim: '#94a3b8', body: '#0f172a', gold: '#E6C875', cable: '#a79f86', cableOn: '#f5e9c4' };
+function sgCable(ctx, x1, y1, x2, y2, t) {                          // ivory cable segment (brighter when pulled)
+    ctx.save(); ctx.setLineDash([]); ctx.lineCap = 'round'; ctx.lineWidth = 2 + (t || 0) * 1.4; ctx.strokeStyle = t > 0.02 ? SG.cableOn : SG.cable;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function sgElec(ctx, x1, y1, x2, y2, on) { elecDotted(ctx, x1, y1, x2, y2, on); }
+function sgOil(ctx, x1, y1, x2, y2, col) {
+    ctx.save(); ctx.setLineDash([]); ctx.lineCap = 'round'; ctx.lineWidth = 2.4; ctx.strokeStyle = col || '#3b82f6'; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function sgText(ctx, s, x, y, col, size, align) { ctx.save(); ctx.font = `${size || 9}px sans-serif`; ctx.fillStyle = col || SG.dim; ctx.textAlign = align || 'center'; ctx.fillText(s, x, y); ctx.restore(); }
+function sgBox(ctx, x, y, w, h, on, accent) {
+    ctx.save(); ctx.fillStyle = on ? 'rgba(230,200,117,0.14)' : SG.body; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = on ? (accent || SG.gold) : SG.ink; ctx.lineWidth = 1.9; ctx.strokeRect(x, y, w, h); ctx.restore();
+}
+function sgElecPoly(ctx, pts, on) {                                 // dotted electrical stub with right-angle bends
+    ctx.save(); ctx.setLineDash([1.5, 4]); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = on ? '#fde047' : '#a16207';
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke(); ctx.restore();
+}
+function sgKeyHint(ctx, comp, st, y) { const k = prettyKeys(st && st.keys); if (k) sgText(ctx, `⌨ ${k}`, 0, y, '#cdbf8f', 9); }
+
+function drawPedal(ctx, st, comp) {
+    st = st || {}; const lv = clamp01(st.opX || 0), on = lv > 0.02;
+    sgElec(ctx, 44, -20, 60, -20, on); sgCable(ctx, 44, 20, 60, 20, lv);
+    ctx.save(); ctx.lineJoin = 'round';
+    ctx.fillStyle = '#161A22'; ctx.fillRect(-46, 22, 92, 8); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.8; ctx.strokeRect(-46, 22, 92, 8);       // base
+    ctx.translate(-34, 20); ctx.rotate(-0.34 * (1 - lv));                                                                                     // pedal plate hinged at the heel
+    ctx.fillStyle = on ? 'rgba(230,200,117,0.22)' : SG.body; ctx.fillRect(0, -9, 78, 9); ctx.strokeStyle = on ? SG.gold : SG.ink; ctx.lineWidth = 2; ctx.strokeRect(0, -9, 78, 9);
+    ctx.strokeStyle = SG.dim; ctx.lineWidth = 1; for (let x = 10; x < 74; x += 8) { ctx.beginPath(); ctx.moveTo(x, -7); ctx.lineTo(x, -2); ctx.stroke(); }  // grip ribs
+    ctx.restore();
+    ctx.save(); ctx.strokeStyle = SG.dim; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(-34, 20); ctx.lineTo(-34, -6); ctx.stroke(); ctx.restore();
+    sgText(ctx, 'PEDAL', -8, -24, SG.gold, 10); sgText(ctx, `${Math.round(lv * 100)} %`, 28, -24, on ? '#F0E6D2' : SG.dim, 10); sgKeyHint(ctx, comp, st, 46);
+}
+function drawLever(ctx, st, comp) {
+    st = st || {}; const x = clampPM(st.opX || 0), th = x * 0.62, on = Math.abs(x) > 0.02;
+    sgElec(ctx, 0, -60, 0, -40, on); sgCable(ctx, -22, 22, -60, 20, clamp01(-x)); sgCable(ctx, 22, 22, 60, 20, clamp01(x));
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(148,163,184,.5)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 20, 44, -Math.PI / 2 - 0.62, -Math.PI / 2 + 0.62); ctx.stroke(); ctx.setLineDash([]);   // travel range
+    ctx.fillStyle = '#161A22'; ctx.fillRect(-24, 20, 48, 14); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.8; ctx.strokeRect(-24, 20, 48, 14);          // base
+    const tx = Math.sin(th) * 44, ty = 20 - Math.cos(th) * 44;
+    ctx.strokeStyle = on ? SG.gold : SG.ink; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(tx, ty); ctx.stroke();                         // shaft
+    ctx.fillStyle = on ? SG.gold : '#334155'; ctx.beginPath(); ctx.arc(tx, ty, 7, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.fillStyle = SG.ink; ctx.beginPath(); ctx.arc(0, 20, 3, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    sgText(ctx, '−', -40, 14, SG.dim, 12); sgText(ctx, '+', 40, 14, SG.dim, 12); sgText(ctx, 'LEVER', -34, -34, SG.gold, 10); sgText(ctx, `${x >= 0 ? '+' : ''}${Math.round(x * 100)} %`, 34, -34, on ? '#F0E6D2' : SG.dim, 10);
+    sgKeyHint(ctx, comp, st, 50);
+}
+function drawJoystick(ctx, st, comp) {
+    st = st || {}; const x = clampPM(st.opX || 0), y = clampPM(st.opY || 0), on = Math.abs(x) > 0.02 || Math.abs(y) > 0.02;
+    sgElec(ctx, -32, -40, -60, -40, Math.abs(x) > 0.02); sgElec(ctx, 32, -40, 60, -40, Math.abs(y) > 0.02);
+    sgCable(ctx, -32, 0, -60, 0, clamp01(-x)); sgCable(ctx, 32, 0, 60, 0, clamp01(x)); sgCable(ctx, 0, -32, 0, -60, clamp01(y)); sgCable(ctx, 0, 32, 0, 60, clamp01(-y));
+    ctx.save(); ctx.lineJoin = 'round';
+    ctx.fillStyle = '#161A22'; ctx.fillRect(-32, -32, 64, 64); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.8; ctx.strokeRect(-32, -32, 64, 64);
+    ctx.strokeStyle = 'rgba(148,163,184,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-28, 0); ctx.lineTo(28, 0); ctx.moveTo(0, -28); ctx.lineTo(0, 28); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); ctx.stroke();
+    const sx = x * 18, sy = -y * 18;
+    ctx.strokeStyle = on ? SG.gold : SG.ink; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(sx, sy); ctx.stroke();
+    ctx.fillStyle = on ? SG.gold : '#334155'; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore();
+    sgText(ctx, 'JOYSTICK', 0, -38, SG.gold, 10); sgText(ctx, 'X−', -46, 12, SG.dim, 8); sgText(ctx, 'X+', 46, 12, SG.dim, 8); sgText(ctx, 'Y+', 14, -46, SG.dim, 8); sgText(ctx, 'Y−', 14, 52, SG.dim, 8);
+    sgText(ctx, `${Math.round(x * 100)} / ${Math.round(y * 100)} %`, 0, 80, on ? '#F0E6D2' : SG.dim, 9); sgKeyHint(ctx, comp, st, 94);
+}
+function drawIdler(ctx, st, comp) {
+    const t = clamp01((st && st.tension) || 0), col = t > 0.02 ? SG.cableOn : SG.cable;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineWidth = 2 + t * 1.4; ctx.strokeStyle = col;
+    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-16, 0); ctx.arc(0, 0, 16, Math.PI, 2 * Math.PI); ctx.lineTo(40, 0); ctx.stroke();           // cable wraps over the wheel
+    ctx.lineWidth = 1.8; ctx.strokeStyle = SG.ink; ctx.fillStyle = SG.body; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = SG.dim; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = SG.ink; ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    sgText(ctx, 'IDLER', 0, 30, SG.dim, 8);
+}
+function drawBlock(ctx, st, comp) {
+    const t = clamp01((st && st.tension) || 0), col = t > 0.02 ? SG.cableOn : SG.cable, ratio = opNum(comp || {}, 'ratio', 2);
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineWidth = 2 + t * 1.4; ctx.strokeStyle = col;
+    ctx.beginPath(); ctx.moveTo(-60, 0); ctx.lineTo(-28, 0); ctx.lineTo(-16, -12); ctx.lineTo(16, -12); ctx.arc(16, 0, 12, -Math.PI / 2, Math.PI / 2); ctx.lineTo(-16, 12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(28, 0); ctx.lineTo(60, 0); ctx.stroke();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = SG.ink; ctx.fillStyle = SG.body;
+    [[-16, 0], [16, 0]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = SG.ink; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = SG.body; });
+    ctx.restore();
+    sgText(ctx, `${ratio % 1 ? ratio.toFixed(1) : ratio}:1`, 0, 26, SG.gold, 10);
+}
+function drawStringJunction(ctx, st) {
+    const t = clamp01((st && st.tension) || 0), col = t > 0.02 ? SG.cableOn : SG.cable;
+    ctx.save(); ctx.lineWidth = 2 + t * 1.4; ctx.strokeStyle = col; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(20, 0); ctx.moveTo(0, 0); ctx.lineTo(0, -20); ctx.stroke();
+    ctx.fillStyle = SG.ink; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+function drawSolenoidPuller(ctx, st, comp) {
+    st = st || {}; const t = clamp01(st.tension || 0), on = t > 0.02;
+    sgElec(ctx, -60, 0, -36, 0, on);
+    ctx.save(); ctx.lineJoin = 'round';
+    ctx.fillStyle = on ? 'rgba(250,204,21,0.16)' : SG.body; ctx.fillRect(-36, -17, 42, 34); ctx.strokeStyle = on ? '#fde047' : SG.ink; ctx.lineWidth = 1.9; ctx.strokeRect(-36, -17, 42, 34);
+    ctx.lineWidth = 1.5; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.ellipse(-27 + i * 10, 0, 4, 11, 0, 0, Math.PI * 2); ctx.stroke(); }            // coil windings
+    const x2 = 6 + 10 + t * 24; ctx.fillStyle = on ? SG.gold : '#334155'; ctx.fillRect(6, -5, x2 - 6, 10); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.5; ctx.strokeRect(6, -5, x2 - 6, 10);   // plunger
+    ctx.beginPath(); ctx.arc(x2 + 4, 0, 3.5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    sgCable(ctx, x2 + 7.5, 0, 60, 0, t); sgText(ctx, 'SOLENOID', -8, -23, SG.gold, 9);
+}
+function drawComparator(ctx, st, comp) {
+    st = st || {}; const hi = !!st.cmpHi, lo = !!st.cmpLo, thr = opNum(comp || {}, 'threshold', 0.5);
+    sgElec(ctx, -60, 0, -40, 0, Math.abs(st.sensVal || 0) > 0.02); sgElec(ctx, 40, -20, 60, -20, hi); sgElec(ctx, 40, 20, 60, 20, lo);
+    sgBox(ctx, -40, -30, 80, 60, hi || lo);
+    sgText(ctx, 'CMP', 0, -14, SG.gold, 11); sgText(ctx, `± ${thr.toFixed(2)}`, 0, 2, SG.dim, 9);
+    [[-20, hi, 'HI'], [20, lo, 'LO']].forEach(([y, on, l]) => { ctx.save(); ctx.fillStyle = on ? '#fde047' : '#3f3a1f'; ctx.beginPath(); ctx.arc(22, y * 0.62 + 6, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore(); sgText(ctx, l, 8, y * 0.62 + 9, SG.dim, 8); });
+}
+function sgValueText(ctx, st, unit, y) { const v = st && st.sensVal; sgText(ctx, v === undefined || v === null ? '— ' + unit : `${Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1)} ${unit}`, 0, y, st && st.sigAct ? '#fde047' : '#F0E6D2', 10); }
+function sgSensorBody(ctx, st, glyph) {
+    ctx.save(); ctx.fillStyle = st && st.sigAct ? 'rgba(230,200,117,0.14)' : SG.body; ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = st && st.sigAct ? SG.gold : SG.ink; ctx.lineWidth = 2; ctx.stroke(); ctx.restore(); glyph(ctx);
+}
+function drawPressSensor(ctx, st, comp) {
+    st = st || {}; sgOil(ctx, 0, 22, 0, 40); sgElecPoly(ctx, [[21, -8], [34, -20], [60, -20]], st.sensVal !== undefined); sgElecPoly(ctx, [[21, 8], [34, 20], [60, 20]], !!st.sigAct);
+    sgSensorBody(ctx, st, c => { c.save(); c.strokeStyle = SG.dim; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 4, 13, Math.PI * 0.85, Math.PI * 2.15); c.stroke();
+        const range = opNum(comp || {}, 'range', 250), a = Math.PI * 0.85 + clamp01((st.sensVal || 0) / range) * Math.PI * 1.3; c.strokeStyle = SG.gold; c.lineWidth = 2.2; c.beginPath(); c.moveTo(0, 4); c.lineTo(Math.cos(a) * 11, 4 + Math.sin(a) * 11); c.stroke(); c.restore(); });
+    sgText(ctx, 'P', 0, 4, SG.ink, 9); sgValueText(ctx, st, 'bar', -30); sgText(ctx, 'PRESSURE', 0, 56, SG.gold, 8);
+}
+function drawTempSensor(ctx, st, comp) {
+    st = st || {}; sgOil(ctx, 0, 22, 0, 40); sgElecPoly(ctx, [[21, -8], [34, -20], [60, -20]], st.sensVal !== undefined); sgElecPoly(ctx, [[21, 8], [34, 20], [60, 20]], !!st.sigAct);
+    sgSensorBody(ctx, st, c => { c.save(); c.strokeStyle = SG.ink; c.lineWidth = 1.8; c.beginPath(); c.moveTo(-3, 8); c.lineTo(-3, -9); c.arc(0, -9, 3, Math.PI, 0); c.lineTo(3, 8); c.stroke();
+        const f = clamp01(((st.sensVal || 0) - opNum(comp || {}, 'tMin', 0)) / Math.max(1, opNum(comp || {}, 'tMax', 120) - opNum(comp || {}, 'tMin', 0))); c.fillStyle = '#f97316'; c.fillRect(-1.5, 8 - 16 * f, 3, 16 * f);
+        c.beginPath(); c.arc(0, 10, 5, 0, Math.PI * 2); c.fillStyle = '#f97316'; c.fill(); c.stroke(); c.restore(); });
+    sgValueText(ctx, st, '°C', -30); sgText(ctx, 'TEMPERATURE', 0, 56, SG.gold, 8);
+}
+function drawFlowSensor(ctx, st, comp) {
+    st = st || {}; sgOil(ctx, -60, 0, -22, 0); sgOil(ctx, 22, 0, 60, 0); sgElecPoly(ctx, [[-12, -19], [-20, -28], [-20, -40]], st.sensVal !== undefined); sgElecPoly(ctx, [[12, -19], [20, -28], [20, -40]], !!st.sigAct);
+    sgSensorBody(ctx, st, c => { c.save(); c.strokeStyle = SG.gold; c.lineWidth = 2; const ph = (typeof simEngine !== 'undefined' && simEngine ? simEngine.simTime * Math.min(6, Math.abs(st.sensVal || 0) / 10) : 0);
+        for (let i = 0; i < 3; i++) { const a = ph + i * Math.PI * 2 / 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * 12, Math.sin(a) * 12); c.stroke(); } c.restore(); });
+    sgText(ctx, 'Q', 0, 4, SG.ink, 9); sgValueText(ctx, st, 'L/min', 38); sgText(ctx, 'FLOW RATE', 0, 52, SG.gold, 8);
+}
+function drawPropFlowReg(ctx, st, comp) {
+    st = st || {}; const cmd = clamp01(st.cmdEff === undefined ? 1 : st.cmdEff), on = st.cmdWired && cmd > 0.02;
+    sgOil(ctx, -60, 0, -36, 0); sgOil(ctx, 36, 0, 60, 0); sgElec(ctx, 0, -24, 0, -40, on);
+    sgBox(ctx, -36, -24, 72, 48, on);
+    ctx.save(); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-26, 12); ctx.lineTo(26, -12); ctx.stroke();                 // arrow = adjustable
+    ctx.beginPath(); ctx.moveTo(26, -12); ctx.lineTo(18, -12); ctx.moveTo(26, -12); ctx.lineTo(22, -3); ctx.stroke();
+    ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(-12, -16); ctx.lineTo(-12, 16); ctx.moveTo(12, -16); ctx.lineTo(12, 16); ctx.stroke();                 // orifice walls
+    ctx.restore();
+    sgText(ctx, `${Math.round(cmd * 100)} %`, 0, 38, on ? '#fde047' : SG.dim, 10); sgText(ctx, 'PROP', -26, -28, SG.gold, 8); sgText(ctx, 'ΔP-comp', 22, 20, SG.dim, 8);
+}
+function drawShuttle(ctx, st, comp) {
+    const pa = comp ? sigPortValue(comp, 'p', 'A') : null, pb = comp ? sigPortValue(comp, 'p', 'B') : null, b = (pa === null || pb === null) ? 0 : clampPM((pa - pb) / 5);
+    sgOil(ctx, -60, 0, -34, 0); sgOil(ctx, 34, 0, 60, 0); sgOil(ctx, 0, -20, 0, -40);
+    ctx.save(); ctx.fillStyle = SG.body; ctx.fillRect(-34, -20, 68, 40); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.9; ctx.strokeRect(-34, -20, 68, 40);
+    ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-34, -7); ctx.lineTo(-22, 0); ctx.lineTo(-34, 7); ctx.moveTo(34, -7); ctx.lineTo(22, 0); ctx.lineTo(34, 7); ctx.stroke();     // seats
+    const bx = b * 12; ctx.fillStyle = Math.abs(b) > 0.05 ? SG.gold : '#475569'; ctx.beginPath(); ctx.arc(bx, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = SG.ink; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(0, -9); ctx.stroke(); ctx.restore();
+    sgText(ctx, 'A', -46, -6, SG.dim, 9); sgText(ctx, 'B', 46, -6, SG.dim, 9); sgText(ctx, 'C', 10, -26, SG.dim, 9); sgText(ctx, 'OR', 0, 34, SG.gold, 9);
+}
+function drawDualCB(ctx, st, comp) {
+    [[-20, 'C1', 'V1'], [20, 'C2', 'V2']].forEach(([x, c, v]) => { sgOil(ctx, x, -24, x, -40); sgOil(ctx, x, 24, x, 40); });
+    ctx.save(); ctx.fillStyle = SG.body; ctx.fillRect(-44, -24, 88, 48); ctx.strokeStyle = SG.ink; ctx.lineWidth = 1.9; ctx.strokeRect(-44, -24, 88, 48);
+    ctx.beginPath(); ctx.moveTo(0, -24); ctx.lineTo(0, 24); ctx.stroke();
+    [[-20, 1], [20, -1]].forEach(([x, d]) => {                       // each half: spring + seat + free-flow check
+        ctx.beginPath(); ctx.moveTo(x - 9, -20); ctx.lineTo(x + 9, -20); ctx.moveTo(x - 9, -8); ctx.lineTo(x + 9, -8); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, 4, 5, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - 7, 12); ctx.lineTo(x + 7, 12); ctx.stroke();
+    });
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = '#06b6d4'; ctx.beginPath(); ctx.moveTo(-12, 16); ctx.lineTo(12, -14); ctx.moveTo(12, 16); ctx.lineTo(-12, -14); ctx.stroke(); ctx.restore();   // crossed pilot lines
+    sgText(ctx, 'DUAL COUNTERBALANCE', 0, 40, SG.gold, 7); sgText(ctx, 'C1', -30, -30, SG.dim, 8); sgText(ctx, 'C2', 30, -30, SG.dim, 8); sgText(ctx, 'V1', -30, 36, SG.dim, 8); sgText(ctx, 'V2', 30, 36, SG.dim, 8);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// LIBRARY ENTRIES
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+function registerSignalLibrary() {
+    const E = (id, label, x, y, io, dir) => ({ id, label, relX: x, relY: y, type: 'electric', io, dir });
+    const S = (id, label, x, y, io, dir) => ({ id, label, relX: x, relY: y, type: 'string', io, dir });
+    const H = (id, label, x, y, dir, type) => ({ id, label, relX: x, relY: y, type: type || 'work', io: 'inout', dir });
+    const L = (key, def) => { LIBRARY[key] = Object.assign({ tagPrefix: '0V', w: 120, h: 80 }, def); };
+
+    // ── operators ──
+    L('op_pedal', { title: 'Foot Pedal Operator', short: 'Pedal', cat: '10. Operators', iso: 'ISO 1219-1: Sec 6.2 (muscle control)', tagPrefix: 'S',
+        spec: 'Foot pedal with spring return. Output: analog level 0…100 % on OUT and a pulled cable on S. Operated by a keyboard key (set in the inspector) or the mouse while the physics engine runs.',
+        hit: { x0: -50, x1: 66, y0: -34, y1: 54 }, ports: [E('OUT', 'Analog output 0…100 %', 60, -20, 'out', [1, 0]), S('S', 'Pulley cable (pulls when pressed)', 60, 20, 'out', [1, 0])],
+        draw: function (ctx, st, comp) { drawPedal(ctx, st, comp); } });
+    L('op_lever', { title: 'Hand Lever Operator', short: 'Lever', cat: '10. Operators', iso: 'ISO 1219-1: Sec 6.2 (muscle control)', tagPrefix: 'S',
+        spec: 'Two-way hand lever. OUT = analog −100…+100 %; cable S1 pulls when the lever moves negative, S2 when it moves positive. Keys: negative, positive (optional centre).',
+        hit: { x0: -66, x1: 66, y0: -64, y1: 58 }, ports: [E('OUT', 'Analog output −100…+100 %', 0, -60, 'out', [0, -1]), S('S1', 'Cable – pulls when moved −', -60, 20, 'out', [-1, 0]), S('S2', 'Cable – pulls when moved +', 60, 20, 'out', [1, 0])],
+        draw: function (ctx, st, comp) { drawLever(ctx, st, comp); } });
+    L('op_joystick', { title: 'Joystick Operator (2-axis)', short: 'Joystick', cat: '10. Operators', iso: 'ISO 1219-1: Sec 6.2 (muscle control)', tagPrefix: 'S',
+        spec: 'Two-axis joystick. OX / OY = analog −100…+100 %; four cables (X−, X+, Y−, Y+) pull with the stick. Keys: X−, X+, Y−, Y+ (optional centre).',
+        hit: { x0: -66, x1: 66, y0: -66, y1: 100 }, ports: [E('OX', 'Analog X −100…+100 %', -60, -40, 'out', [-1, 0]), E('OY', 'Analog Y −100…+100 %', 60, -40, 'out', [1, 0]),
+            S('SX1', 'Cable X−', -60, 0, 'out', [-1, 0]), S('SX2', 'Cable X+', 60, 0, 'out', [1, 0]), S('SY2', 'Cable Y+ (up)', 0, -60, 'out', [0, -1]), S('SY1', 'Cable Y− (down)', 0, 60, 'out', [0, 1])],
+        draw: function (ctx, st, comp) { drawJoystick(ctx, st, comp); } });
+
+    // ── pulley system ──
+    L('pulley_idler', { title: 'Idler Pulley (cable guide)', short: 'Idler Pulley', cat: '11. Pulleys & Cables', iso: 'ISO 1219-1: Sec 6.2 (mechanical)', tagPrefix: 'U',
+        spec: 'Guides a cable around a corner. The pull passes straight through (rotate the part to change the cable direction).',
+        hit: { x0: -46, x1: 46, y0: -26, y1: 36 }, ports: [S('A', 'Cable end A', -40, 0, 'inout', [-1, 0]), S('B', 'Cable end B', 40, 0, 'inout', [1, 0])],
+        draw: function (ctx, st, comp) { drawIdler(ctx, st, comp); } });
+    L('pulley_block', { title: 'Block & Tackle Pulley (ratio)', short: 'Block Pulley', cat: '11. Pulleys & Cables', iso: 'ISO 1219-1: Sec 6.2 (mechanical)', tagPrefix: 'U',
+        spec: 'Compound pulley. Output travel = input travel ÷ ratio (parameter): 2:1 halves the stroke the valve sees and doubles the force. Connect the operator to IN and the valve to OUT.',
+        hit: { x0: -66, x1: 66, y0: -24, y1: 34 }, ports: [S('IN', 'Cable in (operator side)', -60, 0, 'in', [-1, 0]), S('OUT', 'Cable out (load side)', 60, 0, 'out', [1, 0])],
+        draw: function (ctx, st, comp) { drawBlock(ctx, st, comp); } });
+    L('string_junction', { title: 'Cable Junction / Clamp', short: 'Cable Junction', cat: '11. Pulleys & Cables', iso: 'ISO 1219-1: Sec 6.2 (mechanical)', tagPrefix: 'U',
+        spec: 'Joins three cables: whichever is pulled hardest pulls the others (one operator can move several valves).',
+        hit: { x0: -24, x1: 24, y0: -24, y1: 12 }, ports: [S('L', 'Cable L', -20, 0, 'inout', [-1, 0]), S('R', 'Cable R', 20, 0, 'inout', [1, 0]), S('T', 'Cable T', 0, -20, 'inout', [0, -1])],
+        draw: function (ctx, st) { drawStringJunction(ctx, st); } });
+    L('solenoid_puller', { title: 'Solenoid (electric → cable)', short: 'Solenoid', cat: '12. Electrical & Logic', iso: 'IEC 60617 · ISO 1219-1', tagPrefix: 'Y',
+        spec: 'Electromagnet with a plunger that pulls a cable. Digital: pulls fully while the input is HIGH. Proportional (parameter): pull ∝ input level. Lets electrical signals operate cable-operated valves.',
+        hit: { x0: -66, x1: 66, y0: -28, y1: 22 }, ports: [E('IN', 'Electrical input', -60, 0, 'in', [-1, 0]), S('S', 'Pulley cable output', 60, 0, 'out', [1, 0])],
+        draw: function (ctx, st, comp) { drawSolenoidPuller(ctx, st, comp); } });
+    L('signal_cmp', { title: 'Signal Comparator (± threshold)', short: 'Comparator', cat: '12. Electrical & Logic', iso: 'IEC 60617', tagPrefix: 'K',
+        spec: 'Turns an analog level into two switching outputs: HI when the input ≥ threshold, LO when ≤ −threshold. Use it to drive two solenoids from a lever or joystick axis, or to switch on a pressure / temperature limit.',
+        hit: { x0: -46, x1: 66, y0: -34, y1: 34 }, ports: [E('IN', 'Analog input', -60, 0, 'in', [-1, 0]), E('HI', 'HIGH when input ≥ threshold', 60, -20, 'out', [1, 0]), E('LO', 'HIGH when input ≤ −threshold', 60, 20, 'out', [1, 0])],
+        draw: function (ctx, st, comp) { drawComparator(ctx, st, comp); } });
+
+    // ── sensors with electrical outputs ──
+    L('press_sensor_e', { title: 'Pressure Sensor (analog + switch)', short: 'Pressure Sensor', cat: '8. Instrumentation & Sensors', iso: 'ISO 1219-1: Sec 10 · IEC 60617', tagPrefix: 'B',
+        spec: 'Measures line pressure. SIG = analog 0…100 % of the range, SW = switching output with set-point and hysteresis. Feeds proportional valves, comparators, relays, lamps.',
+        hit: { x0: -30, x1: 66, y0: -40, y1: 66 }, ports: [H('P', 'Pressure tap', 0, 40, [0, 1]), E('SIG', 'Analog output 0…100 % of range', 60, -20, 'out', [1, 0]), E('SW', 'Switching output (set-point)', 60, 20, 'out', [1, 0])],
+        draw: function (ctx, st, comp) { drawPressSensor(ctx, st, comp); } });
+    L('flow_sensor_e', { title: 'Flow Rate Sensor (analog + switch)', short: 'Flow Sensor', cat: '8. Instrumentation & Sensors', iso: 'ISO 1219-1: Sec 10 · IEC 60617', tagPrefix: 'B',
+        spec: 'Inline flow meter: IN → OUT with negligible loss. SIG = |Q| (or signed Q) as 0…100 % of the range, SW switches above the set-point.',
+        hit: { x0: -66, x1: 66, y0: -50, y1: 60 }, ports: [H('IN', 'Flow in', -60, 0, [-1, 0]), H('OUT', 'Flow out', 60, 0, [1, 0]), E('SIG', 'Analog output', -20, -40, 'out', [0, -1]), E('SW', 'Switching output', 20, -40, 'out', [0, -1])],
+        draw: function (ctx, st, comp) { drawFlowSensor(ctx, st, comp); } });
+    L('temp_sensor_e', { title: 'Temperature Sensor (analog + switch)', short: 'Temp. Sensor', cat: '8. Instrumentation & Sensors', iso: 'ISO 1219-1: Sec 10 · IEC 60617', tagPrefix: 'B',
+        spec: 'Measures the oil temperature at its tap (oil temperature plus local throttling heat of the parts on that line). SIG = 0…100 % between Tmin and Tmax, SW switches above the set-point.',
+        hit: { x0: -30, x1: 66, y0: -40, y1: 66 }, ports: [H('T', 'Temperature tap', 0, 40, [0, 1]), E('SIG', 'Analog output', 60, -20, 'out', [1, 0]), E('SW', 'Switching output', 60, 20, 'out', [1, 0])],
+        draw: function (ctx, st, comp) { drawTempSensor(ctx, st, comp); } });
+
+    // ── valves ──
+    L('pv_flow_reg', { title: 'Proportional Flow Regulator (pressure-compensated)', short: 'Prop. Flow Reg.', cat: '2d. Proportional Valves', iso: 'ISO 1219-1: Sec 6.7', analog: 'flow',
+        spec: 'Flow = Q-max × command (0…100 %), independent of the pressure drop. Connect CMD to a pedal, lever, joystick or sensor SIG; unconnected it uses the opening slider.',
+        hit: { x0: -64, x1: 64, y0: -44, y1: 44 }, ports: [H('IN', 'Inlet', -60, 0, [-1, 0]), H('OUT', 'Outlet', 60, 0, [1, 0]), E('CMD', 'Command input 0…100 %', 0, -40, 'in', [0, -1])],
+        draw: function (ctx, st, comp) { drawPropFlowReg(ctx, st, comp); } });
+    L('shuttle_valve', { title: 'Shuttle Valve (OR – higher pressure wins)', short: 'Shuttle Valve', cat: '6. Check, Shuttle & Load-Holding', iso: 'ISO 1219-1: Sec 6.3',
+        spec: 'Two inlets A and B, one outlet C. The ball seals the lower-pressure inlet, so C is connected to whichever inlet has the higher pressure.',
+        hit: { x0: -64, x1: 64, y0: -44, y1: 40 }, ports: [H('A', 'Inlet A', -60, 0, [-1, 0]), H('B', 'Inlet B', 60, 0, [1, 0]), H('C', 'Outlet C', 0, -40, [0, -1])],
+        draw: function (ctx, st, comp) { drawShuttle(ctx, st, comp); } });
+    L('counterbalance_dual', { title: 'Dual Pilot-Operated Counterbalance Valve', short: 'Dual Counterbalance', cat: '6. Check, Shuttle & Load-Holding', iso: 'ISO 1219-1: Sec 6.3',
+        spec: 'Two counterbalance cartridges for a double-acting cylinder: C1 / C2 to the cylinder ports, V1 / V2 to the directional valve. Each one is opened by the pressure on the OTHER valve line (cross-piloted) and has a free-flow check. Holds overrunning loads.',
+        hit: { x0: -50, x1: 50, y0: -44, y1: 56 }, ports: [H('C1', 'Cylinder port 1', -20, -40, [0, -1]), H('C2', 'Cylinder port 2', 20, -40, [0, -1]), H('V1', 'Valve port 1', -20, 40, [0, 1]), H('V2', 'Valve port 2', 20, 40, [0, 1])],
+        draw: function (ctx, st, comp) { drawDualCB(ctx, st, comp); } });
+    if (LIBRARY.counterbalance) LIBRARY.counterbalance.title = 'Pilot-Operated Counterbalance Valve (with bypass check)';
+}
+registerSignalLibrary();
+
+// ── inspector / live rows (wrap the electrical module's functions) ─────────────────────────
+function electricInspectorHtml(comp) {
+    let h = electricInspectorHtmlBase(comp);
+    if (OP_TYPES[comp.key]) h += operatorInspectorHtml(comp);
+    if (comp.key === 'signal_cmp') h += `<div class="param-block"><div class="param-derived">IN takes any analog level (joystick axis, lever, sensor SIG). HI is HIGH at ≥ threshold, LO at ≤ −threshold – wire HI / LO to the two solenoid ports of a valve to drive it from a lever or joystick.</div></div>`;
+    if (comp.key === 'solenoid_puller') h += `<div class="param-block"><div class="param-derived">An electrical HIGH on IN makes the plunger pull the cable on S. Switch on <i>Proportional</i> in the parameters to pull ∝ the input level.</div></div>`;
+    return h;
+}
+function electricLiveRows(c, row) {
+    const st = c.state, f = (v, d = 1) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '–', pct = v => Math.round((v || 0) * 100) + ' %';
+    if (OP_TYPES[c.key]) return operatorLiveHtml(c);
+    if (c.key === 'press_sensor_e') return row('Pressure', f(st.sensVal) + ' bar') + row('Switch', st.sigAct ? '<span class="param-ok">● ON</span>' : '○ off');
+    if (c.key === 'flow_sensor_e') return row('Flow', f(st.sensVal) + ' L/min') + row('Switch', st.sigAct ? '<span class="param-ok">● ON</span>' : '○ off');
+    if (c.key === 'temp_sensor_e') return row('Temperature', f(st.sensVal) + ' °C') + row('Switch', st.sigAct ? '<span class="param-ok">● ON</span>' : '○ off');
+    if (c.key === 'signal_cmp') return row('Input', f(st.sensVal, 2)) + row('HI / LO', `${st.cmpHi ? '●' : '○'} / ${st.cmpLo ? '●' : '○'}`);
+    if (c.key === 'pulley_idler' || c.key === 'pulley_block' || c.key === 'solenoid_puller' || c.key === 'string_junction') return row('Cable tension', pct(st.tension));
+    let out = electricLiveRowsBase(c, row);
+    const d = LIBRARY[c.key];
+    if (d && d.dcv && (st.strWired1 || st.strWired2)) out += row('Cables', `W1 ${st.strWired1 ? pct(st.strW1) : '–'}  W2 ${st.strWired2 ? pct(st.strW2) : '–'}`);
+    if (d && (d.analog || (d.dcv && d.dcv.analog)) && st.cmdWired) out += row('Command', pct(st.cmdLevel));
+    return out;
+}
+function signalOnSpawn(comp) { if (OP_TYPES[comp.key]) operatorAutoKeys(comp); }
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// READY-MADE OPERATOR DEMOS (toolbar drop-down)
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+function loadOperatorDemo(kind) {
+    if (!kind) return;
+    if (placedComponents.length && !confirm('Replace the current schematic with the demo circuit?')) return;
+    placedComponents = []; placedWires = []; selectedCompId = null; selectedWireId = null;
+    if (typeof simEngine !== 'undefined' && simEngine) HydraulicSolver._warm.clear();
+    const sp = (k, x, y, rot) => { const c = spawnComponent(k, x, y); if (rot) c.rotation = rot; return c; };
+    const wire = (a, ap, b, bp, style, wp) => placedWires.push({ id: newWireId(), fromCompId: a.id, fromPortId: ap, toCompId: b.id, toPortId: bp, style: style || 'solid-red', waypoints: wp || [] });
+    const pts = (...p) => p.map(([x, y]) => ({ x, y }));
+    const res = sp('res_vented', 580, 480, 270), pump = sp('pump_fixed', 420, 460, 270), prv = sp('prv_direct', 420, 640);
+    const cyl = sp('cyl_double', 160, 100);
+    let valve;
+    if (kind === 'joystick') valve = sp('pv_dir_comp_43', 160, 320);
+    else if (kind === 'cable') valve = sp('dcvp_43', 160, 320);
+    else valve = sp('dcv_43_closed', 160, 320);
+    wire(res, 'S', pump, 'S', 'solid-blue'); wire(pump, 'P', valve, 'P', 'solid-red', pts([160, 460])); wire(pump, 'P', prv, 'P', 'solid-red', pts([355, 460], [355, 640]));
+    wire(prv, 'T', res, 'T', 'solid-blue', pts([525, 640], [525, 500])); wire(valve, 'T', res, 'T', 'solid-blue', pts([200, 400], [525, 400], [525, 500]));
+    wire(valve, 'A', cyl, 'A', 'solid-red'); wire(valve, 'B', cyl, 'B', 'solid-blue');
+    if (kind === 'joystick') {
+        const js = sp('op_joystick', -140, 320); js.state.keys = 'arrowleft,arrowright,arrowdown,arrowup';
+        wire(js, 'OY', valve, 'CMD', 'electric');
+        cyl.params = { position: 0.5 };
+        if (typeof hoseToast === 'function') hoseToast('Demo loaded – press Run, then use ↑ / ↓ (or drag the stick): the cylinder speed follows the stick deflection.');
+    } else if (kind === 'cable') {
+        const lv = sp('op_lever', -180, 320); lv.state.keys = 'a,d';
+        const blk = sp('pulley_block', -60, 220), idl = sp('pulley_idler', -60, 420);
+        wire(lv, 'S2', blk, 'IN', 'string'); wire(blk, 'OUT', valve, 'W1', 'string'); wire(lv, 'S1', idl, 'A', 'string'); wire(idl, 'B', valve, 'W2', 'string');
+        cyl.params = { position: 0.5 };
+        if (typeof hoseToast === 'function') hoseToast('Demo loaded – press Run, then hold D (extend) or A (retract). The block pulley halves the pull on the left cable.');
+    } else {
+        const pd = sp('op_pedal', -140, 320); pd.state.keys = 'space';
+        const fr = sp('pv_flow_reg', 160, 200);
+        cyl.params = { position: 0.1 };
+        placedWires = placedWires.filter(w => !(w.fromCompId === valve.id && w.fromPortId === 'A'));
+        wire(valve, 'A', fr, 'IN', 'solid-red'); wire(fr, 'OUT', cyl, 'A', 'solid-red'); valve.state.manualPos = 1;
+        wire(pd, 'OUT', fr, 'CMD', 'electric');
+        if (typeof hoseToast === 'function') hoseToast('Demo loaded – press Run, then hold Space: the pedal opens the proportional flow regulator (flow ∝ pedal travel).');
+    }
+    selectedCompId = null; updateUI(); render();
+    if (typeof simEngine !== 'undefined' && simEngine) simEngine.reset();
+}
+
+
+// ════════ STAGE 12 — LIBRARY ORGANISER (categories, drop-downs) ════════
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// STAGE 12 – LIBRARY ORGANISER: categories, summaries, drop-down selection, collapsible groups
+//   • every component belongs to one group (def.group); the old def.cat strings are untouched
+//   • sidebar: [Category ▾] [Component ▾] [＋ Add]  +  collapsible category sections with counts
+//   • search expands the groups that contain matches
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+const LIB_GROUPS = [
+    { id: 'pump',  icon: '⚙️', name: 'Pumps & Motors',                   note: 'Fixed / variable pumps, hand pump, hydraulic motors and the electric prime mover.' },
+    { id: 'dcv',   icon: '🔀', name: 'Directional Valves – Solenoid / Spring', note: 'Classic 2/2 … 5/3 valves operated by solenoids, springs or a pilot; two-stage and cartridge versions.' },
+    { id: 'dcvh',  icon: '💧', name: 'Directional Valves – Hydraulic Pilot / Manual', note: 'Each side selectable: hydraulic pilot, solenoid, lever or pedal.' },
+    { id: 'dcvp',  icon: '🪢', name: 'Directional Valves – Pulley / Cable', note: 'Copies of the pilot family whose sides are operated by pulley cables from a pedal, lever or joystick.' },
+    { id: 'prop',  icon: '🎚️', name: 'Proportional Valves',              note: 'Analog-command valves: directional, pressure-compensated, flow regulator and pressure relief.' },
+    { id: 'press', icon: '🛡️', name: 'Pressure Control',                 note: 'Relief, reducing, sequence, unloading, brake and cut-off valves.' },
+    { id: 'flow',  icon: '🌊', name: 'Flow Control',                     note: 'Throttles, needle valves, flow regulators, dividers and fuses.' },
+    { id: 'check', icon: '🔒', name: 'Check, Shuttle & Load-Holding',    note: 'Check valves, pilot-operated checks, counterbalance valves and the shuttle (OR) valve.' },
+    { id: 'act',   icon: '🔩', name: 'Actuators & Rotators',             note: 'Cylinders (double, cushioned, telescopic …) and rotary actuators.' },
+    { id: 'acc',   icon: '🔋', name: 'Accumulators',                     note: 'Bladder, piston, diaphragm, spring and weighted accumulators.' },
+    { id: 'res',   icon: '🛢️', name: 'Reservoirs & Conditioning',        note: 'Tanks, filters, strainers, coolers, heaters.' },
+    { id: 'conn',  icon: '🔗', name: 'Junctions, Connectors & Isolation', note: 'T / cross junctions, quick couplings, ball and gate valves.' },
+    { id: 'sens',  icon: '📟', name: 'Sensors & Instruments',            note: 'Pressure, flow and temperature sensors with analog + switching outputs, plus switches and transducers.' },
+    { id: 'oper',  icon: '🎮', name: 'Operators – Pedal · Lever · Joystick', note: 'Keyboard- and mouse-controlled operators with electrical and cable outputs.' },
+    { id: 'pull',  icon: '🧵', name: 'Pulleys & Cables',                 note: 'Idler pulley, block & tackle (ratio) and cable junction for routing operator motion to valves.' },
+    { id: 'elec',  icon: '⚡', name: 'Electrical & Logic',               note: 'Proximity sensors, relay, lamp, comparator and the solenoid that pulls a cable.' }
+];
+const LIB_CAT_GROUP = { '1. Pumps & Motors': 'pump', '2. Directional Valves': 'dcv', '2b. Hydraulic / Manual Operated DCVs': 'dcvh', '2c. Pulley / Cable Operated DCVs': 'dcvp', '2d. Proportional Valves': 'prop',
+    '3. Pressure Control': 'press', '4. Flow Control': 'flow', '5. Actuators & Rotators': 'act', '6. Accumulators & Storage': 'acc', '7. Reservoirs & Conditioning': 'res',
+    '8. Instrumentation': 'sens', '8. Instrumentation & Sensors': 'sens', '9. Electrical': 'elec', '10. Operators': 'oper', '11. Pulleys & Cables': 'pull', '12. Electrical & Logic': 'elec',
+    '6. Check, Shuttle & Load-Holding': 'check' };
+const LIB_KEY_GROUP = {
+    prv_prop: 'prop', dcv_43_prop: 'prop', pv_flow_reg: 'prop',
+    check_valve: 'check', po_check: 'check', po_check_close: 'check', po_check_vented: 'check', counterbalance: 'check', brake: 'check', counterbalance_dual: 'check', shuttle_valve: 'check',
+    junction_tee: 'conn', junction_cross: 'conn', quick_disconnect: 'conn', isolation_gate: 'conn', ball_valve_2way: 'conn',
+    strainer: 'res', filter_clogging: 'res', cooler: 'res', heater: 'res', frl_trio: 'res', muffler: 'res', air_bleed: 'flow'
+};
+function libGroupOf(key, def) { return LIB_KEY_GROUP[key] || LIB_CAT_GROUP[def.cat] || 'elec'; }
+function applyLibraryGroups() { Object.keys(LIBRARY).forEach(k => { LIBRARY[k].group = libGroupOf(k, LIBRARY[k]); }); }
+applyLibraryGroups();
+
+const LIB_NAV = { cat: 'all', open: new Set(), query: '' };
+try { const s = JSON.parse(localStorage.getItem('isoLibOpen') || '[]'); s.forEach(x => LIB_NAV.open.add(x)); } catch (e) { /* storage unavailable */ }
+function libSaveOpen() { try { localStorage.setItem('isoLibOpen', JSON.stringify([...LIB_NAV.open])); } catch (e) { /* ignore */ } }
+function libKeysOf(gid) { return Object.keys(LIBRARY).filter(k => LIBRARY[k].group === gid); }
+function libSpawnAtCentre(key) {
+    const dpr = window.devicePixelRatio || 1, cssW = canvas.width / dpr, cssH = canvas.height / dpr;
+    return spawnComponent(key, (cssW / 2 - panX) / scale + (Math.random() * 40 - 20), (cssH / 2 - panY) / scale + (Math.random() * 40 - 20));
+}
+
+function libStyles() {
+    if (document.getElementById('libNavStyles')) return;
+    const st = document.createElement('style'); st.id = 'libNavStyles';
+    st.textContent = `
+      #libNav { padding:.55rem .6rem .45rem; border-bottom:1px solid var(--gold-line, rgba(230,200,117,.22)); display:flex; flex-direction:column; gap:.4rem; }
+      #libNav .lib-row { display:flex; align-items:center; gap:.4rem; }
+      #libNav label { font-size:.62rem; letter-spacing:.09em; text-transform:uppercase; color:var(--gold, #E6C875); width:62px; flex:none; }
+      #libNav select { flex:1; min-width:0; background:var(--obsidian-2, #0A0C10); color:var(--text-main, #F4EFE4); border:1px solid var(--gold-line, rgba(230,200,117,.22)); border-radius:.35rem; padding:.3rem .4rem; font-size:.76rem; }
+      #libNav select:focus { border-color:var(--gold, #E6C875); outline:none; }
+      #libNav .lib-add { background:linear-gradient(180deg,#F0DC9E,#D4B35E); color:#17130A; border:1px solid rgba(240,230,210,.5); border-radius:.35rem; font-weight:700; font-size:.74rem; padding:.3rem .6rem; cursor:pointer; white-space:nowrap; }
+      #libNav .lib-add:hover { box-shadow:0 0 12px rgba(230,200,117,.4); }
+      #libNav .lib-tools { display:flex; align-items:center; gap:.35rem; font-size:.66rem; color:var(--text-muted, #A29C8C); }
+      #libNav .lib-tools button { background:var(--charcoal-2, #161A22); color:#E8E0CC; border:1px solid var(--gold-line, rgba(230,200,117,.22)); border-radius:.3rem; padding:.12rem .5rem; font-size:.66rem; cursor:pointer; }
+      #libNav .lib-tools button:hover { border-color:var(--gold, #E6C875); }
+      .lib-head { display:flex; align-items:center; gap:.4rem; cursor:pointer; user-select:none; }
+      .lib-head .lib-caret { width:.8rem; color:var(--gold, #E6C875); transition:transform .15s; display:inline-block; }
+      .category-group.open .lib-caret { transform:rotate(90deg); }
+      .lib-head .lib-count { margin-left:auto; font-size:.62rem; color:var(--text-muted, #A29C8C); background:var(--charcoal-2, #161A22); border:1px solid var(--gold-line, rgba(230,200,117,.22)); border-radius:1rem; padding:0 .45rem; letter-spacing:0; }
+      .lib-note { font-size:.64rem; color:var(--text-muted, #A29C8C); line-height:1.35; margin:.05rem 0 .2rem; }
+      .category-group:not(.open) .comp-grid, .category-group:not(.open) .lib-note { display:none; }
+    `;
+    document.head.appendChild(st);
+}
+function libEnsureNav() {
+    libStyles();
+    const container = document.getElementById('paletteContainer'); if (!container) return;
+    let nav = document.getElementById('libNav');
+    if (!nav) { nav = document.createElement('div'); nav.id = 'libNav'; container.parentElement.insertBefore(nav, container); }
+    const total = Object.keys(LIBRARY).length, groups = LIB_GROUPS.filter(g => libKeysOf(g.id).length);
+    nav.innerHTML = `
+      <div class="lib-row"><label for="libCat">Category</label><select id="libCat" onchange="libSetCategory(this.value)">
+        <option value="all">All categories (${total})</option>${groups.map(g => `<option value="${g.id}" ${LIB_NAV.cat === g.id ? 'selected' : ''}>${g.icon} ${g.name} (${libKeysOf(g.id).length})</option>`).join('')}</select></div>
+      <div class="lib-row"><label for="libComp">Component</label><select id="libComp"></select><button class="lib-add" onclick="libQuickAdd()" title="Place the selected component in the middle of the view">＋ Add</button></div>
+      <div class="lib-tools"><button onclick="libExpandAll(true)">Expand all</button><button onclick="libExpandAll(false)">Collapse all</button><span id="libStat">${total} components · ${groups.length} categories</span></div>`;
+    libFillComponentSelect();
+    const input = document.getElementById('searchInput'); if (input) input.placeholder = `🔍 Search ${total} components…`;
+    const badge = document.querySelector('header .badge'); if (badge) badge.textContent = `Master ${total}-Component Library v8`;
+}
+function libFillComponentSelect() {
+    const sel = document.getElementById('libComp'); if (!sel) return;
+    const opt = k => `<option value="${k}">${LIBRARY[k].short || LIBRARY[k].title}</option>`;
+    sel.innerHTML = LIB_NAV.cat === 'all'
+        ? LIB_GROUPS.filter(g => libKeysOf(g.id).length).map(g => `<optgroup label="${g.icon} ${g.name}">${libKeysOf(g.id).map(opt).join('')}</optgroup>`).join('')
+        : libKeysOf(LIB_NAV.cat).map(opt).join('');
+}
+function libSetCategory(id) { LIB_NAV.cat = id; libFillComponentSelect(); if (id !== 'all') { LIB_NAV.open.add(id); libSaveOpen(); } filterComponents(); }
+function libQuickAdd() { const sel = document.getElementById('libComp'); if (sel && sel.value) libSpawnAtCentre(sel.value); }
+function libExpandAll(open) { LIB_NAV.open = new Set(open ? LIB_GROUPS.map(g => g.id) : []); libSaveOpen(); filterComponents(); }
+function libToggle(id) { if (LIB_NAV.open.has(id)) LIB_NAV.open.delete(id); else LIB_NAV.open.add(id); libSaveOpen(); filterComponents(); }
+
+function populateSidebar() {
+    const container = document.getElementById('paletteContainer'); if (!container) return;
+    libEnsureNav(); container.innerHTML = '';
+    LIB_GROUPS.forEach(g => {
+        const keys = libKeysOf(g.id); if (!keys.length) return;
+        const group = document.createElement('div'); group.className = 'category-group'; group.dataset.group = g.id;
+        const title = document.createElement('div'); title.className = 'category-title lib-head'; title.title = g.note;
+        title.innerHTML = `<span class="lib-caret">▸</span><span>${g.icon} ${g.name}</span><span class="lib-count">${keys.length}</span>`;
+        title.onclick = () => libToggle(g.id); group.appendChild(title);
+        const note = document.createElement('div'); note.className = 'lib-note'; note.textContent = g.note; group.appendChild(note);
+        const grid = document.createElement('div'); grid.className = 'comp-grid';
+        keys.forEach(key => {
+            const comp = LIBRARY[key], card = document.createElement('div');
+            card.className = 'comp-card'; card.draggable = true; card.dataset.key = key;
+            card.innerHTML = `<div class="comp-info"><span class="comp-name">${comp.title}</span><span class="comp-iso">${comp.iso}</span></div><span class="add-icon">+</span>`;
+            card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', key); e.dataTransfer.effectAllowed = 'copy'; });
+            card.addEventListener('click', () => libSpawnAtCentre(key));
+            grid.appendChild(card);
+        });
+        group.appendChild(grid); container.appendChild(group);
+    });
+    filterComponents();
+}
+function filterComponents() {
+    const q = (document.getElementById('searchInput') || { value: '' }).value.trim().toLowerCase(); LIB_NAV.query = q;
+    document.querySelectorAll('#paletteContainer .category-group').forEach(group => {
+        const gid = group.dataset.group; let shown = 0;
+        group.querySelectorAll('.comp-card').forEach(card => {
+            const key = card.dataset.key, def = LIBRARY[key] || {}, hay = ((def.title || '') + ' ' + (def.iso || '') + ' ' + (def.short || '') + ' ' + key).toLowerCase();
+            const ok = (!q || hay.includes(q)) && (LIB_NAV.cat === 'all' || LIB_NAV.cat === gid);
+            card.style.display = ok ? 'flex' : 'none'; if (ok) shown++;
+        });
+        group.style.display = shown ? '' : 'none';
+        group.classList.toggle('open', q ? shown > 0 : (LIB_NAV.cat !== 'all' ? LIB_NAV.cat === gid : LIB_NAV.open.has(gid)));
+    });
+}
+
 
 // ── APPLICATION STATE & GLOBALS ──
 
@@ -5770,7 +6702,7 @@ function loadSensorDemo() {
             updateUI();
         }
 
-        function populateSidebar() {
+        function populateSidebarLegacy() {
             const container = document.getElementById('paletteContainer');
             if (!container) return;
             container.innerHTML = '';
@@ -5827,7 +6759,7 @@ function loadSensorDemo() {
             }
         }
 
-        function filterComponents() {
+        function filterComponentsLegacy() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             const cards = document.querySelectorAll('.comp-card');
             cards.forEach(card => {
@@ -5862,7 +6794,8 @@ function loadSensorDemo() {
             };
 
             if (def.defaultState) Object.assign(comp.state, def.defaultState);   // e.g. default actuators of pilot-operated valves
-            if (key === 'prox_inductive') sensorAutoLink(comp);                   // watches the nearest cylinder
+            if (key === 'prox_inductive') sensorAutoLink(comp);
+            signalOnSpawn(comp);                   // watches the nearest cylinder
             placedComponents.push(comp);
             selectedCompId = comp.id;
             selectedWireId = null;
@@ -5939,6 +6872,7 @@ function loadSensorDemo() {
                         const dcvInfo = (simEngine && def.dcv) ? dcvClickInfo(comp, def, pos.wx, pos.wy) : null;
                         pendingDcvMode = dcvInfo ? { compId: comp.id, pos: dcvInfo.pos, momentary: dcvInfo.momentary } : null;
                         if (dcvInfo && dcvInfo.momentary) dcvPedalPress(comp.id, dcvInfo.pos);    // foot pedal: held while the mouse button is down
+                        if (operatorMouseDown(comp, pos)) draggingCompId = null;                    // pedal / lever / joystick: drag the handle instead of moving the part
                         dragOffsetX = pos.wx - comp.x;
                         dragOffsetY = pos.wy - comp.y;
 
@@ -6013,6 +6947,7 @@ function loadSensorDemo() {
 
                 hoseMouseUp();
                 dcvMouseUp();
+                operatorMouseUp();
 
                 draggingCompId = null;
             });
@@ -6044,6 +6979,7 @@ canvas.addEventListener('wheel', (e) => {
 
             window.addEventListener('keydown', (e) => {
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+                if (operatorKeyDown(e)) return;               // pedal / lever / joystick keys (physics running) – before the other shortcuts
                 if (hoseKeyDown(e)) return;
 
                 if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -6120,7 +7056,7 @@ canvas.addEventListener('wheel', (e) => {
                     const p1 = getPortWorldPos(c1, w.fromPortId);
                     const p2 = getPortWorldPos(c2, w.toPortId);
                     const isSelected = (w.id === selectedWireId);
-                    if (w.style === 'electric') { drawElectricWire(ctx, w, isSelected); continue; }       // dotted signal wire
+                    if (isSignalWire(w)) { drawSignalWire(ctx, w, isSelected); continue; }       // dotted electrical wire / ivory pulley cable
                     const flowQ = (live && typeof w.flowLmin === 'number') ? w.flowLmin : null;
                     const nodeP = (live && typeof w.pressureBar === 'number') ? w.pressureBar : null;
 
@@ -6202,10 +7138,10 @@ canvas.addEventListener('wheel', (e) => {
                         const pw = getPortWorldPos(comp, p.id);
                         ctx.beginPath();
                         ctx.arc(pw.x, pw.y, 5, 0, Math.PI * 2);
-                        ctx.fillStyle = (p.type === 'pressure') ? '#ef4444' : (p.type === 'tank') ? '#3b82f6' : (p.type === 'pilot') ? '#06b6d4' : (p.type === 'electric') ? '#facc15' : '#22c55e';
+                        ctx.fillStyle = (p.type === 'pressure') ? '#ef4444' : (p.type === 'tank') ? '#3b82f6' : (p.type === 'pilot') ? '#06b6d4' : (p.type === 'electric') ? '#facc15' : (p.type === 'string') ? '#E8DDBF' : '#22c55e';
                         ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
 
-                        if (live && p.type !== 'electric') {
+                        if (live && !SIGNAL_TYPES.includes(p.type)) {
                             const pp = simEngine.getPortPressure(comp.id, p.id);
                             if (pp !== null) {
                                 ctx.beginPath(); ctx.arc(pw.x, pw.y, 8, 0, Math.PI * 2);
@@ -6498,7 +7434,7 @@ canvas.addEventListener('wheel', (e) => {
                     const c1 = placedComponents.find(c => c.id === w.fromCompId);
                     const c2 = placedComponents.find(c => c.id === w.toCompId);
                     card.innerHTML = `
-                        <div class="prop-row"><span class="prop-label">Object:</span><span class="prop-val">${w.style === 'electric' ? 'Electrical Wire (dotted)' : 'Hose Conductor'}</span></div>
+                        <div class="prop-row"><span class="prop-label">Object:</span><span class="prop-val">${w.style === 'electric' ? 'Electrical Wire (dotted)' : w.style === 'string' ? 'Pulley Cable (ivory)' : 'Hose Conductor'}</span></div>
                         <div class="prop-row"><span class="prop-label">From:</span><span class="prop-val">${c1 ? c1.tag : '?'} : ${w.fromPortId}</span></div>
                         <div class="prop-row"><span class="prop-label">To:</span><span class="prop-val">${c2 ? c2.tag : '?'} : ${w.toPortId}</span></div>
                         <div class="prop-row"><span class="prop-label">Style:</span><span class="prop-val">${w.style}</span></div>
